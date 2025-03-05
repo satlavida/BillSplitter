@@ -1,12 +1,36 @@
-# React + Vite
+# Bill Splitter React App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A simple React application for splitting bills. It guides you through adding people, items, assigning consumption, and calculating the final totals including tax.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **State Management:** Uses `useReducer` for handling state.
+- **Global Access:** Implements Context API for global state sharing.
+- **Persistence:** Stores data in `localStorage` to retain progress.
+- **User Flow:** Step-by-step process for adding people, items, and assigning items.
+- **Styling:** Built with Tailwind CSS for a clean, responsive UI.
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript and enable type-aware lint rules. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. **Clone the repository:**
+
+   ```bash
+
+   git clone https://github.com/satlavida/BillSplitter.git
+   cd bill-splitter
+   ```
+2. **Install dependencies:**
+   ```bash
+
+   npm install
+   ```
+3. Run the app:
+   ```bash
+
+   npm run dev
+   ```
+
+## TODO: 
+1. Select All in People Assignment: Implement a feature to select all people for an item at once.
+2. Print Area Definition for PDF Export: Define a print-friendly area for exporting the bill summary as a PDF.
+3. CSV/JSON Export: Add functionality to export bill details in CSV and JSON formats.
