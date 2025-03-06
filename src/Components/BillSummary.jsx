@@ -1,16 +1,124 @@
-import { useContext } from 'react';
+import { useContext, useMemo, memo, useCallback } from 'react';
 import { BillContext, GO_TO_STEP, RESET } from '../BillContext';
+import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 
+// PersonItemRow component for individual item rows
+const PersonItemRow = memo(({ item, formatCurrency }) => {
+  return (
+    <li className="flex justify-between items-start py-2">
+      <div>
+        <span>{item.name}</span>
+        {item.sharedWith > 1 && (
+          <span className="text-sm text-zinc-600 block">
+            Split by {item.sharedWith}
+          </span>
+        )}
+      </div>
+      <span className="font-medium">{formatCurrency(item.share)}</span>
+    </li>
+  );
+});
+
+// PersonCard component for each person's summary
+const PersonCard = memo(({ person, formatCurrency }) => {
+  return (
+    <Card>
+      <h3 className="text-lg font-bold mb-3 pb-2 border-b border-zinc-100">{person.name}</h3>
+      
+      {person.items.length > 0 ? (
+        <>
+          <ul className="mb-4 space-y-1 divide-y divide-zinc-100">
+            {person.items.map(item => (
+              <PersonItemRow
+                key={item.id}
+                item={item}
+                formatCurrency={formatCurrency}
+              />
+            ))}
+          </ul>
+          
+          <div className="border-t border-zinc-100 pt-3 space-y-1">
+            <div className="flex justify-between">
+              <span>Subtotal:</span>
+              <span>{formatCurrency(person.subtotal)}</span>
+            </div>
+            
+            {person.tax > 0 && (
+              <div className="flex justify-between">
+                <span>Tax:</span>
+                <span>{formatCurrency(person.tax)}</span>
+              </div>
+            )}
+            
+            <div className="flex justify-between font-bold text-lg pt-1">
+              <span>Total:</span>
+              <span>{formatCurrency(person.total)}</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="text-zinc-500">No items assigned</p>
+      )}
+    </Card>
+  );
+});
+
+// TotalSummary component for the overall bill total
+const TotalSummary = memo(({ taxAmount, grandTotal, formatCurrency }) => {
+  return (
+    <div className="mb-6 p-4 bg-zinc-50 rounded-lg border border-zinc-200">
+      <div className="flex justify-between items-center">
+        <span className="font-medium">Total Tax:</span>
+        <span>{formatCurrency(parseFloat(taxAmount))}</span>
+      </div>
+      <div className="flex justify-between items-center font-bold text-lg mt-1">
+        <span>Grand Total:</span>
+        <span>{formatCurrency(grandTotal)}</span>
+      </div>
+    </div>
+  );
+});
+
+// EditButtons component for navigation
+const EditButtons = memo(({ onEdit }) => {
+  return (
+    <div className="space-x-2 mb-4 no-print">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => onEdit(1)}
+      >
+        Edit People
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => onEdit(2)}
+      >
+        Edit Items
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => onEdit(3)}
+      >
+        Edit Assignments
+      </Button>
+    </div>
+  );
+});
+
+// Main BillSummary component
 const BillSummary = () => {
-  const { state, dispatch } = useContext(BillContext);
+  const { state, dispatch, formatCurrency } = useContext(BillContext);
   
   // Calculate subtotals and tax for each person
-  const calculatePersonTotals = () => {
-    const personTotals = {};
+  const personTotals = useMemo(() => {
+    const totals = {};
     
     // Initialize totals for each person
     state.people.forEach(person => {
-      personTotals[person.id] = {
+      totals[person.id] = {
         id: person.id,
         name: person.name,
         items: [],
@@ -29,8 +137,8 @@ const BillSummary = () => {
       const pricePerPerson = totalItemPrice / item.consumedBy.length;
       
       item.consumedBy.forEach(personId => {
-        if (personTotals[personId]) {
-          personTotals[personId].items.push({
+        if (totals[personId]) {
+          totals[personId].items.push({
             id: item.id,
             name: item.name,
             price: parseFloat(item.price),
@@ -39,17 +147,17 @@ const BillSummary = () => {
             share: pricePerPerson
           });
           
-          personTotals[personId].subtotal += pricePerPerson;
+          totals[personId].subtotal += pricePerPerson;
         }
       });
     });
     
     // Calculate tax proportionally based on subtotals
     if (state.taxAmount > 0) {
-      const totalBeforeTax = Object.values(personTotals).reduce((sum, person) => sum + person.subtotal, 0);
+      const totalBeforeTax = Object.values(totals).reduce((sum, person) => sum + person.subtotal, 0);
       
       if (totalBeforeTax > 0) {
-        Object.values(personTotals).forEach(person => {
+        Object.values(totals).forEach(person => {
           // Proportional tax based on their share of the bill
           person.tax = (person.subtotal / totalBeforeTax) * parseFloat(state.taxAmount);
           person.total = person.subtotal + person.tax;
@@ -57,117 +165,68 @@ const BillSummary = () => {
       }
     } else {
       // No tax, so total equals subtotal
-      Object.values(personTotals).forEach(person => {
+      Object.values(totals).forEach(person => {
         person.total = person.subtotal;
       });
     }
     
-    return Object.values(personTotals);
-  };
+    return Object.values(totals);
+  }, [state.people, state.items, state.taxAmount]);
   
-  const personTotals = calculatePersonTotals();
+  // Calculate grand total
+  const grandTotal = useMemo(() => {
+    return personTotals.reduce((sum, person) => sum + person.total, 0);
+  }, [personTotals]);
   
-  const handleEdit = (step) => {
+  const handleEdit = useCallback((step) => {
     dispatch({ type: GO_TO_STEP, payload: step });
-  };
+  }, [dispatch]);
   
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     const confirm = window.confirm('Are you sure you want to start over? This will reset everything.');
     if (confirm) {
       dispatch({ type: RESET });
     }
-  };
+  }, [dispatch]);
+  
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
   
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">Bill Summary</h2>
       
-      {personTotals.map(person => (
-        <div key={person.id} className="mb-6 p-4 border border-zinc-200 rounded-xl bg-white shadow-sm">
-          <h3 className="text-lg font-bold mb-3 pb-2 border-b border-zinc-100">{person.name}</h3>
+      <PrintWrapper>
+        <div id="printable-bill">
+          {personTotals.map(person => (
+            <PersonCard 
+              key={person.id}
+              person={person}
+              formatCurrency={formatCurrency}
+            />
+          ))}
           
-          {person.items.length > 0 ? (
-            <>
-              <ul className="mb-4 space-y-2">
-                {person.items.map(item => (
-                  <li key={item.id} className="flex justify-between items-start">
-                    <div>
-                      <span>{item.name}</span>
-                      {item.sharedWith > 1 && (
-                        <span className="text-sm text-gray-600 block">
-                          Split by {item.sharedWith}
-                        </span>
-                      )}
-                    </div>
-                    <span className="font-medium">${item.share.toFixed(2)}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <div className="border-t border-zinc-100 pt-3 space-y-1">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>${person.subtotal.toFixed(2)}</span>
-                </div>
-                
-                {state.taxAmount > 0 && (
-                  <div className="flex justify-between">
-                    <span>Tax:</span>
-                    <span>${person.tax.toFixed(2)}</span>
-                  </div>
-                )}
-                
-                <div className="flex justify-between font-bold text-lg pt-1">
-                  <span>Total:</span>
-                  <span>${person.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </>
-          ) : (
-            <p className="text-gray-500">No items assigned</p>
-          )}
+          <TotalSummary 
+            taxAmount={state.taxAmount}
+            grandTotal={grandTotal}
+            formatCurrency={formatCurrency}
+          />
         </div>
-      ))}
+      </PrintWrapper>
       
-      <div className="mb-6 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
-        <div className="flex justify-between items-center">
-          <span className="font-medium">Total Tax:</span>
-          <span>${parseFloat(state.taxAmount).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center font-bold text-lg">
-          <span>Grand Total:</span>
-          <span>${personTotals.reduce((sum, person) => sum + person.total, 0).toFixed(2)}</span>
-        </div>
-      </div>
-      
-      <div className="flex flex-wrap justify-between">
-        <div className="space-x-2 mb-4">
-          <button
-            onClick={() => handleEdit(1)}
-            className="bg-zinc-200 text-zinc-700 px-3 py-1 rounded-md hover:bg-zinc-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-1 transition-colors"
-          >
-            Edit People
-          </button>
-          <button
-            onClick={() => handleEdit(2)}
-            className="bg-gray-200 text-gray-700 px-3 py-1 rounded hover:bg-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-500"
-          >
-            Edit Items
-          </button>
-          <button
-            onClick={() => handleEdit(3)}
-            className="bg-gray-200 text-gray-700 px-3 py-1 rounded hover:bg-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-500"
-          >
-            Edit Assignments
-          </button>
-        </div>
+      <div className="flex flex-wrap justify-between no-print">
+        <EditButtons onEdit={handleEdit} />
         
-        <button
-          onClick={handleReset}
-          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 transition-all"
-        >
-          Start Over
-        </button>
+        <div className="space-x-2">
+          <PrintButton onClick={handlePrint} />
+          <Button
+            variant="danger"
+            onClick={handleReset}
+          >
+            Start Over
+          </Button>
+        </div>
       </div>
     </div>
   );

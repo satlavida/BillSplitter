@@ -1,12 +1,12 @@
-import { useContext } from 'react';
+import { useContext, memo } from 'react';
 import { BillContext, BillProvider } from './BillContext';
 import PeopleInput from './components/PeopleInput';
 import ItemsInput from './components/ItemsInput';
 import ItemAssignment from './components/ItemAssignment';
 import BillSummary from './components/BillSummary';
 import './App.css';
-
-const StepIndicator = ({ currentStep }) => {
+// StepIndicator component
+const StepIndicator = memo(({ currentStep }) => {
   const steps = [
     { number: 1, title: "People" },
     { number: 2, title: "Items" },
@@ -15,11 +15,11 @@ const StepIndicator = ({ currentStep }) => {
   ];
   
   return (
-    <div className="mb-8">
+    <div className="mb-8 no-print">
       <div className="flex items-center justify-between">
         {steps.map((step) => (
           <div key={step.number} className="flex flex-col items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
               currentStep >= step.number ? 'bg-blue-600 text-white' : 'bg-zinc-200 text-zinc-600'
             }`}>
               {step.number}
@@ -39,8 +39,9 @@ const StepIndicator = ({ currentStep }) => {
       </div>
     </div>
   );
-};
+});
 
+// App content component
 const AppContent = () => {
   const { state } = useContext(BillContext);
   
@@ -61,7 +62,7 @@ const AppContent = () => {
   };
   
   return (
-    <div className="min-h-screen text-gray-900 bg-zinc-100 py-8 px-4">
+    <div className="min-h-screen bg-zinc-100 py-8 px-4">
       <div className="max-w-lg mx-auto bg-white p-6 rounded-xl shadow-lg ring-1 ring-zinc-200/50">
         <h1 className="text-2xl font-bold text-center mb-6">Bill Splitter</h1>
         <StepIndicator currentStep={state.step} />
@@ -71,6 +72,7 @@ const AppContent = () => {
   );
 };
 
+// Main App component
 const App = () => {
   return (
     <BillProvider>
