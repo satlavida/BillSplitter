@@ -1,5 +1,6 @@
-import { useContext, useCallback, memo } from 'react';
+import React, { useContext, useCallback, memo } from 'react';
 import { BillContext, ADD_PERSON, REMOVE_PERSON, NEXT_STEP } from '../BillContext';
+import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 
 // Isolated input component to prevent parent re-renders during typing
@@ -28,7 +29,11 @@ const PersonInputForm = memo(({ onAddPerson }) => {
           ref={inputRef}
           type="text"
           placeholder="Enter name"
-          className="flex-grow p-2 border border-zinc-300 rounded-l focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1"
+          className="flex-grow p-2 border border-zinc-300 dark:border-zinc-600 
+            bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+            rounded-l focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+            dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+            transition-colors"
         />
         <Button 
           type="submit"
@@ -49,11 +54,11 @@ const PersonListItem = memo(({ person, onRemove }) => {
   }, [onRemove, person.id]);
   
   return (
-    <li className="flex justify-between items-center p-2 bg-zinc-50 rounded-md border border-zinc-200 shadow-sm">
-      <span>{person.name}</span>
+    <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
+      <span className="dark:text-white">{person.name}</span>
       <button 
         onClick={handleRemove}
-        className="text-red-500 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 rounded-full transition-colors"
+        className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
         aria-label={`Remove ${person.name}`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -70,7 +75,7 @@ const PeopleList = memo(({ people, onRemove }) => {
   
   return (
     <>
-      <h3 className="text-lg font-medium mb-2">People</h3>
+      <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">People</h3>
       <ul className="mb-6 space-y-2">
         {people.map(person => (
           <PersonListItem 
@@ -87,6 +92,7 @@ const PeopleList = memo(({ people, onRemove }) => {
 // Main PeopleInput component
 const PeopleInput = () => {
   const { state, dispatch } = useContext(BillContext);
+  const { theme } = useTheme();
   
   // Use useCallback to prevent function recreation on each render
   const handleAddPerson = useCallback((name) => {
@@ -105,12 +111,9 @@ const PeopleInput = () => {
     }
   }, [state.people.length, dispatch]);
   
-  // Using console.log to demonstrate render behavior
-  console.log('PeopleInput component rendering');
-  
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Who's splitting the bill?</h2>
+      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who's splitting the bill?</h2>
       
       <Card>
         <PersonInputForm onAddPerson={handleAddPerson} />
@@ -132,8 +135,5 @@ const PeopleInput = () => {
     </div>
   );
 };
-
-// Fix the missing React import
-import React from 'react';
 
 export default PeopleInput;

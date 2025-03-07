@@ -1,4 +1,4 @@
-import { useContext, useMemo, memo } from 'react';
+import { useContext, useMemo, memo, useCallback } from 'react';
 import { 
   BillContext, 
   ASSIGN_ITEM, 
@@ -7,6 +7,7 @@ import {
   NEXT_STEP, 
   PREV_STEP 
 } from '../BillContext';
+import { useTheme } from '../ThemeContext';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
 
 // Individual Item Card component
@@ -24,23 +25,31 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency }) => {
       .join(', ');
   }, [item.consumedBy, people]);
   
+  const handleSelectAll = useCallback(() => {
+    onTogglePerson('all', item.id);
+  }, [onTogglePerson, item.id]);
+  
+  const handleDeselectAll = useCallback(() => {
+    onTogglePerson('none', item.id);
+  }, [onTogglePerson, item.id]);
+  
   return (
     <Card>
       <div className="mb-3">
-        <h3 className="text-lg font-medium">{item.name}</h3>
-        <p className="text-sm text-zinc-600">
+        <h3 className="text-lg font-medium text-zinc-800 dark:text-white transition-colors">{item.name}</h3>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
           {item.quantity > 1 ? `${item.quantity} × ` : ''}
           {formatCurrency(parseFloat(item.price))}
         </p>
       </div>
       
       <div className="flex justify-between items-center mb-3">
-        <p className="text-sm font-medium text-zinc-700">Select who consumed this:</p>
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors">Select who consumed this:</p>
         
         <SelectAllButton 
           allSelected={allSelected}
-          onSelectAll={() => onTogglePerson('all', item.id)}
-          onDeselectAll={() => onTogglePerson('none', item.id)}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
           size="sm"
         />
       </div>
@@ -58,12 +67,12 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency }) => {
       </div>
       
       {item.consumedBy.length > 0 && (
-        <div className="mt-3 pt-2 border-t border-zinc-100">
-          <p className="text-sm text-zinc-600">
+        <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-700 transition-colors">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
             <span className="font-medium">Split between:</span> {assignedNames}
           </p>
           {item.consumedBy.length > 1 && (
-            <p className="text-xs text-zinc-500 mt-1">
+            <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 transition-colors">
               Each person pays: {formatCurrency((parseFloat(item.price) * item.quantity / item.consumedBy.length))}
             </p>
           )}
@@ -76,8 +85,9 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency }) => {
 // Main ItemAssignment component
 const ItemAssignment = () => {
   const { state, dispatch, formatCurrency } = useContext(BillContext);
+  const { theme } = useTheme();
   
-  const handleTogglePerson = (personId, itemId) => {
+  const handleTogglePerson = useCallback((personId, itemId) => {
     if (personId === 'all') {
       dispatch({
         type: ASSIGN_ALL_PEOPLE,
@@ -111,13 +121,13 @@ const ItemAssignment = () => {
         peopleIds: newConsumedBy
       }
     });
-  };
+  }, [dispatch, state.items]);
   
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     dispatch({ type: PREV_STEP });
-  };
+  }, [dispatch]);
   
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     // Check if all items have at least one person assigned
     const unassignedItems = state.items.filter(item => item.consumedBy.length === 0);
     
@@ -127,11 +137,11 @@ const ItemAssignment = () => {
     }
     
     dispatch({ type: NEXT_STEP });
-  };
+  }, [dispatch, state.items]);
   
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Who consumed what?</h2>
+      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who consumed what?</h2>
       
       {state.items.map(item => (
         <ItemCard 

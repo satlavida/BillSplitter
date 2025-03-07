@@ -1,4 +1,5 @@
 import React, { forwardRef, memo } from 'react';
+import { useTheme } from '../ThemeContext';
 
 // Reusable Button component
 export const Button = memo(forwardRef(({ 
@@ -11,12 +12,12 @@ export const Button = memo(forwardRef(({
   className = '',
   ...props 
 }, ref) => {
-  // Button variants
+  // Button variants with dark mode support
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700',
-    secondary: 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300',
-    danger: 'bg-red-600 text-white hover:bg-red-700',
-    success: 'bg-green-600 text-white hover:bg-green-700',
+    primary: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600',
+    secondary: 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600',
+    danger: 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600',
+    success: 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600',
   };
   
   // Button sizes
@@ -34,7 +35,8 @@ export const Button = memo(forwardRef(({
         ${variants[variant] || variants.primary}
         ${sizes[size] || sizes.md}
         rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 
-        focus-visible:ring-blue-600 transition-colors
+        focus-visible:ring-blue-600 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+        transition-colors
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${className}
       `}
@@ -61,26 +63,30 @@ export const Input = memo(forwardRef(({
     <div className={`mb-4 ${containerClassName}`}>
       {label && (
         <label 
-          className="block text-sm font-medium text-zinc-700 mb-1"
+          className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1"
           htmlFor={props.id || props.name}
         >
           {label}
-          {required && <span className="text-red-600 ml-1">*</span>}
+          {required && <span className="text-red-600 dark:text-red-400 ml-1">*</span>}
         </label>
       )}
       <input
         ref={ref}
         type={type}
         className={`
-          w-full p-2 border border-zinc-300 rounded-md 
-          focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-          ${error ? 'border-red-500' : ''}
+          w-full p-2 border border-zinc-300 dark:border-zinc-600 
+          bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+          rounded-md focus:outline-none
+          focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+          dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+          transition-colors
+          ${error ? 'border-red-500 dark:border-red-400' : ''}
           ${className}
         `}
         required={required}
         {...props}
       />
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 }));
@@ -89,7 +95,7 @@ export const Input = memo(forwardRef(({
 export const Card = memo(({ children, className = '', ...props }) => {
   return (
     <div 
-      className={`mb-6 p-4 border border-zinc-200 rounded-xl bg-white shadow-sm ${className}`}
+      className={`mb-6 p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 shadow-sm transition-colors ${className}`}
       {...props}
     >
       {children}
@@ -112,8 +118,8 @@ export const ToggleButton = memo(({
       className={`
         px-3 py-1 rounded-full transition-colors
         ${selected 
-          ? 'bg-blue-600 text-white shadow-sm' 
-          : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+          ? 'bg-blue-600 text-white dark:bg-blue-500 shadow-sm' 
+          : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
         }
         ${className}
       `}
@@ -130,7 +136,7 @@ export const PrintButton = memo(({ onClick }) => {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 transition-colors"
+      className="flex items-center gap-2 bg-green-600 dark:bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 dark:focus-visible:ring-green-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-800 transition-colors"
     >
       <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -168,8 +174,10 @@ export const SelectAllButton = memo(({
       type="button"
       onClick={handleClick}
       className={`
-        px-3 py-1 bg-zinc-100 text-zinc-700 rounded-md hover:bg-zinc-200
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-1
+        px-3 py-1 bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300
+        rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-600
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:focus-visible:ring-zinc-400 
+        focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800
         transition-colors flex items-center gap-1
         ${className}
       `}

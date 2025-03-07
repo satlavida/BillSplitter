@@ -1,8 +1,9 @@
-import { useState, useContext, useRef, memo } from 'react';
+import { useState, useContext, useRef, memo, useCallback } from 'react';
 import { BillContext, ADD_ITEM, REMOVE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
-import { Button, Input, Card } from '../ui/components';
+import { useTheme } from '../ThemeContext';
+import { Button, Card } from '../ui/components';
 
-// Item form component
+// Item form component with optimized rendering
 const ItemForm = memo(({ onAddItem }) => {
   const [newItem, setNewItem] = useState({
     name: '',
@@ -11,8 +12,6 @@ const ItemForm = memo(({ onAddItem }) => {
   });
   
   const nameRef = useRef(null);
-  const priceRef = useRef(null);
-  const quantityRef = useRef(null);
   
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -38,7 +37,7 @@ const ItemForm = memo(({ onAddItem }) => {
     <form onSubmit={handleSubmit} className="mb-6">
       <div className="grid grid-cols-12 gap-2 mb-4">
         <div className="col-span-5">
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
             Item Name
           </label>
           <input
@@ -47,39 +46,49 @@ const ItemForm = memo(({ onAddItem }) => {
             value={newItem.name}
             onChange={(e) => setNewItem({...newItem, name: e.target.value})}
             placeholder="e.g., Pizza"
-            className="w-full p-2 border border-zinc-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1"
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+              transition-colors"
             required
           />
         </div>
         
         <div className="col-span-4">
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
             Price
           </label>
           <input
-            ref={priceRef}
             type="number"
             min="0"
             step="0.01"
             value={newItem.price}
             onChange={(e) => setNewItem({...newItem, price: e.target.value})}
             placeholder="0.00"
-            className="w-full p-2 border border-zinc-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1"
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+              transition-colors"
             required
           />
         </div>
         
         <div className="col-span-3">
-          <label className="block text-sm font-medium text-zinc-700 mb-1">
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
             Qty
           </label>
           <input
-            ref={quantityRef}
             type="number"
             min="1"
             value={newItem.quantity}
             onChange={(e) => setNewItem({...newItem, quantity: e.target.value})}
-            className="w-full p-2 border border-zinc-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1"
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+              transition-colors"
             required
           />
         </div>
@@ -97,18 +106,22 @@ const ItemForm = memo(({ onAddItem }) => {
 
 // Individual item list item
 const ItemListItem = memo(({ item, onRemove, formatCurrency }) => {
+  const handleRemove = useCallback(() => {
+    onRemove(item.id);
+  }, [item.id, onRemove]);
+  
   return (
-    <li className="flex justify-between items-center p-2 bg-zinc-50 rounded-md border border-zinc-200 shadow-sm">
+    <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
       <div>
-        <span className="font-medium">{item.name}</span>
-        <span className="ml-2 text-sm text-zinc-600">
+        <span className="font-medium dark:text-white transition-colors">{item.name}</span>
+        <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
           {item.quantity > 1 ? `${item.quantity} × ` : ''}
           {formatCurrency(Number(item.price))}
         </span>
       </div>
       <button 
-        onClick={() => onRemove(item.id)}
-        className="text-red-500 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 rounded-full transition-colors"
+        onClick={handleRemove}
+        className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
         aria-label={`Remove ${item.name}`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -125,7 +138,7 @@ const ItemsList = memo(({ items, onRemove, formatCurrency }) => {
   
   return (
     <>
-      <h3 className="text-lg font-medium mb-2">Items</h3>
+      <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">Items</h3>
       <ul className="mb-6 space-y-2">
         {items.map(item => (
           <ItemListItem 
@@ -146,7 +159,7 @@ const TaxInput = memo(({ taxAmount, onTaxChange }) => {
   
   return (
     <div className="mb-6">
-      <label className="block text-sm font-medium text-zinc-700 mb-1">
+      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
         Tax Amount
       </label>
       <input
@@ -157,7 +170,11 @@ const TaxInput = memo(({ taxAmount, onTaxChange }) => {
         value={taxAmount}
         onChange={onTaxChange}
         placeholder="0.00"
-        className="w-full p-2 border border-zinc-300 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1"
+        className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+          bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+          rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+          dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+          transition-colors"
       />
     </div>
   );
@@ -166,39 +183,40 @@ const TaxInput = memo(({ taxAmount, onTaxChange }) => {
 // Main ItemsInput component
 const ItemsInput = () => {
   const { state, dispatch, formatCurrency } = useContext(BillContext);
+  const { theme } = useTheme();
   const [taxAmount, setTaxAmount] = useState(state.taxAmount || '');
   
-  const handleAddItem = (itemData) => {
+  const handleAddItem = useCallback((itemData) => {
     dispatch({ 
       type: ADD_ITEM, 
       payload: itemData
     });
-  };
+  }, [dispatch]);
   
-  const handleRemoveItem = (id) => {
+  const handleRemoveItem = useCallback((id) => {
     dispatch({ type: REMOVE_ITEM, payload: id });
-  };
+  }, [dispatch]);
   
-  const handleTaxChange = (e) => {
+  const handleTaxChange = useCallback((e) => {
     setTaxAmount(e.target.value);
-  };
+  }, []);
   
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     dispatch({ type: PREV_STEP });
-  };
+  }, [dispatch]);
   
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (state.items.length > 0) {
       dispatch({ type: SET_TAX, payload: taxAmount });
       dispatch({ type: NEXT_STEP });
     } else {
       alert('Please add at least one item');
     }
-  };
+  }, [state.items.length, taxAmount, dispatch]);
   
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">What items are you splitting?</h2>
+      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
       
       <Card>
         <ItemForm onAddItem={handleAddItem} />

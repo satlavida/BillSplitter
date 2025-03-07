@@ -7,14 +7,14 @@ const PersonItemRow = memo(({ item, formatCurrency }) => {
   return (
     <li className="flex justify-between items-start py-2">
       <div>
-        <span>{item.name}</span>
+        <span className="dark:text-white transition-colors">{item.name}</span>
         {item.sharedWith > 1 && (
-          <span className="text-sm text-zinc-600 block">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400 block transition-colors">
             Split by {item.sharedWith}
           </span>
         )}
       </div>
-      <span className="font-medium">{formatCurrency(item.share)}</span>
+      <span className="font-medium dark:text-white transition-colors">{formatCurrency(item.share)}</span>
     </li>
   );
 });
@@ -23,11 +23,13 @@ const PersonItemRow = memo(({ item, formatCurrency }) => {
 const PersonCard = memo(({ person, formatCurrency }) => {
   return (
     <Card>
-      <h3 className="text-lg font-bold mb-3 pb-2 border-b border-zinc-100">{person.name}</h3>
+      <h3 className="text-lg font-bold mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-700 text-zinc-800 dark:text-white transition-colors">
+        {person.name}
+      </h3>
       
       {person.items.length > 0 ? (
         <>
-          <ul className="mb-4 space-y-1 divide-y divide-zinc-100">
+          <ul className="mb-4 space-y-1 divide-y divide-zinc-100 dark:divide-zinc-700 transition-colors">
             {person.items.map(item => (
               <PersonItemRow
                 key={item.id}
@@ -37,27 +39,27 @@ const PersonCard = memo(({ person, formatCurrency }) => {
             ))}
           </ul>
           
-          <div className="border-t border-zinc-100 pt-3 space-y-1">
+          <div className="border-t border-zinc-100 dark:border-zinc-700 pt-3 space-y-1 transition-colors">
             <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>{formatCurrency(person.subtotal)}</span>
+              <span className="text-zinc-700 dark:text-zinc-300 transition-colors">Subtotal:</span>
+              <span className="text-zinc-700 dark:text-zinc-300 transition-colors">{formatCurrency(person.subtotal)}</span>
             </div>
             
             {person.tax > 0 && (
               <div className="flex justify-between">
-                <span>Tax:</span>
-                <span>{formatCurrency(person.tax)}</span>
+                <span className="text-zinc-700 dark:text-zinc-300 transition-colors">Tax:</span>
+                <span className="text-zinc-700 dark:text-zinc-300 transition-colors">{formatCurrency(person.tax)}</span>
               </div>
             )}
             
             <div className="flex justify-between font-bold text-lg pt-1">
-              <span>Total:</span>
-              <span>{formatCurrency(person.total)}</span>
+              <span className="text-zinc-900 dark:text-white transition-colors">Total:</span>
+              <span className="text-zinc-900 dark:text-white transition-colors">{formatCurrency(person.total)}</span>
             </div>
           </div>
         </>
       ) : (
-        <p className="text-zinc-500">No items assigned</p>
+        <p className="text-zinc-500 dark:text-zinc-400 transition-colors">No items assigned</p>
       )}
     </Card>
   );
@@ -66,14 +68,14 @@ const PersonCard = memo(({ person, formatCurrency }) => {
 // TotalSummary component for the overall bill total
 const TotalSummary = memo(({ taxAmount, grandTotal, formatCurrency }) => {
   return (
-    <div className="mb-6 p-4 bg-zinc-50 rounded-lg border border-zinc-200">
+    <div className="mb-6 p-4 bg-zinc-50 dark:bg-zinc-700 rounded-lg border border-zinc-200 dark:border-zinc-600 transition-colors">
       <div className="flex justify-between items-center">
-        <span className="font-medium">Total Tax:</span>
-        <span>{formatCurrency(parseFloat(taxAmount))}</span>
+        <span className="font-medium text-zinc-800 dark:text-white transition-colors">Total Tax:</span>
+        <span className="text-zinc-800 dark:text-white transition-colors">{formatCurrency(parseFloat(taxAmount))}</span>
       </div>
       <div className="flex justify-between items-center font-bold text-lg mt-1">
-        <span>Grand Total:</span>
-        <span>{formatCurrency(grandTotal)}</span>
+        <span className="text-zinc-900 dark:text-white transition-colors">Grand Total:</span>
+        <span className="text-zinc-900 dark:text-white transition-colors">{formatCurrency(grandTotal)}</span>
       </div>
     </div>
   );
@@ -195,7 +197,7 @@ const BillSummary = () => {
   
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Bill Summary</h2>
+      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
       
       <PrintWrapper>
         <div id="printable-bill">
@@ -218,7 +220,7 @@ const BillSummary = () => {
       <div className="flex flex-wrap justify-between no-print">
         <EditButtons onEdit={handleEdit} />
         
-        <div className="space-x-2">
+        <div className="space-x-4 flex justify-between">
           <PrintButton onClick={handlePrint} />
           <Button
             variant="danger"
