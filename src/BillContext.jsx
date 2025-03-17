@@ -70,7 +70,7 @@ const billReducer = (state, action) => {
       newState = {
         ...state,
         items: [...state.items, {
-          id: Date.now().toString(),
+          id: Date.now().toString() + Math.random().toString(36),
           name: action.payload.name,
           price: parseFloat(action.payload.price),
           quantity: parseInt(action.payload.quantity) || 1,

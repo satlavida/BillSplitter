@@ -2,6 +2,7 @@ import { useState, useContext, useRef, memo, useCallback } from 'react';
 import { BillContext, ADD_ITEM, REMOVE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
+import ScanReceiptButton from './ScanReceiptButton';
 
 // Item form component with optimized rendering
 const ItemForm = memo(({ onAddItem }) => {
@@ -216,6 +217,7 @@ const ItemsInput = () => {
   
   return (
     <div>
+      <ScanReceiptButton />
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
       
       <Card>
