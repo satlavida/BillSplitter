@@ -1,8 +1,8 @@
-import React, { forwardRef, memo } from 'react';
+import React, { memo} from 'react';
 import { useTheme } from '../ThemeContext';
 
 // Reusable Button component
-export const Button = memo(forwardRef(({ 
+export const Button = memo(({ 
   children, 
   variant = 'primary', 
   size = 'md',
@@ -10,8 +10,9 @@ export const Button = memo(forwardRef(({
   onClick, 
   type = 'button',
   className = '',
+  ref,
   ...props 
-}, ref) => {
+}) => {
   // Button variants with dark mode support
   const variants = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600',
@@ -47,18 +48,19 @@ export const Button = memo(forwardRef(({
       {children}
     </button>
   );
-}));
+});
 
 // Input Field component
-export const Input = memo(forwardRef(({
+export const Input = memo(({
   label,
   type = 'text',
   error,
   className = '',
   containerClassName = '',
   required = false,
+  ref,
   ...props
-}, ref) => {
+}) => {
   return (
     <div className={`mb-4 ${containerClassName}`}>
       {label && (
@@ -89,7 +91,7 @@ export const Input = memo(forwardRef(({
       {error && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
-}));
+});
 
 // Card component
 export const Card = memo(({ children, className = '', ...props }) => {
@@ -267,14 +269,15 @@ export const Modal = memo(({
 });
 
 // File upload component
-export const FileUpload = memo(forwardRef(({ 
+export const FileUpload = memo(({ 
   label, 
   accept, 
   onChange, 
   error,
-  containerClassName = '', 
+  containerClassName = '',
+  ref,
   ...props 
-}, ref) => {
+}) => {
   return (
     <div className={`mb-4 ${containerClassName}`}>
       {label && (
@@ -297,7 +300,7 @@ export const FileUpload = memo(forwardRef(({
       {error && <p className="mt-1 text-sm text-red-600 dark:text-red-400 transition-colors">{error}</p>}
     </div>
   );
-}));
+});
 
 // Loading spinner component
 export const Spinner = memo(({ size = 'md', className = '' }) => {

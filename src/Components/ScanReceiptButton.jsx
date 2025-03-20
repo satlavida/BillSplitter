@@ -5,7 +5,7 @@ import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 const API_URL = import.meta.env.VITE_WORKER_URL;
 
 // Receipt Upload Form Component
-const ReceiptUploadForm = ({ onSubmit, isLoading, error, fileInputRef }) => {
+const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef }) => {
   return (
     <form onSubmit={onSubmit}>
       <FileUpload
@@ -22,7 +22,7 @@ const ReceiptUploadForm = ({ onSubmit, isLoading, error, fileInputRef }) => {
       <div className="flex justify-end space-x-2 mt-4">
         <Button
           variant="secondary"
-          onClick={onSubmit.onCancel}
+          onClick={onCancel}
           type="button"
         >
           Cancel
