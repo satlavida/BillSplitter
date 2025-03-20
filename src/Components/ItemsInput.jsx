@@ -1,4 +1,4 @@
-import { useState, useContext, useRef, memo, useCallback, useMemo } from 'react';
+import { useState, useContext, useRef, memo, useCallback} from 'react';
 import { BillContext, ADD_ITEM, REMOVE_ITEM, UPDATE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
@@ -249,6 +249,13 @@ const ItemsInput = () => {
       alert('Please add at least one item');
     }
   }, [state.items.length, taxAmount, dispatch]);
+
+  const subtotal = state.items.reduce(
+    (sum, item) => sum + (parseFloat(item.price) * item.quantity), 
+    0
+  );
+  const tax = parseFloat(taxAmount) || 0;
+  const total = subtotal + tax;
   
   return (
     <div>
@@ -273,25 +280,13 @@ const ItemsInput = () => {
             onTaxChange={handleTaxChange}
           />
           
-          {/* Bill Totals Summary */}
-          {useMemo(() => {
-            const subtotal = state.items.reduce(
-              (sum, item) => sum + (parseFloat(item.price) * item.quantity), 
-              0
-            );
-            const tax = parseFloat(taxAmount) || 0;
-            const total = subtotal + tax;
-            
-            return (
-              <BillTotalsSummary
-                subtotal={subtotal}
-                taxAmount={tax}
-                grandTotal={total}
-                formatCurrency={formatCurrency}
-                className="mb-6"
-              />
-            );
-          }, [state.items, taxAmount, formatCurrency])}
+          <BillTotalsSummary
+            subtotal={subtotal}
+            taxAmount={tax}
+            grandTotal={total}
+            formatCurrency={formatCurrency}
+            className="mb-6"
+          />
         </>
       )}
 
