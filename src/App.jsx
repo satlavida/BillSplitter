@@ -8,8 +8,9 @@ import ItemAssignment from './components/ItemAssignment';
 import BillSummary from './components/BillSummary';
 import './App.css'
 
-// StepIndicator component
+// StepIndicator component 
 const StepIndicator = memo(({ currentStep }) => {
+  const { dispatch } = useContext(BillContext);
   const steps = [
     { number: 1, title: "People" },
     { number: 2, title: "Items" },
@@ -17,11 +18,23 @@ const StepIndicator = memo(({ currentStep }) => {
     { number: 4, title: "Summary" }
   ];
   
+  // Handler for when a step is clicked
+  const handleStepClick = (stepNumber) => {
+    dispatch({ type: 'GO_TO_STEP', payload: stepNumber });
+  };
+  
   return (
     <div className="mb-8 no-print">
       <div className="flex items-center justify-between">
         {steps.map((step) => (
-          <div key={step.number} className="flex flex-col items-center">
+          <div 
+            key={step.number} 
+            className={`flex flex-col items-center cursor-pointer transition-opacity hover:opacity-80`}
+            onClick={() => handleStepClick(step.number)}
+            role="button"
+            aria-label={`Go to step ${step.number}: ${step.title}`}
+            tabIndex={0}
+          >
             <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
               currentStep >= step.number
                 ? 'bg-blue-600 text-white dark:bg-blue-500'
