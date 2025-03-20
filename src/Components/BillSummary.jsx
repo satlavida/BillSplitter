@@ -1,6 +1,7 @@
 import { useContext, useMemo, memo, useCallback } from 'react';
 import { BillContext, GO_TO_STEP, RESET } from '../BillContext';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
+import BillTotalsSummary from './BillTotalsSummary';
 
 // BillTitle component for displaying the title in summary view
 const BillTitle = ({ title }) => {
@@ -78,21 +79,6 @@ const PersonCard = memo(({ person, formatCurrency }) => {
   );
 });
 
-// TotalSummary component for the overall bill total
-const TotalSummary = memo(({ taxAmount, grandTotal, formatCurrency }) => {
-  return (
-    <div className="mb-6 p-4 bg-zinc-50 dark:bg-zinc-700 rounded-lg border border-zinc-200 dark:border-zinc-600 transition-colors">
-      <div className="flex justify-between items-center">
-        <span className="font-medium text-zinc-800 dark:text-white transition-colors">Total Tax:</span>
-        <span className="text-zinc-800 dark:text-white transition-colors">{formatCurrency(parseFloat(taxAmount))}</span>
-      </div>
-      <div className="flex justify-between items-center font-bold text-lg mt-1">
-        <span className="text-zinc-900 dark:text-white transition-colors">Grand Total:</span>
-        <span className="text-zinc-900 dark:text-white transition-colors">{formatCurrency(grandTotal)}</span>
-      </div>
-    </div>
-  );
-});
 
 // EditButtons component for navigation
 const EditButtons = memo(({ onEdit }) => {
@@ -225,10 +211,12 @@ const BillSummary = () => {
             />
           ))}
           
-          <TotalSummary 
-            taxAmount={state.taxAmount}
+          <BillTotalsSummary 
+            subtotal={personTotals.reduce((sum, person) => sum + person.subtotal, 0)}
+            taxAmount={parseFloat(state.taxAmount) || 0}
             grandTotal={grandTotal}
             formatCurrency={formatCurrency}
+            className="mb-6"
           />
         </div>
       </PrintWrapper>

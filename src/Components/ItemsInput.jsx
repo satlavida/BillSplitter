@@ -1,9 +1,10 @@
-import { useState, useContext, useRef, memo, useCallback } from 'react';
+import { useState, useContext, useRef, memo, useCallback, useMemo } from 'react';
 import { BillContext, ADD_ITEM, REMOVE_ITEM, UPDATE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
+import BillTotalsSummary from './BillTotalsSummary';
 
 // Item form component with optimized rendering
 const ItemForm = memo(({ onAddItem }) => {
@@ -266,12 +267,34 @@ const ItemsInput = () => {
       />
       
       {state.items.length > 0 && (
-        <TaxInput 
-          taxAmount={taxAmount}
-          onTaxChange={handleTaxChange}
-        />
+        <>
+          <TaxInput 
+            taxAmount={taxAmount}
+            onTaxChange={handleTaxChange}
+          />
+          
+          {/* Bill Totals Summary */}
+          {useMemo(() => {
+            const subtotal = state.items.reduce(
+              (sum, item) => sum + (parseFloat(item.price) * item.quantity), 
+              0
+            );
+            const tax = parseFloat(taxAmount) || 0;
+            const total = subtotal + tax;
+            
+            return (
+              <BillTotalsSummary
+                subtotal={subtotal}
+                taxAmount={tax}
+                grandTotal={total}
+                formatCurrency={formatCurrency}
+                className="mb-6"
+              />
+            );
+          }, [state.items, taxAmount, formatCurrency])}
+        </>
       )}
-      
+
       <div className="flex justify-between">
         <Button
           variant="secondary"
