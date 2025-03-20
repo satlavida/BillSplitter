@@ -232,3 +232,114 @@ export const PrintWrapper = memo(({ children }) => {
     </div>
   );
 });
+
+// Modal component
+export const Modal = memo(({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  className = '',
+  ...props 
+}) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className={`bg-white dark:bg-zinc-800 rounded-lg p-6 max-w-md w-full transition-colors ${className}`} {...props}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold dark:text-white transition-colors">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 focus:outline-none"
+            aria-label="Close"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+});
+
+// File upload component
+export const FileUpload = memo(forwardRef(({ 
+  label, 
+  accept, 
+  onChange, 
+  error,
+  containerClassName = '', 
+  ...props 
+}, ref) => {
+  return (
+    <div className={`mb-4 ${containerClassName}`}>
+      {label && (
+        <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors">
+          {label}
+        </label>
+      )}
+      <input
+        type="file"
+        ref={ref}
+        accept={accept}
+        onChange={onChange}
+        className="block w-full text-sm text-zinc-700 dark:text-zinc-300 transition-colors
+          file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 
+          file:text-sm file:font-medium 
+          file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 
+          dark:file:bg-blue-900 dark:file:text-blue-200"
+        {...props}
+      />
+      {error && <p className="mt-1 text-sm text-red-600 dark:text-red-400 transition-colors">{error}</p>}
+    </div>
+  );
+}));
+
+// Loading spinner component
+export const Spinner = memo(({ size = 'md', className = '' }) => {
+  const sizes = {
+    sm: 'h-3 w-3',
+    md: 'h-4 w-4',
+    lg: 'h-6 w-6',
+  };
+  
+  return (
+    <svg 
+      className={`animate-spin ${sizes[size] || sizes.md} ${className}`} 
+      xmlns="http://www.w3.org/2000/svg" 
+      fill="none" 
+      viewBox="0 0 24 24"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  );
+});
+
+// Alert component
+export const Alert = memo(({ 
+  type = 'info', 
+  children,
+  className = '',
+  ...props 
+}) => {
+  const types = {
+    info: 'bg-blue-50 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    success: 'bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200',
+    warning: 'bg-yellow-50 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    error: 'bg-red-50 text-red-800 dark:bg-red-900 dark:text-red-200',
+  };
+  
+  return (
+    <div 
+      className={`mb-4 p-3 rounded ${types[type] || types.info} transition-colors ${className}`}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+});

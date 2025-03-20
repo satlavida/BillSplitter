@@ -1,8 +1,51 @@
 import React, { useState, useContext, useRef } from 'react';
-import { BillContext } from '../BillContext'; 
+import { BillContext, ADD_ITEM, SET_TAX } from '../BillContext';
+import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 
 const API_URL = import.meta.env.VITE_WORKER_URL;
-console.log(API_URL);
+
+// Receipt Upload Form Component
+const ReceiptUploadForm = ({ onSubmit, isLoading, error, fileInputRef }) => {
+  return (
+    <form onSubmit={onSubmit}>
+      <FileUpload
+        ref={fileInputRef}
+        label="Select receipt image"
+        accept="image/*"
+        error={error}
+      />
+
+      <Alert type="warning">
+        <p>⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis. The data may be used for training AI models.</p>
+      </Alert>
+
+      <div className="flex justify-end space-x-2 mt-4">
+        <Button
+          variant="secondary"
+          onClick={onSubmit.onCancel}
+          type="button"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <div className="flex items-center">
+              <Spinner className="mr-2" />
+              Processing...
+            </div>
+          ) : (
+            'Upload Receipt'
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+// Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
   const { dispatch } = useContext(BillContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -56,6 +99,29 @@ const ScanReceiptButton = () => {
     });
   };
 
+  const processReceiptItems = (data) => {
+    // Add items to state
+    data.items.forEach(item => {
+      dispatch({
+        type: ADD_ITEM,
+        payload: {
+          name: item.name,
+          price: parseFloat(item.price) || 0,
+          quantity: parseInt(item.quantity, 10) || 1,
+          consumedBy: []
+        }
+      });
+    });
+
+    // Set tax amount
+    if (typeof data.tax === 'number' || typeof data.tax === 'string') {
+      dispatch({
+        type: SET_TAX,
+        payload: parseFloat(data.tax) || 0
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -101,26 +167,8 @@ const ScanReceiptButton = () => {
         throw new Error('Invalid response format: missing items array');
       }
       
-      // Process response: add items to state
-      data.items.forEach(item => {
-        dispatch({
-          type: 'ADD_ITEM',
-          payload: {
-            name: item.name,
-            price: parseFloat(item.price) || 0,
-            quantity: parseInt(item.quantity, 10) || 1,
-            consumedBy: []
-          }
-        });
-      });
-
-      // Set tax amount
-      if (typeof data.tax === 'number' || typeof data.tax === 'string') {
-        dispatch({
-          type: 'SET_TAX',
-          payload: parseFloat(data.tax) || 0
-        });
-      }
+      // Process the received data
+      processReceiptItems(data);
 
       // Close modal after successful processing
       closeModal();
@@ -134,72 +182,27 @@ const ScanReceiptButton = () => {
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="primary"
         onClick={openModal}
-        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
+        className="mb-4"
       >
         Scan Receipt
-      </button>
+      </Button>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4 dark:text-white">Upload Receipt Image</h2>
-            
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select receipt image
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  className="block w-full text-sm text-gray-700 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-200"
-                />
-              </div>
-
-              <div className="mb-6 p-3 bg-yellow-50 dark:bg-yellow-900 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                <p>⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis. The data may be used for training AI models.</p>
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900 rounded text-sm text-red-800 dark:text-red-200">
-                  {error}
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700"
-                >
-                  {isLoading ? (
-                    <div className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </div>
-                  ) : (
-                    'Upload Receipt'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title="Upload Receipt Image"
+      >
+        <ReceiptUploadForm
+          onSubmit={handleSubmit}
+          onCancel={closeModal}
+          isLoading={isLoading}
+          error={error}
+          fileInputRef={fileInputRef}
+        />
+      </Modal>
     </>
   );
 };
