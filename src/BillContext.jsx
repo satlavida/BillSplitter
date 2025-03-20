@@ -27,6 +27,7 @@ const loadState = () => {
 // Action types
 export const ADD_PERSON = 'ADD_PERSON';
 export const REMOVE_PERSON = 'REMOVE_PERSON';
+export const UPDATE_PERSON = 'UPDATE_PERSON';
 export const ADD_ITEM = 'ADD_ITEM';
 export const REMOVE_ITEM = 'REMOVE_ITEM';
 export const UPDATE_ITEM = 'UPDATE_ITEM';
@@ -65,6 +66,17 @@ const billReducer = (state, action) => {
           ...item,
           consumedBy: item.consumedBy.filter(id => id !== action.payload)
         }))
+      };
+      break;
+
+    case UPDATE_PERSON:
+      newState = {
+        ...state,
+        people: state.people.map(person => 
+          person.id === action.payload.id 
+            ? { ...person, name: action.payload.name } 
+            : person
+        )
       };
       break;
       

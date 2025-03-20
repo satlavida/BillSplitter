@@ -1,8 +1,9 @@
-import React, { useContext, useCallback, useRef, memo } from 'react';
-import { BillContext, ADD_PERSON, REMOVE_PERSON, NEXT_STEP, SET_TITLE } from '../BillContext';
+import React, { useContext, useCallback, useRef, memo, useState } from 'react';
+import { BillContext, ADD_PERSON, REMOVE_PERSON, UPDATE_PERSON, NEXT_STEP, SET_TITLE } from '../BillContext';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 import EditableTitle from './EditableTitle';
+import EditPersonModal from './EditPersonModal';
 
 // Isolated input component to prevent parent re-renders during typing
 const PersonInputForm = memo(({ onAddPerson }) => {
@@ -48,30 +49,50 @@ const PersonInputForm = memo(({ onAddPerson }) => {
 });
 
 // Individual person list item
-const PersonListItem = memo(({ person, onRemove }) => {
+const PersonListItem = memo(({ person, onRemove, onEdit }) => {
   // Use a callback to prevent unnecessary function recreation
   const handleRemove = useCallback(() => {
     onRemove(person.id);
   }, [onRemove, person.id]);
   
+  const handleEdit = useCallback(() => {
+    onEdit(person);
+  }, [onEdit, person]);
+
   return (
     <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
-      <span className="dark:text-white">{person.name}</span>
-      <button 
-        onClick={handleRemove}
-        className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
-        aria-label={`Remove ${person.name}`}
+      <span 
+        className="dark:text-white cursor-pointer hover:underline"
+        onClick={handleEdit}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </button>
+        {person.name}
+      </span>
+      <div className="flex items-center space-x-2">
+        <button 
+          onClick={handleEdit}
+          className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
+          aria-label={`Edit ${person.name}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+          </svg>
+        </button>
+        <button 
+          onClick={handleRemove}
+          className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
+          aria-label={`Remove ${person.name}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
     </li>
   );
 });
 
 // People list component
-const PeopleList = memo(({ people, onRemove }) => {
+const PeopleList = memo(({ people, onRemove, onEdit }) => {
   if (people.length === 0) return null;
   
   return (
@@ -82,7 +103,8 @@ const PeopleList = memo(({ people, onRemove }) => {
           <PersonListItem 
             key={person.id} 
             person={person} 
-            onRemove={onRemove} 
+            onRemove={onRemove}
+            onEdit={onEdit}
           />
         ))}
       </ul>
@@ -94,6 +116,8 @@ const PeopleList = memo(({ people, onRemove }) => {
 const PeopleInput = () => {
   const { state, dispatch } = useContext(BillContext);
   const { theme } = useTheme();
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [currentPerson, setCurrentPerson] = useState(null);
   
   // Use useCallback to prevent function recreation on each render
   const handleAddPerson = useCallback((name) => {
@@ -102,6 +126,18 @@ const PeopleInput = () => {
   
   const handleRemovePerson = useCallback((id) => {
     dispatch({ type: REMOVE_PERSON, payload: id });
+  }, [dispatch]);
+
+  const handleEditPerson = useCallback((person) => {
+    setCurrentPerson(person);
+    setEditModalOpen(true);
+  }, []);
+
+  const handleSavePerson = useCallback((id, name) => {
+    dispatch({ 
+      type: UPDATE_PERSON, 
+      payload: { id, name } 
+    });
   }, [dispatch]);
   
   const handleNext = useCallback(() => {
@@ -143,7 +179,16 @@ const PeopleInput = () => {
       
       <PeopleList 
         people={state.people} 
-        onRemove={handleRemovePerson} 
+        onRemove={handleRemovePerson}
+        onEdit={handleEditPerson}
+      />
+      
+      {/* Edit Person Modal */}
+      <EditPersonModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        person={currentPerson}
+        onSave={handleSavePerson}
       />
       
       <div className="flex justify-end">
