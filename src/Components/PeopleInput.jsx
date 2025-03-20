@@ -1,12 +1,13 @@
-import React, { useContext, useCallback, memo } from 'react';
-import { BillContext, ADD_PERSON, REMOVE_PERSON, NEXT_STEP } from '../BillContext';
+import React, { useContext, useCallback, useRef, memo } from 'react';
+import { BillContext, ADD_PERSON, REMOVE_PERSON, NEXT_STEP, SET_TITLE } from '../BillContext';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
+import EditableTitle from './EditableTitle';
 
 // Isolated input component to prevent parent re-renders during typing
 const PersonInputForm = memo(({ onAddPerson }) => {
   // Use uncontrolled input with ref instead of state
-  const inputRef = React.useRef(null);
+  const inputRef = useRef(null);
   
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -110,9 +111,30 @@ const PeopleInput = () => {
       alert('Please add at least one person');
     }
   }, [state.people.length, dispatch]);
+
+  const handleTitleSave = useCallback((title) => {
+    dispatch({ type: SET_TITLE, payload: title });
+  }, [dispatch]);
+  
+  // Suggest a default title if none exists
+  const suggestDefaultTitle = () => {
+    if (!state.title) {
+      const today = new Date();
+      const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+      return `Restaurant ${dateString}`;
+    }
+    return state.title;
+  };
   
   return (
     <div>
+      {/* Editable Title Section */}
+      <EditableTitle 
+        title={state.title}
+        onSave={handleTitleSave}
+        placeholder={suggestDefaultTitle()}
+      />
+      
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who's splitting the bill?</h2>
       
       <Card>

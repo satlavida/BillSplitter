@@ -8,6 +8,7 @@ const initialState = {
   items: [],
   taxAmount: 0,
   currency: 'INR',
+  title: '', 
 };
 
 // Load state from localStorage if exists
@@ -37,6 +38,7 @@ export const NEXT_STEP = 'NEXT_STEP';
 export const PREV_STEP = 'PREV_STEP';
 export const GO_TO_STEP = 'GO_TO_STEP';
 export const SET_CURRENCY = 'SET_CURRENCY';
+export const SET_TITLE = 'SET_TITLE'; // Add action type for setting title
 export const RESET = 'RESET';
 
 // Reducer function
@@ -163,6 +165,13 @@ const billReducer = (state, action) => {
       };
       break;
       
+    case SET_TITLE:
+      newState = {
+        ...state,
+        title: action.payload
+      };
+      break;
+      
     case RESET:
       newState = initialState;
       break;
@@ -189,6 +198,13 @@ export const BillProvider = ({ children }) => {
   // Sync with localStorage whenever state changes
   useEffect(() => {
     localStorage.setItem('billSplitter', JSON.stringify(state));
+    
+    // Update document title if bill title exists
+    if (state.title) {
+      document.title = `Bill Splitter - ${state.title}`;
+    } else {
+      document.title = 'Bill Splitter';
+    }
   }, [state]);
   
   // Memoize the context value to prevent unnecessary re-renders

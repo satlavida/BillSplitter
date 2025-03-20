@@ -2,6 +2,19 @@ import { useContext, useMemo, memo, useCallback } from 'react';
 import { BillContext, GO_TO_STEP, RESET } from '../BillContext';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 
+// BillTitle component for displaying the title in summary view
+const BillTitle = ({ title }) => {
+  if (!title) return null;
+  
+  return (
+    <div className="mb-4 text-center">
+      <h1 className="text-2xl font-bold text-zinc-800 dark:text-white transition-colors">
+        {title}
+      </h1>
+    </div>
+  );
+};
+
 // PersonItemRow component for individual item rows
 const PersonItemRow = memo(({ item, formatCurrency }) => {
   return (
@@ -201,6 +214,9 @@ const BillSummary = () => {
       
       <PrintWrapper>
         <div id="printable-bill">
+          {/* Display bill title in printable section */}
+          <BillTitle title={state.title} />
+          
           {personTotals.map(person => (
             <PersonCard 
               key={person.id}
