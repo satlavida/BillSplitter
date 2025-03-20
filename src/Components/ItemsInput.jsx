@@ -1,8 +1,9 @@
 import { useState, useContext, useRef, memo, useCallback } from 'react';
-import { BillContext, ADD_ITEM, REMOVE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
+import { BillContext, ADD_ITEM, REMOVE_ITEM, UPDATE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
+import EditItemModal from './EditItemModal';
 
 // Item form component with optimized rendering
 const ItemForm = memo(({ onAddItem }) => {
@@ -106,10 +107,14 @@ const ItemForm = memo(({ onAddItem }) => {
 });
 
 // Individual item list item
-const ItemListItem = memo(({ item, onRemove, formatCurrency }) => {
+const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
   const handleRemove = useCallback(() => {
     onRemove(item.id);
   }, [item.id, onRemove]);
+  
+  const handleEdit = useCallback(() => {
+    onEdit(item);
+  }, [item, onEdit]);
   
   return (
     <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
@@ -120,21 +125,32 @@ const ItemListItem = memo(({ item, onRemove, formatCurrency }) => {
           {formatCurrency(Number(item.price))}
         </span>
       </div>
-      <button 
-        onClick={handleRemove}
-        className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
-        aria-label={`Remove ${item.name}`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </button>
+      <div className="flex space-x-2">
+        <button 
+          onClick={handleEdit}
+          className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
+          aria-label={`Edit ${item.name}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+          </svg>
+        </button>
+        <button 
+          onClick={handleRemove}
+          className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
+          aria-label={`Remove ${item.name}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
     </li>
   );
 });
 
 // Items list component
-const ItemsList = memo(({ items, onRemove, formatCurrency }) => {
+const ItemsList = memo(({ items, onRemove, onEdit, formatCurrency }) => {
   if (items.length === 0) return null;
   
   return (
@@ -146,6 +162,7 @@ const ItemsList = memo(({ items, onRemove, formatCurrency }) => {
             key={item.id} 
             item={item} 
             onRemove={onRemove}
+            onEdit={onEdit}
             formatCurrency={formatCurrency}
           />
         ))}
@@ -186,6 +203,8 @@ const ItemsInput = () => {
   const { state, dispatch, formatCurrency } = useContext(BillContext);
   const { theme } = useTheme();
   const [taxAmount, setTaxAmount] = useState(state.taxAmount || '');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
   
   const handleAddItem = useCallback((itemData) => {
     dispatch({ 
@@ -196,6 +215,21 @@ const ItemsInput = () => {
   
   const handleRemoveItem = useCallback((id) => {
     dispatch({ type: REMOVE_ITEM, payload: id });
+  }, [dispatch]);
+  
+  const handleEditItem = useCallback((item) => {
+    setCurrentItem(item);
+    setEditModalOpen(true);
+  }, []);
+  
+  const handleSaveItem = useCallback((itemId, updatedData) => {
+    dispatch({ 
+      type: UPDATE_ITEM, 
+      payload: {
+        id: itemId,
+        data: updatedData
+      }
+    });
   }, [dispatch]);
   
   const handleTaxChange = useCallback((e) => {
@@ -227,6 +261,7 @@ const ItemsInput = () => {
       <ItemsList 
         items={state.items} 
         onRemove={handleRemoveItem}
+        onEdit={handleEditItem}
         formatCurrency={formatCurrency}
       />
       
@@ -251,6 +286,14 @@ const ItemsInput = () => {
           Next
         </Button>
       </div>
+      
+      {/* Edit Item Modal */}
+      <EditItemModal 
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        item={currentItem}
+        onSave={handleSaveItem}
+      />
     </div>
   );
 };
