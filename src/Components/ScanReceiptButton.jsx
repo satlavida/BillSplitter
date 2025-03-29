@@ -1,5 +1,6 @@
-import React, { useState, useContext, useRef } from 'react';
-import { BillContext, ADD_ITEM, SET_TAX } from '../BillContext';
+import React, { useState, useRef } from 'react';
+import useBillStore from '../billStore';
+import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 
 const API_URL = import.meta.env.VITE_WORKER_URL;
@@ -47,7 +48,14 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef 
 
 // Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
-  const { dispatch } = useContext(BillContext);
+  // Use Zustand store with useShallow to prevent unnecessary re-renders
+  const { addItem, setTax } = useBillStore(
+    useShallow(state => ({
+      addItem: state.addItem,
+      setTax: state.setTax
+    }))
+  );
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -102,23 +110,16 @@ const ScanReceiptButton = () => {
   const processReceiptItems = (data) => {
     // Add items to state
     data.items.forEach(item => {
-      dispatch({
-        type: ADD_ITEM,
-        payload: {
-          name: item.name,
-          price: parseFloat(item.price) || 0,
-          quantity: parseInt(item.quantity, 10) || 1,
-          consumedBy: []
-        }
+      addItem({
+        name: item.name,
+        price: parseFloat(item.price) || 0,
+        quantity: parseInt(item.quantity, 10) || 1
       });
     });
 
     // Set tax amount
     if (typeof data.tax === 'number' || typeof data.tax === 'string') {
-      dispatch({
-        type: SET_TAX,
-        payload: parseFloat(data.tax) || 0
-      });
+      setTax(parseFloat(data.tax) || 0);
     }
   };
 
