@@ -1,5 +1,6 @@
-import React, { useContext, useCallback, useRef, memo, useState } from 'react';
-import { BillContext, ADD_PERSON, REMOVE_PERSON, UPDATE_PERSON, NEXT_STEP, SET_TITLE } from '../BillContext';
+import React, { useCallback, useRef, memo, useState } from 'react';
+import useBillStore, { useBillPersons } from '../billStore';
+import { useShallow } from 'zustand/shallow';
 import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 import EditableTitle from './EditableTitle';
@@ -114,19 +115,31 @@ const PeopleList = memo(({ people, onRemove, onEdit }) => {
 
 // Main PeopleInput component
 const PeopleInput = () => {
-  const { state, dispatch } = useContext(BillContext);
+  // Use Zustand store with specialized hooks and useShallow
+  const people = useBillPersons();
+  
+  const { title, addPerson, removePerson, updatePerson, nextStep, setTitle } = 
+    useBillStore(useShallow(state => ({
+      title: state.title,
+      addPerson: state.addPerson,
+      removePerson: state.removePerson,
+      updatePerson: state.updatePerson,
+      nextStep: state.nextStep,
+      setTitle: state.setTitle
+    })));
+  
   const { theme } = useTheme();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentPerson, setCurrentPerson] = useState(null);
   
   // Use useCallback to prevent function recreation on each render
   const handleAddPerson = useCallback((name) => {
-    dispatch({ type: ADD_PERSON, payload: name });
-  }, [dispatch]);
+    addPerson(name);
+  }, [addPerson]);
   
   const handleRemovePerson = useCallback((id) => {
-    dispatch({ type: REMOVE_PERSON, payload: id });
-  }, [dispatch]);
+    removePerson(id);
+  }, [removePerson]);
 
   const handleEditPerson = useCallback((person) => {
     setCurrentPerson(person);
@@ -134,39 +147,36 @@ const PeopleInput = () => {
   }, []);
 
   const handleSavePerson = useCallback((id, name) => {
-    dispatch({ 
-      type: UPDATE_PERSON, 
-      payload: { id, name } 
-    });
-  }, [dispatch]);
+    updatePerson(id, name);
+  }, [updatePerson]);
   
   const handleNext = useCallback(() => {
-    if (state.people.length > 0) {
-      dispatch({ type: NEXT_STEP });
+    if (people.length > 0) {
+      nextStep();
     } else {
       alert('Please add at least one person');
     }
-  }, [state.people.length, dispatch]);
+  }, [people.length, nextStep]);
 
-  const handleTitleSave = useCallback((title) => {
-    dispatch({ type: SET_TITLE, payload: title });
-  }, [dispatch]);
+  const handleTitleSave = useCallback((newTitle) => {
+    setTitle(newTitle);
+  }, [setTitle]);
   
   // Suggest a default title if none exists
   const suggestDefaultTitle = () => {
-    if (!state.title) {
+    if (!title) {
       const today = new Date();
       const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
       return `Restaurant ${dateString}`;
     }
-    return state.title;
+    return title;
   };
   
   return (
     <div>
       {/* Editable Title Section */}
       <EditableTitle 
-        title={state.title}
+        title={title}
         onSave={handleTitleSave}
         placeholder={suggestDefaultTitle()}
       />
@@ -178,7 +188,7 @@ const PeopleInput = () => {
       </Card>
       
       <PeopleList 
-        people={state.people} 
+        people={people} 
         onRemove={handleRemovePerson}
         onEdit={handleEditPerson}
       />
@@ -194,7 +204,7 @@ const PeopleInput = () => {
       <div className="flex justify-end">
         <Button
           onClick={handleNext}
-          disabled={state.people.length === 0}
+          disabled={people.length === 0}
         >
           Next
         </Button>

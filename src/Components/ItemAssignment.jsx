@@ -1,12 +1,7 @@
-import { useContext, useMemo, memo, useCallback } from 'react';
-import { 
-  BillContext, 
-  ASSIGN_ITEM, 
-  ASSIGN_ALL_PEOPLE, 
-  REMOVE_ALL_PEOPLE, 
-  NEXT_STEP, 
-  PREV_STEP 
-} from '../BillContext';
+import { useMemo, memo, useCallback } from 'react';
+import useBillStore, { useBillPersons, useBillItems } from '../billStore';
+import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
+import { useShallow } from 'zustand/shallow';
 import { useTheme } from '../ThemeContext';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
 
@@ -84,27 +79,35 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency }) => {
 
 // Main ItemAssignment component
 const ItemAssignment = () => {
-  const { state, dispatch, formatCurrency } = useContext(BillContext);
+  // Use Zustand store with specialized hooks and useShallow
+  const people = useBillPersons();
+  const items = useBillItems();
+  
+  const { assignItem, assignAllPeople, removeAllPeople, nextStep, prevStep, getUnassignedItems } = 
+    useBillStore(useShallow(state => ({
+      assignItem: state.assignItem,
+      assignAllPeople: state.assignAllPeople,
+      removeAllPeople: state.removeAllPeople,
+      nextStep: state.nextStep,
+      prevStep: state.prevStep,
+      getUnassignedItems: state.getUnassignedItems
+    })));
+  
+  const formatCurrency = useFormatCurrency();
   const { theme } = useTheme();
   
   const handleTogglePerson = useCallback((personId, itemId) => {
     if (personId === 'all') {
-      dispatch({
-        type: ASSIGN_ALL_PEOPLE,
-        payload: itemId
-      });
+      assignAllPeople(itemId);
       return;
     }
     
     if (personId === 'none') {
-      dispatch({
-        type: REMOVE_ALL_PEOPLE,
-        payload: itemId
-      });
+      removeAllPeople(itemId);
       return;
     }
     
-    const item = state.items.find(item => item.id === itemId);
+    const item = items.find(item => item.id === itemId);
     let newConsumedBy;
     
     // If person is already in the consumedBy array, remove them, otherwise add them
@@ -114,40 +117,34 @@ const ItemAssignment = () => {
       newConsumedBy = [...item.consumedBy, personId];
     }
     
-    dispatch({
-      type: ASSIGN_ITEM,
-      payload: {
-        itemId,
-        peopleIds: newConsumedBy
-      }
-    });
-  }, [dispatch, state.items]);
+    assignItem(itemId, newConsumedBy);
+  }, [items, assignItem, assignAllPeople, removeAllPeople]);
   
   const handlePrev = useCallback(() => {
-    dispatch({ type: PREV_STEP });
-  }, [dispatch]);
+    prevStep();
+  }, [prevStep]);
   
   const handleNext = useCallback(() => {
     // Check if all items have at least one person assigned
-    const unassignedItems = state.items.filter(item => item.consumedBy.length === 0);
+    const unassignedItems = getUnassignedItems();
     
     if (unassignedItems.length > 0) {
       const proceed = window.confirm(`${unassignedItems.length} item(s) do not have anyone assigned. Continue anyway?`);
       if (!proceed) return;
     }
     
-    dispatch({ type: NEXT_STEP });
-  }, [dispatch, state.items]);
+    nextStep();
+  }, [getUnassignedItems, nextStep]);
   
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who consumed what?</h2>
       
-      {state.items.map(item => (
+      {items.map(item => (
         <ItemCard 
           key={item.id}
           item={item}
-          people={state.people}
+          people={people}
           onTogglePerson={handleTogglePerson}
           formatCurrency={formatCurrency}
         />

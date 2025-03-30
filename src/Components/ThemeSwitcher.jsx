@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { useTheme, THEMES } from '../ThemeContext';
+import { useTheme } from '../ThemeContext';
 
 const ThemeSwitcher = memo(() => {
   const { theme, toggleTheme, isDark } = useTheme();

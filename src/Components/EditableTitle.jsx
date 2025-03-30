@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import useBillStore from '../billStore';
+import { useShallow } from 'zustand/shallow';
 
 const EditableTitle = ({ title, onSave, placeholder }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -11,6 +13,11 @@ const EditableTitle = ({ title, onSave, placeholder }) => {
       inputRef.current.focus();
     }
   }, [isEditing]);
+
+  // Update value when title changes
+  useEffect(() => {
+    setValue(title || '');
+  }, [title]);
 
   const handleClick = () => {
     if (!isEditing) {
