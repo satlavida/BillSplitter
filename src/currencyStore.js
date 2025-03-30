@@ -52,8 +52,10 @@ const useCurrencyStore = create(
 
 // Utility hook to get formatCurrency with stable reference
 export const useFormatCurrency = () => {
-  const formatCurrency = useCurrencyStore(state => state.formatCurrency);
-  return useShallow(() => formatCurrency);
+  // This is the correct way to use useShallow with a selector
+  return useCurrencyStore(
+    useShallow(state => state.formatCurrency)
+  );
 };
 
 export default useCurrencyStore;

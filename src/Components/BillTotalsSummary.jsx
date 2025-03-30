@@ -6,9 +6,9 @@ const BillTotalsSummary = memo(({
   subtotal, 
   taxAmount, 
   grandTotal, 
-  className = '' 
+  className = '', 
+  formatCurrency 
 }) => {
-  const formatCurrency = useFormatCurrency();
   
   return (
     <div className={`p-4 bg-zinc-50 dark:bg-zinc-700 rounded-lg border border-zinc-200 dark:border-zinc-600 transition-colors ${className}`}>
