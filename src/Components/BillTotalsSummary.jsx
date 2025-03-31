@@ -1,5 +1,4 @@
 import React, { memo } from 'react';
-import { useFormatCurrency } from '../currencyStore';
 
 // Reusable component for displaying bill totals
 const BillTotalsSummary = memo(({ 

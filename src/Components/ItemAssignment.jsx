@@ -1,8 +1,7 @@
 import { useMemo, memo, useCallback } from 'react';
 import useBillStore, { useBillPersons, useBillItems } from '../billStore';
-import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
+import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
-import { useTheme } from '../ThemeContext';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
 
 // Individual Item Card component
@@ -94,7 +93,6 @@ const ItemAssignment = () => {
     })));
   
   const formatCurrency = useFormatCurrency();
-  const { theme } = useTheme();
   
   const handleTogglePerson = useCallback((personId, itemId) => {
     if (personId === 'all') {

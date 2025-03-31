@@ -1,8 +1,7 @@
 import { useState, useRef, memo, useCallback, useEffect } from 'react';
 import useBillStore, { useBillItems } from '../billStore';
-import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
+import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
-import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
@@ -219,7 +218,6 @@ const ItemsInput = () => {
     })));
   
   const formatCurrency = useFormatCurrency();
-  const { theme } = useTheme();
   
   const [localTaxAmount, setLocalTaxAmount] = useState(taxAmount || '');
   const [editModalOpen, setEditModalOpen] = useState(false);

@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, memo, useState } from 'react';
 import useBillStore, { useBillPersons } from '../billStore';
 import { useShallow } from 'zustand/shallow';
-import { useTheme } from '../ThemeContext';
 import { Button, Card } from '../ui/components';
 import EditableTitle from './EditableTitle';
 import EditPersonModal from './EditPersonModal';
@@ -128,7 +127,6 @@ const PeopleInput = () => {
       setTitle: state.setTitle
     })));
   
-  const { theme } = useTheme();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentPerson, setCurrentPerson] = useState(null);
   

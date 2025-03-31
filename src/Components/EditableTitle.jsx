@@ -1,6 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import useBillStore from '../billStore';
-import { useShallow } from 'zustand/shallow';
 
 const EditableTitle = ({ title, onSave, placeholder }) => {
   const [isEditing, setIsEditing] = useState(false);

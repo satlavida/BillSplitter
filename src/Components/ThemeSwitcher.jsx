@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { useTheme } from '../ThemeContext';
 
 const ThemeSwitcher = memo(() => {
-  const { theme, toggleTheme, isDark } = useTheme();
+  const { toggleTheme, isDark } = useTheme();
 
   return (
     <button
@@ -30,7 +30,7 @@ const ThemeSwitcher = memo(() => {
 
 // More elaborate theme switcher with text label
 export const LabeledThemeSwitcher = memo(() => {
-  const { theme, toggleTheme, isDark } = useTheme();
+  const { toggleTheme, isDark } = useTheme();
 
   return (
     <button

@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import useBillStore, { useBillPersonTotals } from '../billStore';
-import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
+import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
