@@ -183,20 +183,20 @@ const ItemAssignment = () => {
   const [splitDrawerItem, setSplitDrawerItem] = useState(null);
   
   const { 
-    assignItem, 
+    assignItemEqual, 
     assignItemPercentage,
     assignItemFraction,
-    assignAllPeople, 
+    assignAllPeopleEqual, 
     removeAllPeople, 
     setSplitType,
     nextStep, 
     prevStep, 
     getUnassignedItems 
   } = useBillStore(useShallow(state => ({
-    assignItem: state.assignItem,
+    assignItemEqual: state.assignItemEqual,
     assignItemPercentage: state.assignItemPercentage,
     assignItemFraction: state.assignItemFraction,
-    assignAllPeople: state.assignAllPeople,
+    assignAllPeopleEqual: state.assignAllPeopleEqual,
     removeAllPeople: state.removeAllPeople,
     setSplitType: state.setSplitType,
     nextStep: state.nextStep,
@@ -208,7 +208,7 @@ const ItemAssignment = () => {
   
   const handleTogglePerson = useCallback((personId, itemId) => {
     if (personId === 'all') {
-      assignAllPeople(itemId);
+      assignAllPeopleEqual(itemId);
       return;
     }
     
@@ -218,40 +218,80 @@ const ItemAssignment = () => {
     }
     
     const item = items.find(item => item.id === itemId);
-    let newConsumedBy;
     
-    // Extract person IDs from consumedBy (handle both formats)
+    // Extract person IDs from consumedBy
     const personIds = item.consumedBy.map(c => 
       typeof c === 'string' ? c : c.personId
     );
     
-    // If person is already in the consumedBy array, remove them, otherwise add them
-    if (personIds.includes(personId)) {
-      newConsumedBy = item.consumedBy.filter(c => 
-        (typeof c === 'string' && c !== personId) || 
-        (c.personId !== personId)
-      );
-    } else {
-      // If the item uses equal splitting (or no split type specified)
-      if (!item.splitType || item.splitType === SPLIT_TYPES.EQUAL) {
-        newConsumedBy = [...item.consumedBy, personId];
+    // Check if this person is already assigned to the item
+    const isAssigned = personIds.includes(personId);
+    
+    // Handle based on split type
+    if (!item.splitType || item.splitType === SPLIT_TYPES.EQUAL) {
+      // For equal splits
+      let newPersonIds;
+      
+      if (isAssigned) {
+        // Remove person from the list
+        newPersonIds = personIds.filter(id => id !== personId);
       } else {
-        // For non-equal splits, we need to add an allocation object
-        const value = item.splitType === SPLIT_TYPES.PERCENTAGE 
-          ? Math.floor(100 / (personIds.length + 1)) 
-          : 1;
-        
-        // Convert any string IDs to allocation objects if needed
-        const updatedConsumedBy = item.consumedBy.map(c => 
-          typeof c === 'string' ? { personId: c, value } : c
+        // Add person to the list
+        newPersonIds = [...personIds, personId];
+      }
+      
+      assignItemEqual(itemId, newPersonIds);
+    } 
+    else if (item.splitType === SPLIT_TYPES.PERCENTAGE) {
+      // For percentage splits
+      let newAllocations;
+      
+      if (isAssigned) {
+        // Remove person from allocations
+        newAllocations = item.consumedBy.filter(c => 
+          (typeof c === 'string' && c !== personId) || 
+          (c.personId !== personId)
+        );
+      } else {
+        // Add person with a percentage value
+        // Create new allocations from existing ones
+        const existingAllocations = item.consumedBy.map(c => 
+          typeof c === 'string' ? { personId: c, value: 100 / (personIds.length + 1) } : c
         );
         
-        newConsumedBy = [...updatedConsumedBy, { personId, value }];
+        // Add new person's allocation
+        newAllocations = [
+          ...existingAllocations, 
+          { personId, value: 100 / (personIds.length + 1) }
+        ];
       }
+      
+      assignItemPercentage(itemId, newAllocations);
     }
-    
-    assignItem(itemId, newConsumedBy);
-  }, [items, assignItem, assignAllPeople, removeAllPeople]);
+    else if (item.splitType === SPLIT_TYPES.FRACTION) {
+      // For fractional splits
+      let newAllocations;
+      
+      if (isAssigned) {
+        // Remove person from allocations
+        newAllocations = item.consumedBy.filter(c => 
+          (typeof c === 'string' && c !== personId) || 
+          (c.personId !== personId)
+        );
+      } else {
+        // Add person with default value of 1
+        // Create new allocations from existing ones
+        const existingAllocations = item.consumedBy.map(c => 
+          typeof c === 'string' ? { personId: c, value: 1 } : c
+        );
+        
+        // Add new person's allocation
+        newAllocations = [...existingAllocations, { personId, value: 1 }];
+      }
+      
+      assignItemFraction(itemId, newAllocations);
+    }
+  }, [items, assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople]);
   
   const handleOpenSplitDrawer = useCallback((item) => {
     setSplitDrawerItem(item);
@@ -274,9 +314,9 @@ const ItemAssignment = () => {
       default:
         // For equal split, we need to extract just the personIds
         const personIds = allocations.map(a => a.personId);
-        assignItem(itemId, personIds);
+        assignItemEqual(itemId, personIds);
     }
-  }, [setSplitType, assignItemPercentage, assignItemFraction, assignItem]);
+  }, [setSplitType, assignItemPercentage, assignItemFraction, assignItemEqual]);
   
   const handlePrev = useCallback(() => {
     prevStep();
