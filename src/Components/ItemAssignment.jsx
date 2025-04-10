@@ -313,7 +313,7 @@ const ItemAssignment = () => {
         break;
       default:
         // For equal split, we need to extract just the personIds
-        const personIds = allocations.map(a => a.personId);
+        const personIds = allocations.map(a => a.id);
         assignItemEqual(itemId, personIds);
     }
   }, [setSplitType, assignItemPercentage, assignItemFraction, assignItemEqual]);
