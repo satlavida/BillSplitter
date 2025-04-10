@@ -3,7 +3,14 @@ import { persist } from 'zustand/middleware';
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
 
-// Initial state - same structure as the original BillContext
+// Define constants for split types
+export const SPLIT_TYPES = {
+  EQUAL: 'equal',
+  PERCENTAGE: 'percentage',
+  FRACTION: 'fraction'
+};
+
+// Initial state with enhanced structure
 const initialState = {
   step: 1,
   people: [],
@@ -35,7 +42,7 @@ const useBillStore = create(
         // Also remove this person from all consumedBy arrays
         items: state.items.map(item => ({
           ...item,
-          consumedBy: item.consumedBy.filter(personId => personId !== id)
+          consumedBy: item.consumedBy.filter(allocation => allocation.personId !== id)
         }))
       })),
       
@@ -45,14 +52,15 @@ const useBillStore = create(
         )
       })),
       
-      // Item management
+      // Item management with enhanced consumedBy structure
       addItem: (item) => set(state => ({
         items: [...state.items, {
           id: Date.now().toString() + Math.random().toString(36),
           name: item.name,
           price: parseFloat(item.price),
           quantity: parseInt(item.quantity) || 1,
-          consumedBy: []
+          consumedBy: [],
+          splitType: SPLIT_TYPES.EQUAL // default split type
         }]
       })),
       
@@ -69,19 +77,88 @@ const useBillStore = create(
       // Tax management
       setTax: (amount) => set({ taxAmount: parseFloat(amount) || 0 }),
       
-      // Assignment actions
-      assignItem: (itemId, peopleIds) => set(state => ({
-        items: state.items.map(item => 
-          item.id === itemId ? { ...item, consumedBy: peopleIds } : item
-        )
+      // Assignment actions with split type support
+      assignItemEqual: (itemId, peopleIds) => set(state => ({
+        items: state.items.map(item => {
+          if (item.id === itemId) {
+            // Create equal allocations for each person
+            const allocations = peopleIds.map(personId => ({
+              personId,
+              value: 1 // Each person gets equal share
+            }));
+            
+            return { 
+              ...item, 
+              consumedBy: allocations,
+              splitType: SPLIT_TYPES.EQUAL
+            };
+          }
+          return item;
+        })
+      })),
+
+      // New function to set percentage split
+      assignItemPercentage: (itemId, allocations) => set(state => ({
+        items: state.items.map(item => {
+          if (item.id === itemId) {
+            // allocations should be array of {personId, value} where value is percentage
+            return { 
+              ...item, 
+              consumedBy: allocations,
+              splitType: SPLIT_TYPES.PERCENTAGE
+            };
+          }
+          return item;
+        })
+      })),
+
+      // New function to set fractional split
+      assignItemFraction: (itemId, allocations) => set(state => ({
+        items: state.items.map(item => {
+          if (item.id === itemId) {
+            // allocations should be array of {personId, value} where value is numerator of fraction
+            return { 
+              ...item, 
+              consumedBy: allocations,
+              splitType: SPLIT_TYPES.FRACTION
+            };
+          }
+          return item;
+        })
       })),
       
-      assignAllPeople: (itemId) => set(state => ({
-        items: state.items.map(item => 
-          item.id === itemId 
-            ? { ...item, consumedBy: state.people.map(person => person.id) }
-            : item
-        )
+      // Update split type for an item
+      setSplitType: (itemId, splitType) => set(state => ({
+        items: state.items.map(item => {
+          if (item.id === itemId) {
+            // When changing split type, reset allocations for consistency
+            return { 
+              ...item, 
+              splitType,
+              consumedBy: [] // Reset allocations when changing split type
+            };
+          }
+          return item;
+        })
+      })),
+      
+      assignAllPeopleEqual: (itemId) => set(state => ({
+        items: state.items.map(item => {
+          if (item.id === itemId) {
+            // Create allocations with equal shares for all people
+            const allocations = state.people.map(person => ({
+              personId: person.id,
+              value: 1 // Each person gets equal share
+            }));
+            
+            return { 
+              ...item, 
+              consumedBy: allocations,
+              splitType: SPLIT_TYPES.EQUAL
+            };
+          }
+          return item;
+        })
       })),
       
       removeAllPeople: (itemId) => set(state => ({
@@ -95,9 +172,9 @@ const useBillStore = create(
       setTitle: (title) => set({ title }),
       
       // Reset
-      reset: () => set(initialState, false), // Note: not using true for replace due to stricter types in v5
+      reset: () => set(initialState, false),
       
-      // Business logic helpers
+      // Business logic helpers with support for different split types
       getPersonTotals: () => {
         const state = get();
         const totals = {};
@@ -114,26 +191,85 @@ const useBillStore = create(
           };
         });
         
-        // Calculate each person's share for each item
+        // Calculate each person's share for each item based on split type
         state.items.forEach(item => {
           // Skip items with no consumers
           if (item.consumedBy.length === 0) return;
           
           const totalItemPrice = parseFloat(item.price) * item.quantity;
-          const pricePerPerson = totalItemPrice / item.consumedBy.length;
           
-          item.consumedBy.forEach(personId => {
-            if (totals[personId]) {
+          // Calculate shares based on split type
+          let shares = {};
+          
+          switch (item.splitType) {
+            case SPLIT_TYPES.EQUAL:
+              // Equal split - each person gets same amount
+              {
+                const pricePerPerson = totalItemPrice / item.consumedBy.length;
+                item.consumedBy.forEach(allocation => {
+                  shares[allocation.personId] = pricePerPerson;
+                });
+              }
+              break;
+              
+            case SPLIT_TYPES.PERCENTAGE:
+              // Percentage split - calculate based on percentage values
+              {
+                // Calculate total percentage (should sum to 100, but handle other cases)
+                const totalPercentage = item.consumedBy.reduce(
+                  (sum, allocation) => sum + allocation.value, 0
+                );
+                
+                // Calculate share for each person based on their percentage
+                item.consumedBy.forEach(allocation => {
+                  const normalizedPercentage = allocation.value / totalPercentage;
+                  shares[allocation.personId] = totalItemPrice * normalizedPercentage;
+                });
+              }
+              break;
+              
+            case SPLIT_TYPES.FRACTION:
+              // Fractional split - calculate based on fraction values
+              {
+                // Calculate total of all fractions
+                const totalFraction = item.consumedBy.reduce(
+                  (sum, allocation) => sum + allocation.value, 0
+                );
+                
+                // Calculate share for each person based on their fraction
+                item.consumedBy.forEach(allocation => {
+                  shares[allocation.personId] = totalItemPrice * (allocation.value / totalFraction);
+                });
+              }
+              break;
+              
+            default:
+              // Fall back to equal split if type not recognized
+              {
+                const pricePerPerson = totalItemPrice / item.consumedBy.length;
+                item.consumedBy.forEach(allocation => {
+                  shares[allocation.personId] = pricePerPerson;
+                });
+              }
+          }
+          
+          // Add item shares to person totals
+          item.consumedBy.forEach(allocation => {
+            const personId = allocation.personId;
+            const share = shares[personId];
+            
+            if (totals[personId] && share !== undefined) {
               totals[personId].items.push({
                 id: item.id,
                 name: item.name,
                 price: parseFloat(item.price),
                 quantity: item.quantity,
-                sharedWith: item.consumedBy.length,
-                share: pricePerPerson
+                splitType: item.splitType,
+                allocation: allocation.value,
+                share: share
               });
               
-              totals[personId].subtotal += pricePerPerson;
+              totals[personId].subtotal += share;
             }
           });
         });
@@ -188,6 +324,57 @@ const useBillStore = create(
       getUnassignedItems: () => {
         const state = get();
         return state.items.filter(item => item.consumedBy.length === 0);
+      },
+      
+      // New utility functions for split management
+      
+      // Validates if total allocation sums to expected value
+      validateAllocations: (allocations, splitType) => {
+        if (!allocations || allocations.length === 0) return false;
+        
+        // For percentage split, we expect sum close to 100%
+        if (splitType === SPLIT_TYPES.PERCENTAGE) {
+          const sum = allocations.reduce((total, alloc) => total + alloc.value, 0);
+          // Allow some tolerance for floating point errors
+          return Math.abs(sum - 100) < 0.01;
+        }
+        
+        // For other split types, any positive values are valid
+        return allocations.every(alloc => alloc.value > 0);
+      },
+      
+      // Get split details for an item
+      getItemSplitDetails: (itemId) => {
+        const state = get();
+        const item = state.items.find(item => item.id === itemId);
+        
+        if (!item) return null;
+        
+        return {
+          splitType: item.splitType,
+          allocations: item.consumedBy
+        };
+      },
+      
+      // Create normalized allocations (ensuring they sum to expected values)
+      normalizeAllocations: (allocations, splitType) => {
+        if (!allocations || allocations.length === 0) return [];
+        
+        const sum = allocations.reduce((total, alloc) => total + alloc.value, 0);
+        
+        if (splitType === SPLIT_TYPES.PERCENTAGE && sum !== 100) {
+          // Normalize to ensure percentages sum to 100
+          return allocations.map(alloc => ({
+            ...alloc,
+            value: (alloc.value / sum) * 100
+          }));
+        } else if (splitType === SPLIT_TYPES.FRACTION) {
+          // For fractions, we can keep the original values
+          // The actual share calculation will handle normalization
+          return allocations;
+        }
+        
+        return allocations;
       }
     }),
     {
@@ -199,10 +386,37 @@ const useBillStore = create(
 // Custom selectors using useShallow to prevent infinite loops
 export const useBillPersons = () => useBillStore(useShallow(state => state.people));
 export const useBillItems = () => useBillStore(useShallow(state => state.items));
+
+// New selectors using latest Zustand patterns
+export const useBillStep = () => useBillStore(state => state.step);
+export const useBillCurrency = () => useBillStore(state => state.currency);
+export const useBillTitle = () => useBillStore(state => state.title);
+export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
+
+// More complex selectors with derived data
 export const useBillPersonTotals = () => {
+  // We create a selector for the function itself
   const getPersonTotals = useBillStore(state => state.getPersonTotals);
-  // Using a stable reference to prevent infinite loops
-  return useShallow(getPersonTotals)();
+  // Then call the function to get the current totals
+  return getPersonTotals();
+};
+
+export const useItemSplitDetails = (itemId) => {
+  return useBillStore(
+    useShallow(state => state.getItemSplitDetails(itemId))
+  );
+};
+
+export const useBillSubtotal = () => {
+  return useBillStore(state => state.getSubtotal());
+};
+
+export const useBillGrandTotal = () => {
+  return useBillStore(state => state.getGrandTotal());
+};
+
+export const useUnassignedItems = () => {
+  return useBillStore(useShallow(state => state.getUnassignedItems()));
 };
 
 // Hook for updating document title based on bill title
