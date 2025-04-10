@@ -80,10 +80,10 @@ const SplitTypeDrawer = ({
   
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end"
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-end sm:items-center"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white dark:bg-zinc-800 w-full max-w-lg rounded-t-lg shadow-lg transition-all transform animate-slide-up overflow-hidden">
+      <div className="bg-white dark:bg-zinc-800 w-full max-w-lg rounded-t-lg sm:rounded-lg shadow-lg transition-all transform animate-slide-up overflow-hidden">
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold text-zinc-800 dark:text-white">
@@ -91,7 +91,7 @@ const SplitTypeDrawer = ({
             </h3>
             <button
               onClick={onClose}
-              className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+              className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 rounded-full p-1 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -125,7 +125,7 @@ const SplitTypeDrawer = ({
               <div className="mt-4 flex justify-end">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
                 >
                   Close
                 </button>

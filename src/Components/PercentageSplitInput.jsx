@@ -116,7 +116,8 @@ const PercentageSplitInput = ({ people, allocations, onSave, onCancel }) => {
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {person?.name}
               </span>
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+              <span className={`text-sm px-2 py-0.5 rounded-full font-medium 
+                ${value > 0 ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}`}>
                 {value}%
               </span>
             </div>
@@ -126,17 +127,22 @@ const PercentageSplitInput = ({ people, allocations, onSave, onCancel }) => {
               max="100"
               value={value}
               onChange={(e) => handlePercentageChange(personId, e.target.value)}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
+                [&::-webkit-slider-thumb]:dark:bg-blue-400"
             />
           </div>
         );
       })}
       
-      <div className="mt-4 flex justify-between items-center">
-        <div className="text-sm font-medium">
-          Total: <span className={total !== 100 ? 'text-red-500' : 'text-green-500'}>
-            {total}%
-          </span>
+      <div className="mt-6 flex justify-between items-center">
+        <div className={`text-sm font-medium px-3 py-2 rounded-md ${
+          isValid 
+            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-1 ring-green-500/50' 
+            : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-1 ring-red-500/50'
+        }`}>
+          Total: <span className="font-bold">{total}%</span>
         </div>
         
         <div className="flex gap-2">
@@ -150,7 +156,7 @@ const PercentageSplitInput = ({ people, allocations, onSave, onCancel }) => {
       </div>
       
       {!isValid && (
-        <p className="text-sm text-red-500 mt-2">
+        <p className="text-sm text-red-500 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-md ring-1 ring-red-500/50">
           Percentages must add up to 100%
         </p>
       )}

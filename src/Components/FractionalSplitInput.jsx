@@ -81,18 +81,21 @@ const FractionalSplitInput = ({ people, allocations, onSave, onCancel }) => {
                 step="0.5"
                 value={value}
                 onChange={(e) => handleFractionChange(personId, e.target.value)}
-                className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+                className={`w-full p-2 border rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white
+                  ${value <= 0 ? 'border-red-500 ring-1 ring-red-500' : 'border-zinc-300 dark:border-zinc-600'}`}
               />
             </div>
           </div>
         );
       })}
       
-      <div className="mt-4 flex justify-between items-center">
-        <div className="text-sm font-medium">
-          Total parts: <span className={!isValid ? 'text-red-500' : 'text-green-500'}>
-            {total}
-          </span>
+      <div className="mt-6 flex justify-between items-center">
+        <div className={`text-sm font-medium px-3 py-2 rounded-md ${
+          isValid 
+            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 ring-1 ring-green-500/50' 
+            : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-1 ring-red-500/50'
+        }`}>
+          Total parts: <span className="font-bold">{total}</span>
         </div>
         
         <div className="flex gap-2">
@@ -106,7 +109,7 @@ const FractionalSplitInput = ({ people, allocations, onSave, onCancel }) => {
       </div>
       
       {!isValid && (
-        <p className="text-sm text-red-500 mt-2">
+        <p className="text-sm text-red-500 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-md ring-1 ring-red-500/50">
           All fractions must be positive numbers
         </p>
       )}
