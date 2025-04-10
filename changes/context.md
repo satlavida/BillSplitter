@@ -2,15 +2,15 @@
 
 ## Project Overview
 
-Bill Splitter is a React application that helps users split bills among multiple people. The application guides users through a step-by-step process of adding people, items, assigning consumption, and calculating the final totals including tax. The app uses a modern React stack with Zustand for state management, Context API for theme management, and Tailwind CSS for styling.
+Bill Splitter is a React application that helps users split bills among multiple people. The application guides users through a step-by-step process of adding people, items, assigning consumption with flexible splitting options, and calculating the final totals including tax. The app uses a modern React stack with Zustand for state management, Context API for theme management, and Tailwind CSS for styling.
 
 ## Core Technologies and Project Structure
 
 - **Framework**: React 19
-- **State Management**: Zustand
-- **Styling**: Tailwind CSS
-- **Build Tool**: Vite
-- **Deployment**: GitHub Pages (via gh-pages branch)
+- **State Management**: Zustand with persistence
+- **Styling**: Tailwind CSS 4.0
+- **Build Tool**: Vite 6.2
+- **Deployment**: GitHub Pages (via gh-pages branch and docs folder)
 - **Persistence**: localStorage
 
 ## Environment Configuration
@@ -83,21 +83,23 @@ The application has two environment configurations:
 #### `billStore.js`
 - Central state store using Zustand
 - Manages all bill-related data and logic
-- Persists state to localStorage
+- Persists state to localStorage using Zustand's persist middleware
 - Dependencies: `zustand`, `zustand/middleware`, `react`
 - Key State Elements:
   - `step`: Current step in the bill splitting process (1-4)
   - `people`: Array of people splitting the bill
-  - `items`: Array of bill items
+  - `items`: Array of bill items with enhanced split options
   - `taxAmount`: Tax amount for the bill
   - `title`: Title of the bill (e.g., restaurant name)
 - Key Functions:
   - Navigation: `nextStep`, `prevStep`, `goToStep`
   - People Management: `addPerson`, `removePerson`, `updatePerson`
   - Item Management: `addItem`, `removeItem`, `updateItem`
-  - Assignment: `assignItem`, `assignAllPeople`, `removeAllPeople`
+  - Split Types Management: `setSplitType`, `assignItemEqual`, `assignItemPercentage`, `assignItemFraction`
+  - Assignment: `assignAllPeopleEqual`, `removeAllPeople`
   - Calculations: `getPersonTotals`, `getSubtotal`, `getGrandTotal`
-  - Custom Hooks: `useBillPersons`, `useBillItems`, `useBillPersonTotals`, `useDocumentTitle`
+  - Helper Functions: `isItemAssigned`, `areAllItemsAssigned`, `getUnassignedItems`, `validateAllocations`
+  - Custom Hooks: `useBillPersons`, `useBillItems`, `useBillPersonTotals`, `useDocumentTitle`, `useBillStep`, `useBillCurrency`, `useBillTitle`, `useBillTaxAmount`
 
 #### `currencyStore.js`
 - Manages currency-related state and formatting
@@ -150,23 +152,50 @@ The application has two environment configurations:
   - Remove items
   - Set tax amount
   - Calculate subtotal and total
+  - Scan receipts using OCR
   - Navigate between steps
 
 #### `src/Components/ItemAssignment.jsx`
 - Third step component for assigning items to people
-- Shows who consumed what items
+- Shows who consumed what items with advanced split options
 - Dependencies:
-  - `billStore.js`: For assignment state management (`assignItem`, `assignAllPeople`, `removeAllPeople`, `nextStep`, `prevStep`)
+  - `billStore.js`: For assignment state management including split types
   - `currencyStore.js`: For currency formatting
   - `ThemeContext.jsx`: For theme-aware styling
   - `ui/components.jsx`: For UI components
+  - `SplitTypeDrawer.jsx`: For configuring different split types
+  - `SPLIT_TYPES`: Constants for split types (equal, percentage, fraction)
 - Key Components:
-  - `ItemCard`: Displays an item with people selection
+  - `ItemCard`: Displays an item with people selection and split options
 - Main functionalities:
   - Assign items to multiple people
-  - Calculate per-person costs for shared items
+  - Configure split types (equal, percentage, or fractional)
+  - Calculate per-person costs based on split configuration
   - Select/deselect all people for an item
   - Navigate between steps
+
+#### `src/Components/SplitTypeDrawer.jsx`
+- Modal-like drawer for configuring item split types
+- Allows users to define how an item's cost is distributed
+- Dependencies:
+  - `PercentageSplitInput.jsx`: For percentage-based splits
+  - `FractionalSplitInput.jsx`: For fractional-based splits
+  - `SPLIT_TYPES`: Constants from billStore.js
+- Main functionalities:
+  - Select split type (equal, percentage, fraction)
+  - Configure allocation values based on split type
+  - Save and apply split configuration to items
+
+#### `src/Components/PercentageSplitInput.jsx`
+- Component for percentage-based split configuration
+- Uses sliders to adjust percentage allocations
+- Ensures allocations always sum to 100%
+- Dependencies: `ui/components.jsx`
+
+#### `src/Components/FractionalSplitInput.jsx`
+- Component for fractional split configuration
+- Allows arbitrary numerical values that determine relative shares
+- Dependencies: `ui/components.jsx`
 
 #### `src/Components/BillSummary.jsx`
 - Fourth and final step component showing the bill summary
@@ -182,10 +211,10 @@ The application has two environment configurations:
   - `PersonCard`: Displays a person's items and totals
   - `EditButtons`: Navigation buttons to edit different steps
 - Main functionalities:
-  - Display per-person itemized bills
+  - Display per-person itemized bills with split information
   - Show subtotal, tax, and total per person
   - Show overall bill totals
-  - Print functionality
+  - Print functionality with print-specific styling
   - Reset the application
   - Navigate to edit previous steps
 
@@ -219,11 +248,13 @@ The application has two environment configurations:
   - Upload receipt image
   - Send to worker API for processing
   - Add detected items and tax to the bill
+  - Handle loading and error states
 
 #### `src/Components/ThemeSwitcher.jsx`
 - Component for toggling between light and dark themes
 - Dependencies: `ThemeContext.jsx` for theme state and functions
 - Main functionality: Switch between light and dark modes
+- Includes both simple and labeled variant
 
 ### UI Components
 
@@ -232,30 +263,17 @@ The application has two environment configurations:
 - Provides consistent UI styling throughout the application
 - Dependencies: `ThemeContext.jsx` for theme-aware styling
 - Components:
-  - `Button`: Styled button with multiple variants
+  - `Button`: Styled button with multiple variants and sizes
   - `Input`: Styled input field with label and error handling
   - `Card`: Styled card container
   - `ToggleButton`: Button for toggling selection
   - `PrintButton`: Button for printing functionality
   - `SelectAllButton`: Button for selecting all items
-  - `PrintWrapper`: Wrapper for printable content
-  - `Modal`: Modal dialog
-  - `FileUpload`: File upload input
-  - `Spinner`: Loading spinner
-  - `Alert`: Alert message
-
-### Deployment and Scripts
-
-#### `deploy.sh`
-- Shell script for deploying to GitHub Pages
-- Creates or updates a gh-pages branch
-- Builds the application and pushes to the gh-pages branch
-- Main functionalities:
-  - Check for uncommitted changes
-  - Create or switch to gh-pages branch
-  - Merge latest changes from the main branch
-  - Build the project with Vite
-  - Commit and push to the remote gh-pages branch
+  - `PrintWrapper`: Wrapper for printable content with media query
+  - `Modal`: Modal dialog with backdrop
+  - `FileUpload`: File upload input with styles
+  - `Spinner`: Loading spinner animation
+  - `Alert`: Alert message with multiple type variants
 
 ## Application Flow
 
@@ -272,13 +290,16 @@ The application follows a 4-step process:
 
 3. **Item Assignment (step 3)**:
    - Assign each item to the people who consumed it
-   - Calculate shared costs per item
+   - Configure split types (equal, percentage, or fractional)
+   - Calculate shared costs per item based on split configuration
 
 4. **Bill Summary (step 4)**:
    - Show a summary of what each person owes
    - Display overall bill totals
    - Print the bill
    - Reset or edit previous steps
+
+The application provides seamless navigation between these steps through the step indicator UI component and back/next buttons.
 
 ## Data Structures
 
@@ -297,11 +318,45 @@ The application follows a 4-step process:
   name: string,
   price: number,
   quantity: number,
+  consumedBy: Array<string | {personId: string, value: number}>, // Enhanced to support split types
+  splitType: 'equal' | 'percentage' | 'fraction' // From SPLIT_TYPES
+}
+```
+
+This is an enhancement of the original structure which was:
+```javascript
+{
+  id: string,
+  name: string,
+  price: number,
+  quantity: number,
   consumedBy: string[] // Array of person IDs
 }
 ```
 
 ### Person Totals Object (calculated)
+```javascript
+{
+  id: string,
+  name: string,
+  items: [
+    {
+      id: string,
+      name: string,
+      price: number,
+      quantity: number,
+      splitType: string, // Split type used
+      allocation: number, // Person's allocation value based on split type
+      share: number // Final price per person based on split type
+    }
+  ],
+  subtotal: number,
+  tax: number,
+  total: number
+}
+```
+
+This is an enhancement of the original structure which was:
 ```javascript
 {
   id: string,
@@ -324,13 +379,15 @@ The application follows a 4-step process:
 
 ## Future Development
 
-Based on the README.md TODO list, planned features include:
+Based on the README.md TODO list and current implementation status, planned features include:
 
 1. Implement a feature to select all people for an item at once ✓ (already implemented)
 2. Define a print-friendly area for exporting the bill summary as a PDF ✓ (already implemented)
 3. Add functionality to export bill details in CSV and JSON formats
+4. Support for multiple currencies 
+5. Bill history 
 
-## Notes for Improvement
+## Notes for Improvement and Implementation Details
 
 1. The README.md is slightly outdated as some of the TODO items have already been implemented:
    - "Select All in People Assignment" is implemented in the `ItemAssignment.jsx` component
@@ -344,11 +401,38 @@ Based on the README.md TODO list, planned features include:
 
 3. The project uses modern React patterns:
    - Functional components with hooks
-   - Memoization with `memo` and `useCallback`
+   - Memoization with `memo`, `useCallback`, and `useMemo`
    - Custom hooks for common functionality
    - Context API for global state like theming
    - External state management with Zustand
+   - Persistent storage with localStorage
 
 4. Receipt scanning functionality:
    - Currently uses a Cloudflare Worker API endpoint
    - Development and production environments have different endpoints
+
+5. The bill splitting logic supports three types of splits:
+   - **Equal split**: Cost divided equally among assigned people
+   - **Percentage split**: Each person assigned a percentage of the cost
+   - **Fractional split**: Relative shares based on arbitrary numbers
+
+6. Performance optimizations:
+   - Component memoization to prevent unnecessary re-renders
+   - Zustand's `useShallow` to optimize store selectors
+   - Lazy loading of modal content
+   - Theme context with memoized values
+
+7. User experience considerations:
+   - Dark/light mode with system preference detection
+   - Responsive design with mobile-friendly controls
+   - Print-specific styles for bill export
+   - Form validation and error handling
+   - Confirmation dialogs for destructive actions
+   - Visual feedback for active states and loading
+
+8. Accessibility features:
+   - Keyboard navigation support
+   - ARIA attributes for interactive elements
+   - Sufficient color contrast
+   - Focus management for modals
+   - Semantic HTML structure
