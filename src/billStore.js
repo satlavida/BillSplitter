@@ -34,7 +34,7 @@ const useBillStore = create(
       
       // People management
       addPerson: (name) => set(state => ({ 
-        people: [...state.people, { id: Date.now().toString(), name }] 
+        people: [...state.people, { id: Date.now().toString() + Math.random().toString(36), name }] 
       })),
       
       removePerson: (id) => set(state => ({ 
@@ -335,6 +335,8 @@ const useBillStore = create(
         // For percentage split, we expect sum close to 100%
         if (splitType === SPLIT_TYPES.PERCENTAGE) {
           const sum = allocations.reduce((total, alloc) => total + alloc.value, 0);
+          const anyNegative = allocations.some(alloc => alloc.value < 0);
+          if(anyNegative) return false;
           // Allow some tolerance for floating point errors
           return Math.abs(sum - 100) < 0.01;
         }
