@@ -1,10 +1,12 @@
-import { useContext, useMemo, memo, useCallback } from 'react';
-import { BillContext, GO_TO_STEP, RESET } from '../BillContext';
+import { memo, useCallback } from 'react';
+import useBillStore, { useBillPersonTotals } from '../billStore';
+import { useFormatCurrency } from '../currencyStore';
+import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
 
 // BillTitle component for displaying the title in summary view
-const BillTitle = ({ title }) => {
+const BillTitle = memo(({ title }) => {
   if (!title) return null;
   
   return (
@@ -14,7 +16,7 @@ const BillTitle = ({ title }) => {
       </h1>
     </div>
   );
-};
+});
 
 // PersonItemRow component for individual item rows
 const PersonItemRow = memo(({ item, formatCurrency }) => {
@@ -79,7 +81,6 @@ const PersonCard = memo(({ person, formatCurrency }) => {
   );
 });
 
-
 // EditButtons component for navigation
 const EditButtons = memo(({ onEdit }) => {
   return (
@@ -111,84 +112,37 @@ const EditButtons = memo(({ onEdit }) => {
 
 // Main BillSummary component
 const BillSummary = () => {
-  const { state, dispatch, formatCurrency } = useContext(BillContext);
+  // Use Zustand store with useShallow to prevent unnecessary re-renders
+  const { title, taxAmount, goToStep, reset } = useBillStore(
+    useShallow(state => ({
+      title: state.title,
+      taxAmount: state.taxAmount,
+      goToStep: state.goToStep,
+      reset: state.reset
+    }))
+  );
   
-  // Calculate subtotals and tax for each person
-  const personTotals = useMemo(() => {
-    const totals = {};
-    
-    // Initialize totals for each person
-    state.people.forEach(person => {
-      totals[person.id] = {
-        id: person.id,
-        name: person.name,
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        total: 0
-      };
-    });
-    
-    // Calculate each person's share for each item
-    state.items.forEach(item => {
-      // Skip items with no consumers
-      if (item.consumedBy.length === 0) return;
-      
-      const totalItemPrice = parseFloat(item.price) * item.quantity;
-      const pricePerPerson = totalItemPrice / item.consumedBy.length;
-      
-      item.consumedBy.forEach(personId => {
-        if (totals[personId]) {
-          totals[personId].items.push({
-            id: item.id,
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: item.quantity,
-            sharedWith: item.consumedBy.length,
-            share: pricePerPerson
-          });
-          
-          totals[personId].subtotal += pricePerPerson;
-        }
-      });
-    });
-    
-    // Calculate tax proportionally based on subtotals
-    if (state.taxAmount > 0) {
-      const totalBeforeTax = Object.values(totals).reduce((sum, person) => sum + person.subtotal, 0);
-      
-      if (totalBeforeTax > 0) {
-        Object.values(totals).forEach(person => {
-          // Proportional tax based on their share of the bill
-          person.tax = (person.subtotal / totalBeforeTax) * parseFloat(state.taxAmount);
-          person.total = person.subtotal + person.tax;
-        });
-      }
-    } else {
-      // No tax, so total equals subtotal
-      Object.values(totals).forEach(person => {
-        person.total = person.subtotal;
-      });
-    }
-    
-    return Object.values(totals);
-  }, [state.people, state.items, state.taxAmount]);
+  const formatCurrency = useFormatCurrency();
   
-  // Calculate grand total
-  const grandTotal = useMemo(() => {
-    return personTotals.reduce((sum, person) => sum + person.total, 0);
-  }, [personTotals]);
+  // Get person totals using the specialized hook
+  const personTotals = useBillPersonTotals();
+  
+  // Calculate subtotal from person totals
+  const subtotal = personTotals.reduce((sum, person) => sum + person.subtotal, 0);
+  
+  // Calculate grand total from person totals
+  const grandTotal = personTotals.reduce((sum, person) => sum + person.total, 0);
   
   const handleEdit = useCallback((step) => {
-    dispatch({ type: GO_TO_STEP, payload: step });
-  }, [dispatch]);
+    goToStep(step);
+  }, [goToStep]);
   
   const handleReset = useCallback(() => {
     const confirm = window.confirm('Are you sure you want to start over? This will reset everything.');
     if (confirm) {
-      dispatch({ type: RESET });
+      reset();
     }
-  }, [dispatch]);
+  }, [reset]);
   
   const handlePrint = useCallback(() => {
     window.print();
@@ -201,7 +155,7 @@ const BillSummary = () => {
       <PrintWrapper>
         <div id="printable-bill">
           {/* Display bill title in printable section */}
-          <BillTitle title={state.title} />
+          <BillTitle title={title} />
           
           {personTotals.map(person => (
             <PersonCard 
@@ -212,8 +166,8 @@ const BillSummary = () => {
           ))}
           
           <BillTotalsSummary 
-            subtotal={personTotals.reduce((sum, person) => sum + person.subtotal, 0)}
-            taxAmount={parseFloat(state.taxAmount) || 0}
+            subtotal={subtotal}
+            taxAmount={parseFloat(taxAmount) || 0}
             grandTotal={grandTotal}
             formatCurrency={formatCurrency}
             className="mb-6"

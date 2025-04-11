@@ -12,6 +12,11 @@ const EditableTitle = ({ title, onSave, placeholder }) => {
     }
   }, [isEditing]);
 
+  // Update value when title changes
+  useEffect(() => {
+    setValue(title || '');
+  }, [title]);
+
   const handleClick = () => {
     if (!isEditing) {
       setIsEditing(true);

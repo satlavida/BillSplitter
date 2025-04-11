@@ -1,5 +1,4 @@
 import React, { memo} from 'react';
-import { useTheme } from '../ThemeContext';
 
 // Reusable Button component
 export const Button = memo(({ 

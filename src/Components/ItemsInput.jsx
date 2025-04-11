@@ -1,6 +1,7 @@
-import { useState, useContext, useRef, memo, useCallback} from 'react';
-import { BillContext, ADD_ITEM, REMOVE_ITEM, UPDATE_ITEM, SET_TAX, NEXT_STEP, PREV_STEP } from '../BillContext';
-import { useTheme } from '../ThemeContext';
+import { useState, useRef, memo, useCallback, useEffect } from 'react';
+import useBillStore, { useBillItems } from '../billStore';
+import { useFormatCurrency } from '../currencyStore';
+import { useShallow } from 'zustand/shallow';
 import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
@@ -201,22 +202,39 @@ const TaxInput = memo(({ taxAmount, onTaxChange }) => {
 
 // Main ItemsInput component
 const ItemsInput = () => {
-  const { state, dispatch, formatCurrency } = useContext(BillContext);
-  const { theme } = useTheme();
-  const [taxAmount, setTaxAmount] = useState(state.taxAmount || '');
+  // Use Zustand store with specialized hooks and useShallow
+  const items = useBillItems();
+  
+  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = 
+    useBillStore(useShallow(state => ({
+      taxAmount: state.taxAmount,
+      addItem: state.addItem,
+      removeItem: state.removeItem,
+      updateItem: state.updateItem,
+      setTax: state.setTax,
+      nextStep: state.nextStep,
+      prevStep: state.prevStep,
+      getSubtotal: state.getSubtotal
+    })));
+  
+  const formatCurrency = useFormatCurrency();
+  
+  const [localTaxAmount, setLocalTaxAmount] = useState(taxAmount || '');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   
+  // Sync the local tax amount with the store on first render
+  useEffect(() => {
+    setLocalTaxAmount(taxAmount || '');
+  }, [taxAmount]);
+  
   const handleAddItem = useCallback((itemData) => {
-    dispatch({ 
-      type: ADD_ITEM, 
-      payload: itemData
-    });
-  }, [dispatch]);
+    addItem(itemData);
+  }, [addItem]);
   
   const handleRemoveItem = useCallback((id) => {
-    dispatch({ type: REMOVE_ITEM, payload: id });
-  }, [dispatch]);
+    removeItem(id);
+  }, [removeItem]);
   
   const handleEditItem = useCallback((item) => {
     setCurrentItem(item);
@@ -224,37 +242,29 @@ const ItemsInput = () => {
   }, []);
   
   const handleSaveItem = useCallback((itemId, updatedData) => {
-    dispatch({ 
-      type: UPDATE_ITEM, 
-      payload: {
-        id: itemId,
-        data: updatedData
-      }
-    });
-  }, [dispatch]);
+    updateItem(itemId, updatedData);
+  }, [updateItem]);
   
   const handleTaxChange = useCallback((e) => {
-    setTaxAmount(e.target.value);
+    setLocalTaxAmount(e.target.value);
   }, []);
   
   const handlePrev = useCallback(() => {
-    dispatch({ type: PREV_STEP });
-  }, [dispatch]);
+    prevStep();
+  }, [prevStep]);
   
   const handleNext = useCallback(() => {
-    if (state.items.length > 0) {
-      dispatch({ type: SET_TAX, payload: taxAmount });
-      dispatch({ type: NEXT_STEP });
+    if (items.length > 0) {
+      setTax(localTaxAmount);
+      nextStep();
     } else {
       alert('Please add at least one item');
     }
-  }, [state.items.length, taxAmount, dispatch]);
+  }, [items.length, localTaxAmount, setTax, nextStep]);
 
-  const subtotal = state.items.reduce(
-    (sum, item) => sum + (parseFloat(item.price) * item.quantity), 
-    0
-  );
-  const tax = parseFloat(taxAmount) || 0;
+  // Get subtotal from the store helper
+  const subtotal = useShallow(getSubtotal)();
+  const tax = parseFloat(localTaxAmount) || 0;
   const total = subtotal + tax;
   
   return (
@@ -267,16 +277,16 @@ const ItemsInput = () => {
       </Card>
       
       <ItemsList 
-        items={state.items} 
+        items={items} 
         onRemove={handleRemoveItem}
         onEdit={handleEditItem}
         formatCurrency={formatCurrency}
       />
       
-      {state.items.length > 0 && (
+      {items.length > 0 && (
         <>
           <TaxInput 
-            taxAmount={taxAmount}
+            taxAmount={localTaxAmount}
             onTaxChange={handleTaxChange}
           />
           
@@ -299,7 +309,7 @@ const ItemsInput = () => {
         </Button>
         <Button
           onClick={handleNext}
-          disabled={state.items.length === 0}
+          disabled={items.length === 0}
         >
           Next
         </Button>
