@@ -18,6 +18,7 @@ const initialState = {
   taxAmount: 0,
   currency: 'INR',
   title: '', 
+  billImage: null,  //added to store the bill
 };
 
 // Create the Zustand store with persistence
@@ -170,6 +171,10 @@ const useBillStore = create(
       // Other settings
       setCurrency: (currency) => set({ currency }),
       setTitle: (title) => set({ title }),
+
+      //added to store the uploaded encoded bill
+      setBillImage: (imageDataUrl) => set({ billImage: imageDataUrl }),
+      clearBillImage: () => set({ billImage: null }),
       
       // Reset
       reset: () => set(initialState, false),
@@ -394,6 +399,7 @@ export const useBillStep = () => useBillStore(state => state.step);
 export const useBillCurrency = () => useBillStore(state => state.currency);
 export const useBillTitle = () => useBillStore(state => state.title);
 export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
+export const useBillImage = () => useBillStore(state => state.billImage);    
 
 // More complex selectors with derived data
 export const useBillPersonTotals = () => {
