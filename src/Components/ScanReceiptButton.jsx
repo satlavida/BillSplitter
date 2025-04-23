@@ -49,10 +49,11 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef 
 // Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { addItem, setTax } = useBillStore(
+  const { addItem, setTax, setBillImage } = useBillStore(
     useShallow(state => ({
       addItem: state.addItem,
-      setTax: state.setTax
+      setTax: state.setTax,
+      setBillImage: state.setBillImage
     }))
   );
   
@@ -60,6 +61,7 @@ const ScanReceiptButton = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
+  
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -139,7 +141,7 @@ const ScanReceiptButton = () => {
 
       // Convert image to base64
       const imageData = await convertToBase64(file);
-      const { setBillImage } = useBillStore();
+      
       setBillImage(`data:${imageData.mimeType};base64,${imageData.base64Data}`);
       
       // Prepare payload

@@ -176,7 +176,7 @@ const BillSummary = () => {
           />
 
           {receiptImage && (
-            <div className="mt-8 text-center">
+            <div className="my-8 text-center">
               <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Uploaded Receipt</h3>
               <img
                 src={receiptImage}
