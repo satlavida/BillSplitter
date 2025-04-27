@@ -20,7 +20,7 @@ const usePassAndSplitStore = create(
       remainingPersonIds: [],         // People who haven't gone yet
       stage: STAGES.PERSON_SELECTION, // Current UI stage
       itemQueue: [],                  // Items yet to be shown
-      pendingAssignments: {},         // Temporary item assignments
+      pendingAssignments: {},         // Temporary item assignments: { personId: { itemId: boolean } }
       
       // Actions
       
@@ -54,22 +54,10 @@ const usePassAndSplitStore = create(
       selectPerson: (personId) => {
         const billItems = useBillStore.getState().items;
         
-        //DISABLING FOR NOW, problem when user wants to redo selection
-        // Create queue of items not yet shown to this person
-        // const filteredItems = billItems.filter(item => {
-        //   // Skip items already assigned to this person in the main store
-        //   const alreadyAssigned = item.consumedBy.some(
-        //     allocation => allocation.personId === personId
-        //   );
-        //   return !alreadyAssigned;
-        // });
-
-        const filteredItems = billItems;
-        
         set(state => ({
           currentPersonId: personId,
           stage: STAGES.ITEM_SWIPING,
-          itemQueue: filteredItems.map(item => item.id),
+          itemQueue: billItems.map(item => item.id),
           pendingAssignments: {
             ...state.pendingAssignments,
             [personId]: state.pendingAssignments[personId] || []
@@ -119,10 +107,15 @@ const usePassAndSplitStore = create(
       completeCurrentPerson: () => {
         const { currentPersonId, completedPersonIds, remainingPersonIds } = get();
         
+        if (!currentPersonId) return;
+        
         // Add to completed, remove from remaining
         const newCompleted = [...completedPersonIds, currentPersonId];
         const newRemaining = remainingPersonIds.filter(id => id !== currentPersonId);
         
+        // Commit assignments to main store for this person
+        get().commitAssignmentsForPerson(currentPersonId);
+
         set({
           completedPersonIds: newCompleted,
           remainingPersonIds: newRemaining,
@@ -136,6 +129,8 @@ const usePassAndSplitStore = create(
       resetCurrentPerson: () => {
         const { currentPersonId } = get();
         
+        if (!currentPersonId) return;
+        
         set(state => ({
           pendingAssignments: {
             ...state.pendingAssignments,
@@ -146,64 +141,58 @@ const usePassAndSplitStore = create(
         }));
       },
       
+      // Commit assignments for a specific person
+      commitAssignmentsForPerson: (personId) => {
+        const { pendingAssignments } = get();
+        const personAssignedItems = pendingAssignments[personId] || [];
+        const billStore = useBillStore.getState();
+        const billItems = billStore.items;
+        
+        // Process all items to ensure we handle both assigned and unassigned items
+        billItems.forEach(item => {
+          // Check if this item is in the pending assignments
+          const isAssignedInPending = personAssignedItems.includes(item.id);
+          
+          // Get all existing consumers except this person
+          const existingConsumers = item.consumedBy.filter(consumer => {
+            return typeof consumer === 'string'
+              ? consumer !== personId
+              : consumer.personId !== personId;
+          });
+          
+          // Get clean list of person IDs
+          let personIds = existingConsumers.map(consumer => 
+            typeof consumer === 'string' ? consumer : consumer.personId
+          );
+          
+          // If this item is assigned to this person in pending assignments, add them
+          if (isAssignedInPending) {
+            personIds.push(personId);
+          }
+          
+          // Always reset to equal split for any modified items
+          // This happens if:
+          // 1. The item was assigned in pending (isAssignedInPending is true)
+          // 2. The item was previously assigned but no longer is (personIds.length !== item.consumedBy.length)
+          const wasPersonPreviouslyAssigned = item.consumedBy.some(consumer => 
+            typeof consumer === 'string'
+              ? consumer === personId
+              : consumer.personId === personId
+          );
+          
+          if (isAssignedInPending || wasPersonPreviouslyAssigned) {
+            billStore.assignItemEqual(item.id, personIds);
+          }
+        });
+      },
+      
       // Commit all pending assignments to main bill store
       commitAssignments: () => {
         const { pendingAssignments } = get();
-        const billStore = useBillStore.getState();
         
-        // Process each person's assignments
-        Object.entries(pendingAssignments).forEach(([personId, itemIds]) => {
-          // For each assigned item
-          itemIds.forEach(itemId => {
-            // Get current item details
-            const item = billStore.items.find(i => i.id === itemId);
-            
-            if (!item) return;
-            
-            // Create new consumedBy array with this person added
-            const existingConsumers = item.consumedBy || [];
-            const personExists = existingConsumers.some(
-              allocation => allocation.personId === personId
-            );
-            
-            // Only add if not already present
-            if (!personExists) {
-              // Handle based on current split type
-              switch (item.splitType) {
-                case SPLIT_TYPES.EQUAL:
-                  // For equal split, just add with value 1
-                  const equalConsumers = [
-                    ...existingConsumers,
-                    { personId, value: 1 }
-                  ];
-                  billStore.updateItem(itemId, { consumedBy: equalConsumers });
-                  break;
-                  
-                case SPLIT_TYPES.PERCENTAGE:
-                case SPLIT_TYPES.FRACTION:
-                  // For other split types, recalculate allocations
-                  // (This is simplified - you'd need more complex logic
-                  // to redistribute percentages/fractions)
-                  const newConsumers = [
-                    ...existingConsumers,
-                    { personId, value: 1 }
-                  ];
-                  // Reset to equal split for simplicity
-                  billStore.assignItemEqual(
-                    itemId, 
-                    newConsumers.map(c => c.personId)
-                  );
-                  break;
-                  
-                default:
-                  // Fallback to equal split
-                  billStore.assignItemEqual(
-                    itemId, 
-                    [...existingConsumers.map(c => c.personId), personId]
-                  );
-              }
-            }
-          });
+        // Commit assignments for each person
+        Object.keys(pendingAssignments).forEach(personId => {
+          get().commitAssignmentsForPerson(personId);
         });
         
         // After committing, deactivate Pass and Split mode
@@ -214,18 +203,29 @@ const usePassAndSplitStore = create(
       addNewPerson: (name) => {
         // Use existing addPerson from billStore
         const billStore = useBillStore.getState();
-        billStore.addPerson(name);
+        const newPerson = billStore.addPerson(name);
         
-        // Get the new person's ID (assuming it's the last added)
-        const newPersonId = billStore.people[billStore.people.length - 1].id;
-        
-        // Update our remaining people list
-        set(state => ({
-          remainingPersonIds: [...state.remainingPersonIds, newPersonId]
-        }));
-        
-        // Select this new person
-        get().selectPerson(newPersonId);
+        if (!newPerson || !newPerson.id) {
+          // If addPerson doesn't return the new person, get the last added one
+          const allPeople = billStore.people;
+          const newPersonId = allPeople[allPeople.length - 1].id;
+          
+          // Update our remaining people list
+          set(state => ({
+            remainingPersonIds: [...state.remainingPersonIds, newPersonId]
+          }));
+          
+          // Select this new person
+          get().selectPerson(newPersonId);
+        } else {
+          // If addPerson returns the new person, use its ID
+          set(state => ({
+            remainingPersonIds: [...state.remainingPersonIds, newPerson.id]
+          }));
+          
+          // Select this new person
+          get().selectPerson(newPerson.id);
+        }
       }
     }),
     { name: 'pass-and-split-store' }
