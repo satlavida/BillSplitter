@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import useBillStore, { useBillPersonTotals } from '../billStore';
+import useBillStore, { useBillPersonTotals, useBillImage }  from '../billStore';
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
@@ -148,6 +148,8 @@ const BillSummary = () => {
     window.print();
   }, []);
   
+  const receiptImage = useBillImage(state => state.billImage);
+
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
@@ -172,6 +174,18 @@ const BillSummary = () => {
             formatCurrency={formatCurrency}
             className="mb-6"
           />
+
+          {receiptImage && (
+            <div className="mt-8 text-center">
+              <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Uploaded Receipt</h3>
+              <img
+                src={receiptImage}
+                alt="Uploaded Receipt"
+                className="mx-auto max-w-full max-h-[800px] border border-zinc-200 dark:border-zinc-700 rounded shadow-md"
+              />
+            </div>
+          )}
+
         </div>
       </PrintWrapper>
       

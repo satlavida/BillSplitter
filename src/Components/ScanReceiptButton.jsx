@@ -139,6 +139,8 @@ const ScanReceiptButton = () => {
 
       // Convert image to base64
       const imageData = await convertToBase64(file);
+      const { setBillImage } = useBillStore();
+      setBillImage(`data:${imageData.mimeType};base64,${imageData.base64Data}`);
       
       // Prepare payload
       const payload = {
