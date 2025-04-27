@@ -19,9 +19,7 @@ const PassAndSplitButton = () => {
         onClick={openModal}
         className={`
           mt-4 py-2 px-4 rounded-lg font-medium flex items-center justify-center w-full
-          ${theme === 'dark' 
-            ? 'bg-indigo-700 hover:bg-indigo-600 text-white' 
-            : 'bg-indigo-600 hover:bg-indigo-700 text-white'} 
+          dark:bg-indigo-700 dark:hover:bg-indigo-600 bg-indigo-600 hover:bg-indigo-700 text-white
           transition-colors
         `}
       >

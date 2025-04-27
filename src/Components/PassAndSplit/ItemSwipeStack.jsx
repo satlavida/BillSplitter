@@ -67,14 +67,14 @@ const ItemSwipeStack = () => {
   if (activeCards.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-4 text-center">
-        <div className={`p-6 rounded-full mb-4 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
+        <div className={`p-6 rounded-full mb-4 dark:bg-gray-700 bg-gray-200`}>
           <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <h3 className="text-xl font-bold mb-2">All Done!</h3>
-        <p className={`mb-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        <p className={`mb-4 dark:text-gray-300 text-gray-600`}>
           You've gone through all your items.
         </p>
       </div>
@@ -102,7 +102,7 @@ const ItemSwipeStack = () => {
         
         {/* Instructions */}
         <div className={`mt-5 bottom-1 left-0 right-0 flex justify-center space-x-16 text-xs
-                        ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                        dark:text-gray-400 text-gray-500}`}>
           <div className="flex flex-col items-center">
             <span>←</span>
             <span>Skip</span>
@@ -116,7 +116,7 @@ const ItemSwipeStack = () => {
       
       {/* Card count indicator */}
       <div className="text-center py-2">
-        <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+        <span className={`text-sm dark:text-gray-400 text-gray-500`}>
           {itemQueue.length} item{itemQueue.length !== 1 ? 's' : ''} remaining
         </span>
       </div>
@@ -128,9 +128,7 @@ const ItemSwipeStack = () => {
           disabled={isAnimating}
           className={`
             w-16 h-16 rounded-full flex items-center justify-center
-            ${theme === 'dark' 
-              ? 'bg-red-800 hover:bg-red-700' 
-              : 'bg-red-500 hover:bg-red-600'} 
+            dark:bg-red-800 dark:hover:bg-red-700 bg-red-500 hover:bg-red-600
             text-white text-xl font-bold transition-colors
             ${isAnimating ? 'opacity-50 cursor-not-allowed' : ''}
           `}
@@ -143,9 +141,7 @@ const ItemSwipeStack = () => {
           disabled={isAnimating}
           className={`
             w-16 h-16 rounded-full flex items-center justify-center
-            ${theme === 'dark' 
-              ? 'bg-green-800 hover:bg-green-700' 
-              : 'bg-green-500 hover:bg-green-600'} 
+            dark:bg-green-800 dark:hover:bg-green-700 bg-green-500 hover:bg-green-600
             text-white text-xl font-bold transition-colors
             ${isAnimating ? 'opacity-50 cursor-not-allowed' : ''}
           `}

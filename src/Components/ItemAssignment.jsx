@@ -339,9 +339,9 @@ const ItemAssignment = () => {
   return (
     <div>
       <div className="mb-4">
-        <div className={`p-3 rounded-lg`}>
+        <div className={`p-3 rounded-lg dark:text-white transition-colors`}>
           <h3 className="font-medium mb-2">Quick Assignment</h3>
-          <p className={`text-sm mb-3`}>
+          <p className={`text-sm mb-3 dark:text-white transition-colors`}>
             Pass your phone around so everyone can select what they had.
           </p>
           <PassAndSplitButton />

@@ -34,9 +34,9 @@ const PassAndSplitController = () => {
   };
 
   return (
-    <div className={`flex flex-col h-full ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+    <div className={`flex flex-col h-full dark:bg-gray-800 dark:text-white bg-white text-gray-800`}>
       {/* Header section with current stage info and participant tracker */}
-      <div className={`py-2 px-4 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'}`}>
+      <div className={`py-2 px-4 dark:bg-gray-700 bg-gray-100`}>
         {stage === STAGES.ITEM_SWIPING && currentPerson ? (
           <div className="flex items-center justify-between">
             <div>

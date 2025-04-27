@@ -5,7 +5,6 @@ import usePassAndSplitStore from 'components/PassAndSplit/stores/passAndSplitSto
 import useBillStore from '../../billStore';
 
 const PassAndSplit = ({ onClose }) => {
-  const { theme } = useTheme();
   const isActive = usePassAndSplitStore(state => state.isActive);
   const activate = usePassAndSplitStore(state => state.activate);
   const deactivate = usePassAndSplitStore(state => state.deactivate);
@@ -30,9 +29,9 @@ const PassAndSplit = ({ onClose }) => {
   if (people.length === 0) {
     return (
       <div className={`fixed inset-0 flex items-center justify-center z-50 
-                      bg-black bg-opacity-50 ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
+                      bg-black bg-opacity-50 dark:text-white text-gray-800`}>
         <div className={`relative w-11/12 max-w-md p-6 rounded-lg shadow-lg 
-                       ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
+                       dark:bg-gray-800 bg-white`}>
           <h3 className="text-xl font-bold mb-4">No People Added</h3>
           <p className="mb-4">
             You need to add people to the bill before using Pass and Split mode.
@@ -40,11 +39,7 @@ const PassAndSplit = ({ onClose }) => {
           <div className="flex justify-end">
             <button
               onClick={onClose}
-              className={`px-4 py-2 rounded-md ${
-                theme === 'dark' 
-                  ? 'bg-blue-600 hover:bg-blue-700' 
-                  : 'bg-blue-500 hover:bg-blue-600'
-              } text-white`}
+              className={`px-4 py-2 rounded-md dark:bg-blue-600 dark:hover:bg-blue-700 bg-blue-500 hover:bg-blue-600 text-white`}
             >
               Go Back
             </button>
@@ -61,16 +56,14 @@ const PassAndSplit = ({ onClose }) => {
         <div className="fixed inset-0 bg-black opacity-40" onClick={handleClose}></div>
         
         <div className={`relative w-full max-w-md p-0 rounded-xl shadow-2xl transition-all
-                        ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+                        dark:bg-gray-800 dark:text-white bg-white text-gray-800`}>
           {/* Modal Header */}
           <div className={`flex justify-between items-center p-4 border-b
-                         ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                         dark:border-gray-700 border-gray-200`}>
             <h3 className="text-xl font-bold">Pass and Split</h3>
             <button
               onClick={handleClose}
-              className={`rounded-full p-1 ${
-                theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
-              }`}
+              className={`rounded-full p-1 dark:hover:bg-gray-700 hover:bg-gray-200`}
             >
               {/* X icon */}
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
