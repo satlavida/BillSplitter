@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',
   build: {
-    outDir: 'docs'
+    outDir: 'docs/preview'
   },
   resolve: {
     alias: {
