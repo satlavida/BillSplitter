@@ -2,10 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <!-- <script src="https://unpkg.com/react-scan/dist/auto.global.js"></script> -->
+     
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- PWA meta tags -->
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="description" content="Split bills easily among multiple people" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="manifest" href="/manifest.json" />
     <title>Bill Splitter</title>
+    <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/serviceworker.js')
+          .then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          })
+          .catch(error => {
+            console.log('ServiceWorker registration failed: ', error);
+          });
+      });
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
