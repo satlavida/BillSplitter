@@ -132,7 +132,7 @@ const ItemCard = ({
       <div className="w-full h-full flex flex-col">
         {/* Card header with item name */}
         <div className={`p-4 border-b 
-                        ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                        dark:border-gray-700 border-gray-200`}>
           <h3 className="text-xl font-semibold truncate">{item.name}</h3>
           <div className="flex justify-between items-center mt-1">
             <span className="font-medium">
@@ -148,14 +148,14 @@ const ItemCard = ({
         <div className="flex-grow flex items-center justify-center p-4">
           {/* Simple visual representation of the item */}
           <div className={`w-24 h-24 rounded-full flex items-center justify-center
-                         ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                         dark:bg-gray-700 bg-gray-200`}>
             <span className="text-4xl">🍽️</span>
           </div>
         </div>
         
         {/* Instruction for swiping */}
         <div className="p-4 text-center">
-          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className={`text-sm dark:text-gray-400 text-gray-500`}>
             Did you have this item?
           </p>
         </div>

@@ -40,7 +40,7 @@ const CompletionScreen = () => {
       {/* Header */}
       <div className="p-4 text-center">
         <h2 className="text-xl font-bold mb-1">{currentPerson.name}'s Selections</h2>
-        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
+        <p className={`text-sm dark:text-gray-300 text-gray-500`}>
           {selectedItems.length === 0 
             ? "You didn't select any items" 
             : `You selected ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''}`}
@@ -52,17 +52,17 @@ const CompletionScreen = () => {
         {selectedItems.length === 0 ? (
           <div className={`
             p-6 rounded-lg text-center
-            ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'}
+            dark:bg-gray-700 bg-gray-100
           `}>
             <p className="text-sm">No items selected</p>
-            <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+            <p className={`text-xs mt-2 dark:text-gray-400 text-gray-500`}>
               You can redo your selection or pass the phone to the next person
             </p>
           </div>
         ) : (
           <ul className={`
             rounded-lg border
-            ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}
+            dark:border-gray-700 border-gray-200
           `}>
             {selectedItems.map((item, index) => (
               <li 
@@ -70,22 +70,22 @@ const CompletionScreen = () => {
                 className={`
                   p-3 flex justify-between items-center
                   ${index !== selectedItems.length - 1 
-                    ? `border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}` 
+                    ? `border-b dark:border-gray-700 border-gray-200` 
                     : ''}
-                  ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}
+                  dark:bg-gray-800 bg-white
                 `}
               >
                 <div className="flex items-center">
                   <div className={`
                     mr-3 w-8 h-8 rounded-full flex items-center justify-center
-                    ${theme === 'dark' ? 'bg-green-800' : 'bg-green-100'}
-                    ${theme === 'dark' ? 'text-green-300' : 'text-green-600'}
+                    dark:bg-green-800 bg-green-100
+                    dark:text-green-300 text-green-600
                   `}>
                     ✓
                   </div>
                   <span className="font-medium">{item.name}</span>
                 </div>
-                <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                <span className={`text-sm dark:text-gray-400 text-gray-500`}>
                   × {item.quantity}
                 </span>
               </li>
@@ -97,15 +97,13 @@ const CompletionScreen = () => {
       {/* Action buttons */}
       <div className={`
         p-4 border-t flex flex-col gap-2
-        ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}
+        dark:border-gray-700 border-gray-200
       `}>
         <button
           onClick={handlePassToNext}
           className={`
             py-3 px-6 rounded-lg font-bold
-            ${theme === 'dark' 
-              ? 'bg-blue-600 hover:bg-blue-700' 
-              : 'bg-blue-500 hover:bg-blue-600'} 
+            dark:bg-blue-600 dark:hover:bg-blue-700 bg-blue-500 hover:bg-blue-600
             text-white transition-colors
           `}
         >
@@ -116,9 +114,7 @@ const CompletionScreen = () => {
           onClick={handleRedoSelection}
           className={`
             py-3 px-6 rounded-lg font-medium
-            ${theme === 'dark' 
-              ? 'bg-gray-700 hover:bg-gray-600 text-white' 
-              : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} 
+            dark:bg-gray-700 dark:hover:bg-gray-600 text-white bg-gray-200 hover:bg-gray-300 text-gray-800
             transition-colors
           `}
         >

@@ -23,17 +23,17 @@ const ParticipantTracker = () => {
       {/* Progress bar */}
       <div className={`
         relative w-24 h-2 rounded-full
-        ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}
+        dark:bg-gray-600 bg-gray-300
       `}>
         <div 
           className={`absolute top-0 left-0 h-full rounded-full
-                      ${theme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'}`}
+                      dark:bg-blue-500 bg-blue-600`}
           style={{ width: `${progressPercentage}%` }}
         ></div>
       </div>
       
       {/* Progress text */}
-      <span className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+      <span className={`text-xs dark:text-gray-300 text-gray-600`}>
         {completedCount}/{totalPeople}
       </span>
       
@@ -47,11 +47,11 @@ const ParticipantTracker = () => {
               key={person.id}
               className={`
                 w-6 h-6 rounded-full flex items-center justify-center text-xs
-                border-2 ${theme === 'dark' ? 'border-gray-800' : 'border-white'}
+                border-2 dark:border-gray-800 border-white
                 ${isCompleted
-                  ? `${theme === 'dark' ? 'bg-green-700' : 'bg-green-500'} text-white`
-                  : `${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'} 
-                     ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`
+                  ? `dark:bg-green-700 bg-green-500 text-white`
+                  : `dark:bg-gray-700 bg-gray-300 
+                     dark:text-gray-300 text-gray-700`
                 }
               `}
               title={`${person.name} ${isCompleted ? '(completed)' : ''}`}
@@ -66,9 +66,9 @@ const ParticipantTracker = () => {
           <div 
             className={`
               w-6 h-6 rounded-full flex items-center justify-center text-xs
-              border-2 ${theme === 'dark' ? 'border-gray-800' : 'border-white'}
-              ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'}
-              ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}
+              border-2 dark:border-gray-800 border-white
+              dark:bg-gray-700 bg-gray-300
+              dark:text-gray-300 text-gray-700
             `}
           >
             +{people.length - 3}
