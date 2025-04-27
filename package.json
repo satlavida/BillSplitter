@@ -4,10 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 8000",
-    "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "dev": "vite",
+    "dev:open": "vite --open /BillSplitter/ --port 8000",
+    "build": "vite build",
+    "preview": "vite preview --base=/BillSplitter/",
+    "preview:open": "vite preview --base=/BillSplitter/ --open /BillSplitter/",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

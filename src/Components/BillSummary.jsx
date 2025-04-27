@@ -84,7 +84,7 @@ const PersonCard = memo(({ person, formatCurrency }) => {
 // EditButtons component for navigation
 const EditButtons = memo(({ onEdit }) => {
   return (
-    <div className="space-x-2 mb-4 no-print">
+    <div className="space-x-4 space-y-4 mb-4 no-print">
       <Button
         variant="secondary"
         size="sm"
