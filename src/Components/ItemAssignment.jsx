@@ -4,6 +4,8 @@ import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
 import SplitTypeDrawer from './SplitTypeDrawer';
+import PassAndSplitButton from './PassAndSplit/PassAndSplitButton';
+
 
 // Individual Item Card component
 const ItemCard = memo(({ 
@@ -336,6 +338,15 @@ const ItemAssignment = () => {
   
   return (
     <div>
+      <div className="mb-4">
+        <div className={`p-3 rounded-lg`}>
+          <h3 className="font-medium mb-2">Quick Assignment</h3>
+          <p className={`text-sm mb-3`}>
+            Pass your phone around so everyone can select what they had.
+          </p>
+          <PassAndSplitButton />
+        </div>
+      </div>
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who consumed what?</h2>
       
       {items.map(item => (

@@ -8,5 +8,12 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'docs'
-  }
+  },
+  resolve: {
+    alias: {
+      src: "/src",
+      components: "/src/Components",
+      ui: "/src/ui",
+    },
+  },
 })
