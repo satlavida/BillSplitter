@@ -2,7 +2,7 @@
     "name": "Bill Splitter",
     "short_name": "BillSplit",
     "description": "Split bills easily among multiple people",
-    "start_url": "/",
+    "start_url": "/BillSplitter/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#3b82f6",
@@ -20,4 +20,4 @@
         "purpose": "any maskable"
       }
     ]
-  }
+}

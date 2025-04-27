@@ -10,25 +10,12 @@
     <!-- PWA meta tags -->
     <meta name="theme-color" content="#3b82f6" />
     <meta name="description" content="Split bills easily among multiple people" />
-    <link rel="apple-touch-icon" href="./icons/icon-192x192.png" />
-    <link rel="manifest" href="./manifest.json" />
+    <link rel="apple-touch-icon" href="/BillSplitter/icons/icon-192x192.png" />
+    <link rel="manifest" href="/BillSplitter/manifest.json" />
     <title>Bill Splitter</title>
-    <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/serviceworker.js')
-          .then(registration => {
-            console.log('ServiceWorker registration successful with scope: ', registration.scope);
-          })
-          .catch(error => {
-            console.log('ServiceWorker registration failed: ', error);
-          });
-      });
-    }
-    </script>
-    <script type="module" crossorigin src="./assets/index-D1tpQFYw.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-yON-cjwY.css">
-  <link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js"></script></head>
+    <script type="module" crossorigin src="./assets/index-DCx2wbTD.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DvUHwoou.css">
+  <link rel="manifest" href="/BillSplitter/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/BillSplitter/registerSW.js"></script></head>
   <body>
     <div id="root"></div>
   </body>

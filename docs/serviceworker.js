@@ -8,12 +8,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
-        '/',
-        '/index.html',
-        '/manifest.json',
+        '/BillSplitter/',
+        '/BillSplitter//index.html',
+        '/BillSplitter//manifest.json',
         // Add other static assets that don't change with each build
-        '/icons/icon-192x192.png',
-        '/icons/icon-512x512.png',
+        '/BillSplitter//icons/icon-192x192.png',
+        '/BillSplitter//icons/icon-512x512.png',
       ]);
     })
   );
