@@ -22,7 +22,7 @@ const ParticipantTracker = () => {
     <div className="flex items-center space-x-2">
       {/* Progress bar */}
       <div className={`
-        relative w-24 h-2 rounded-full overflow-hidden
+        relative w-24 h-2 rounded-full
         ${theme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}
       `}>
         <div 

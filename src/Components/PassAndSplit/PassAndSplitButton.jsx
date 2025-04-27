@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../ThemeContext';
 import PassAndSplit from '../PassAndSplit';
+import ModalPortal from './ModalPortal';
 
 /**
  * Button to activate Pass and Split mode from the item assignment screen
@@ -31,7 +32,9 @@ const PassAndSplitButton = () => {
         Pass & Split
       </button>
       
-      {isModalOpen && <PassAndSplit onClose={closeModal} />}
+      <ModalPortal isOpen={isModalOpen} onClose={closeModal}>
+        <PassAndSplit onClose={closeModal} />
+      </ModalPortal>
     </>
   );
 };

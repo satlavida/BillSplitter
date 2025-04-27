@@ -27,7 +27,6 @@ const usePassAndSplitStore = create(
       // Activate Pass and Split mode
       activate: () => {
         const billPeople = useBillStore.getState().people;
-        const billItems = useBillStore.getState().items;
         
         set({
           isActive: true,
@@ -55,14 +54,17 @@ const usePassAndSplitStore = create(
       selectPerson: (personId) => {
         const billItems = useBillStore.getState().items;
         
+        //DISABLING FOR NOW, problem when user wants to redo selection
         // Create queue of items not yet shown to this person
-        const filteredItems = billItems.filter(item => {
-          // Skip items already assigned to this person in the main store
-          const alreadyAssigned = item.consumedBy.some(
-            allocation => allocation.personId === personId
-          );
-          return !alreadyAssigned;
-        });
+        // const filteredItems = billItems.filter(item => {
+        //   // Skip items already assigned to this person in the main store
+        //   const alreadyAssigned = item.consumedBy.some(
+        //     allocation => allocation.personId === personId
+        //   );
+        //   return !alreadyAssigned;
+        // });
+
+        const filteredItems = billItems;
         
         set(state => ({
           currentPersonId: personId,

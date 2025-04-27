@@ -84,7 +84,7 @@ const ItemSwipeStack = () => {
   return (
     <div className="h-full flex flex-col">
       {/* Card stack area */}
-      <div className="relative flex-grow flex items-center justify-center p-4">
+      <div className="relative flex-grow flex-col items-center justify-center p-4">
         <div className="relative w-full h-[350px]">
           {activeCards.map((item, index) => (
             <ItemCard
@@ -101,7 +101,7 @@ const ItemSwipeStack = () => {
         </div>
         
         {/* Instructions */}
-        <div className={`absolute bottom-2 left-0 right-0 flex justify-center space-x-16 text-xs
+        <div className={`mt-5 bottom-1 left-0 right-0 flex justify-center space-x-16 text-xs
                         ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
           <div className="flex flex-col items-center">
             <span>←</span>

@@ -61,7 +61,7 @@ const CompletionScreen = () => {
           </div>
         ) : (
           <ul className={`
-            rounded-lg overflow-hidden border
+            rounded-lg border
             ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}
           `}>
             {selectedItems.map((item, index) => (

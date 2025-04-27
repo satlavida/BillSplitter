@@ -60,7 +60,7 @@ const PassAndSplit = ({ onClose }) => {
       <div className="min-h-screen px-4 flex items-center justify-center">
         <div className="fixed inset-0 bg-black opacity-40" onClick={handleClose}></div>
         
-        <div className={`relative w-full max-w-md p-0 rounded-xl shadow-2xl overflow-hidden transition-all
+        <div className={`relative w-full max-w-md p-0 rounded-xl shadow-2xl transition-all
                         ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
           {/* Modal Header */}
           <div className={`flex justify-between items-center p-4 border-b
@@ -80,7 +80,7 @@ const PassAndSplit = ({ onClose }) => {
           </div>
           
           {/* Modal Content */}
-          <div className="h-[550px] flex flex-col">
+          <div className="flex flex-col">
             {isActive && <PassAndSplitController />}
           </div>
         </div>

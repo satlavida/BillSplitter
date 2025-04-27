@@ -63,7 +63,7 @@ const PassAndSplitController = () => {
       </div>
       
       {/* Main content area */}
-      <div className="flex-grow overflow-hidden">
+      <div className="flex-grow">
         {renderCurrentStage()}
       </div>
     </div>

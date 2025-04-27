@@ -123,7 +123,7 @@ const ItemCard = ({
   
   return (
     <div
-      className="absolute w-full h-full rounded-xl overflow-hidden"
+      className="absolute w-full h-full rounded-xl"
       style={cardStyle}
       onMouseDown={handleStart}
       onTouchStart={handleStart}
