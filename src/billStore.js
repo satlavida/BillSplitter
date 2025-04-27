@@ -33,9 +33,18 @@ const useBillStore = create(
       goToStep: (step) => set({ step }),
       
       // People management
-      addPerson: (name) => set(state => ({ 
-        people: [...state.people, { id: Date.now().toString() + Math.random().toString(36), name }] 
-      })),
+      addPerson: (name) => {
+        const newPerson = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // cleaner ID
+          name,
+        };
+        
+        set((state) => ({
+          people: [...state.people, newPerson],
+        }));
+      
+        return newPerson; // return the new ID immediately
+      },
       
       removePerson: (id) => set(state => ({ 
         people: state.people.filter(person => person.id !== id),
