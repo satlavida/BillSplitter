@@ -63,7 +63,7 @@ const Sidebar = ({
       {/* Sidebar */}
       <aside
         id="sidebar"
-        className={`fixed top-0 left-0 h-full bg-white dark:bg-zinc-900 shadow-lg z-30 transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full bg-white dark:bg-zinc-900 shadow-lg z-30 transition-all duration-300 ease-in-out dark:text-white ${
           isOpen ? 'w-64' : 'w-0 md:w-18'
         } ${isOpen ? 'visible' : 'invisible md:visible'} overflow-hidden`}
       >

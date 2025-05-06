@@ -38,6 +38,11 @@ bill-splitter/
 │   ├── Components/         # React components
 │   │   ├── PassAndSplit/   # Pass and Split feature components
 │   │   │   └── stores/     # Pass and Split specific state
+│   │   ├── Sidebar/        # Sidebar components
+│   │   │   ├── index.js    # Exports for Sidebar components
+│   │   │   ├── Sidebar.jsx # Main sidebar component
+│   │   │   ├── SidebarItem.jsx # Individual sidebar item
+│   │   │   └── HamburgerButton.jsx # Toggle button for sidebar
 │   ├── ui/                 # UI component library
 │   ├── App.jsx             # Main application component
 │   ├── App.css             # Global styles
@@ -236,7 +241,7 @@ To add new styles:
   - Props: `allSelected`, `onSelectAll`, `onDeselectAll`, `className`
   - Purpose: Button that toggles between select all/deselect all states
 
-- `PrintWrapper`: 
+  - `PrintWrapper`: 
   - Props: `children`
   - Purpose: Wrapper for content that needs print-specific styling
 
@@ -256,7 +261,27 @@ To add new styles:
   - Props: `type` ('info', 'success', 'warning', 'error'), `children`, `className`
   - Purpose: Themed alert message for notifications
 
+#### Sidebar Components (`src/Components/Sidebar`)
+- `Sidebar`: 
+  - Props: `isOpen`, `onToggle`, `items`, `activeItemId`, `onItemClick`
+  - Purpose: Main sidebar container that shows navigation items
+
+- `SidebarItem`: 
+  - Props: `icon`, `label`, `isActive`, `onClick`, `id`
+  - Purpose: Individual navigation item in the sidebar
+
+- `HamburgerButton`: 
+  - Props: `onClick`, `isOpen`
+  - Purpose: Button to toggle the sidebar visibility
+
 #### Feature Components
+- `StepIndicator`: 
+  - Purpose: Shows current step in the bill splitting process
+
+- `Header`: 
+  - Props: `toggleSidebar`, `isSidebarOpen`
+  - Purpose: App header with hamburger menu and theme switcher
+
 - `EditableTitle`: 
   - Props: `title`, `onSave`, `placeholder`
   - Purpose: In-place editable title component with edit/display modes
@@ -357,7 +382,6 @@ const ComponentName = ({ prop1, prop2 = defaultValue }) => {
 
 export default ComponentName;
 ```
-
 ## 7. API & Data Fetching
 
 ### Receipt Scanning API
@@ -441,7 +465,7 @@ const renderStep = () => {
 };
 ```
 
-A `StepIndicator` component displays the current step and allows navigation between steps.
+Additionally, the app now uses the sidebar for navigation between steps, with the sidebar items corresponding to the application steps.
 
 ## 9. Build & Deployment
 
@@ -521,7 +545,74 @@ The project uses ESLint for linting with React-specific plugins.
 - Jest matchers and React Testing Library utilities are used
 - Tests verify state changes and component rendering
 
-## 11. Guidelines & Conventions
+## 11. Recent Changes: Sidebar Implementation
+
+### Sidebar Components
+
+The sidebar implementation is located in the `Components/Sidebar` folder and consists of:
+
+1. **Sidebar.jsx** - The main sidebar component that receives:
+   - `isOpen`: Boolean to control sidebar visibility
+   - `onToggle`: Function to toggle sidebar state
+   - `items`: Array of sidebar item objects
+   - `activeItemId`: ID of the currently active item
+   - `onItemClick`: Function to handle item clicks
+
+2. **SidebarItem.jsx** - Individual navigation item component:
+   - `icon`: React element for the item icon
+   - `label`: Text label for the item
+   - `isActive`: Boolean indicating if this item is active
+   - `onClick`: Function called when item is clicked
+   - `id`: Unique identifier for the item
+
+3. **HamburgerButton.jsx** - Toggle button for showing/hiding the sidebar:
+   - `onClick`: Function to toggle sidebar
+   - `isOpen`: Boolean indicating sidebar state
+
+### Sidebar State in App.jsx
+
+The App component now manages the sidebar state:
+
+- `isSidebarOpen`: Boolean state to control sidebar visibility
+- `toggleSidebar`: Function to toggle the sidebar
+- Persistence of sidebar state in localStorage
+- Conditional layout classes based on sidebar state
+- Handling of item clicks to navigate between steps
+
+### Sidebar Items Structure
+
+Sidebar items are defined as an array of objects with the following structure:
+
+```javascript
+{
+  id: 1, // or string ID for non-step items
+  label: "Add People", // Display text
+  icon: <SvgIcon /> // React element for the icon
+}
+```
+
+The active item is determined by matching the current application step with item IDs.
+
+### Mobile Responsiveness
+
+The sidebar is responsive with different behaviors on mobile and desktop:
+
+- On desktop: Collapsible sidebar with expanded (64px) or icon-only (16px) mode
+- On mobile: Full-width sidebar (256px) that slides in/out with overlay background
+- Auto-close on navigation for mobile devices
+- Keyboard accessibility (Escape key closes)
+- Click outside to close on mobile
+
+### CSS Changes
+
+The App.css file has been updated with new styles for the sidebar:
+
+- Mobile-specific styles for width and transform
+- Smooth transitions for opening/closing animations
+- Print styles to hide sidebar when printing
+- Accessibility focus styles
+
+## 12. Guidelines & Conventions
 
 ### Naming Conventions
 - **Components**: PascalCase, named after their purpose (e.g., `PeopleInput`)
@@ -591,8 +682,18 @@ The application uses the following data structures:
 }
 ```
 
+#### Sidebar Item Object
+```javascript
+{
+  id: number | string, // Step number or feature identifier
+  label: string, // Display text
+  icon: React.ReactNode // SVG icon as React element
+}
+```
+
 ### Future Development
 Based on project documentation, planned features include:
 1. Export bills in CSV and JSON formats
 2. Support for multiple currencies
 3. Bill history for tracking past expenses
+4. Settings page for application configuration
