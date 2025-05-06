@@ -1,8 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
 import useBillHistoryStore from '../../billHistoryStore';
 import useBillStore from '../../billStore';
-import { Button, Alert } from '../../ui/components';
+import { Button, Alert, Input } from '../../ui/components';
 import ModalPortal from '../PassAndSplit/ModalPortal';
 
 // Format date for display
@@ -60,12 +60,34 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
   const fileInputRef = useRef(null);
   const [importError, setImportError] = useState(null);
   const [importSuccess, setImportSuccess] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortMethod, setSortMethod] = useState('date'); // 'date' or 'name'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' or 'desc'
+  const [maxHeight, setMaxHeight] = useState('60vh');
+  
+  // Calculate max height for the bills list based on window height
+  useEffect(() => {
+    if (isOpen) {
+      const calculateMaxHeight = () => {
+        // Set max height to 70% of viewport height
+        setMaxHeight(`${window.innerHeight * 0.7}px`);
+      };
+      
+      calculateMaxHeight();
+      window.addEventListener('resize', calculateMaxHeight);
+      
+      return () => {
+        window.removeEventListener('resize', calculateMaxHeight);
+      };
+    }
+  }, [isOpen]);
   
   // Get bills from store
-  const { bills, deleteBill, setCurrentBill, exportBills, importBills } = 
+  const { bills, deleteBill, clearHistory, setCurrentBill, exportBills, importBills } = 
     useBillHistoryStore(useShallow(state => ({
       bills: state.bills,
       deleteBill: state.deleteBill,
+      clearHistory: state.clearHistory,
       setCurrentBill: state.setCurrentBill,
       exportBills: state.exportBills,
       importBills: state.importBills
@@ -77,10 +99,36 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
     setBillId: state.setBillId
   })));
   
-  // Sort bills by date (newest first)
-  const sortedBills = [...bills].sort((a, b) => 
-    new Date(b.date) - new Date(a.date)
-  );
+  // Filter and sort bills
+  const filteredAndSortedBills = React.useMemo(() => {
+    // First filter by search term
+    const filtered = bills.filter(bill => 
+      (bill.title || 'Untitled Bill')
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    );
+    
+    // Then sort based on method and direction
+    return [...filtered].sort((a, b) => {
+      if (sortMethod === 'date') {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+      } else if (sortMethod === 'name') {
+        const titleA = (a.title || 'Untitled Bill').toLowerCase();
+        const titleB = (b.title || 'Untitled Bill').toLowerCase();
+        return sortDirection === 'asc' 
+          ? titleA.localeCompare(titleB) 
+          : titleB.localeCompare(titleA);
+      }
+      return 0;
+    });
+  }, [bills, searchTerm, sortMethod, sortDirection]);
+  
+  // Toggle sort direction
+  const toggleSortDirection = useCallback(() => {
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+  }, []);
   
   // Handle loading a bill
   const handleLoadBill = useCallback((billId) => {
@@ -103,6 +151,13 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
       deleteBill(billId);
     }
   }, [deleteBill]);
+  
+  // Handle deleting all bills
+  const handleDeleteAllBills = useCallback(() => {
+    if (window.confirm('Are you sure you want to delete all bills? This action cannot be undone.')) {
+      clearHistory();
+    }
+  }, [clearHistory]);
   
   // Handle exporting all bills
   const handleExport = useCallback(() => {
@@ -157,13 +212,18 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
     e.target.value = null;
   }, [importBills]);
   
+  // Clear search term
+  const handleClearSearch = useCallback(() => {
+    setSearchTerm('');
+  }, []);
+  
   return (
     <ModalPortal 
       isOpen={isOpen} 
       onClose={onClose}
     >
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 max-w-xl w-full transition-colors">
+        <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 max-w-xl w-full max-h-[90vh] transition-colors flex flex-col">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold dark:text-white transition-colors">Bill History</h2>
             <button
@@ -178,9 +238,79 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
             </button>
           </div>
           
-          <div className="mb-4">
-            {sortedBills.length > 0 ? (
-              sortedBills.map(bill => (
+          <div className="mb-4 flex flex-col space-y-2">
+            {/* Search input */}
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Search bills by name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pr-10"
+              />
+              {searchTerm && (
+                <button 
+                  onClick={handleClearSearch}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 focus:outline-none"
+                  aria-label="Clear search"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            
+            {/* Sort controls */}
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400 transition-colors">Sort by:</span>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setSortMethod('date')}
+                  className={`px-2 py-1 text-sm rounded-md ${
+                    sortMethod === 'date' 
+                      ? 'bg-blue-600 text-white dark:bg-blue-500' 
+                      : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
+                  } transition-colors`}
+                >
+                  Date
+                </button>
+                <button
+                  onClick={() => setSortMethod('name')}
+                  className={`px-2 py-1 text-sm rounded-md ${
+                    sortMethod === 'name' 
+                      ? 'bg-blue-600 text-white dark:bg-blue-500' 
+                      : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
+                  } transition-colors`}
+                >
+                  Name
+                </button>
+              </div>
+              <button
+                onClick={toggleSortDirection}
+                className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                aria-label={sortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+              >
+                {sortDirection === 'asc' ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+          
+          {/* Scrollable bills list */}
+          <div 
+            className="mb-4 overflow-y-auto flex-grow"
+            style={{ maxHeight }}
+          >
+            {filteredAndSortedBills.length > 0 ? (
+              filteredAndSortedBills.map(bill => (
                 <BillHistoryItem
                   key={bill.id}
                   bill={bill}
@@ -188,6 +318,10 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
                   onDelete={handleDeleteBill}
                 />
               ))
+            ) : searchTerm ? (
+              <p className="text-zinc-600 dark:text-zinc-400 text-center py-4 transition-colors">
+                No bills match your search term "{searchTerm}".
+              </p>
             ) : (
               <p className="text-zinc-600 dark:text-zinc-400 text-center py-4 transition-colors">
                 No saved bills yet. Complete a bill to add it to history.
@@ -208,7 +342,7 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
           )}
           
           <div className="flex justify-between mt-4">
-            <div>
+            <div className="flex space-x-2">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -222,12 +356,20 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
               >
                 Import Bills
               </Button>
+              
+              <Button
+                variant="danger"
+                onClick={handleDeleteAllBills}
+                disabled={bills.length === 0}
+              >
+                Delete All
+              </Button>
             </div>
             
             <Button
               variant="primary"
               onClick={handleExport}
-              disabled={sortedBills.length === 0}
+              disabled={filteredAndSortedBills.length === 0}
             >
               Export All Bills
             </Button>
