@@ -126,9 +126,9 @@ const BillSummary = () => {
   );
   
   // Get bill history actions
-  const { addBill } = useBillHistoryStore(
+  const { saveBill } = useBillHistoryStore(
     useShallow(state => ({
-      addBill: state.addBill
+      saveBill: state.saveBill
     }))
   );
   
@@ -150,14 +150,14 @@ const BillSummary = () => {
   const handleReset = useCallback(() => {
     const confirm = window.confirm('Are you sure you want to start over? This will save the current bill to history and reset everything.');
     if (confirm) {
-      // Add current bill to history
+      // Save current bill to history
       const billData = useBillStore.getState();
-      addBill(billData);
+      saveBill(billData);
       
       // Reset current bill state
       reset();
     }
-  }, [reset, addBill]);
+  }, [reset, saveBill]);
   
   const handlePrint = useCallback(() => {
     window.print();
@@ -183,13 +183,13 @@ const BillSummary = () => {
   }, [exportBill, title]);
   
   const handleSaveBill = useCallback(() => {
-    // Add current bill to history
+    // Save current bill to history
     const billData = useBillStore.getState();
-    addBill(billData);
+    saveBill(billData);
     
     // Show confirmation
     alert('Bill saved to history successfully!');
-  }, [addBill]);
+  }, [saveBill]);
   
   return (
     <div>

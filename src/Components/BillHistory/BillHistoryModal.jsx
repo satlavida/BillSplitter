@@ -71,8 +71,9 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
     })));
   
   // Get import function from bill store
-  const { importBill } = useBillStore(useShallow(state => ({
-    importBill: state.importBill
+  const { importBill, setBillId } = useBillStore(useShallow(state => ({
+    importBill: state.importBill,
+    setBillId: state.setBillId
   })));
   
   // Sort bills by date (newest first)
@@ -86,12 +87,14 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
     if (bill) {
       // Import bill data into current bill store
       importBill(bill.data);
+      // Set the bill ID in the current bill
+      setBillId(billId);
       // Set as current in history
       setCurrentBill(billId);
       // Close modal
       onClose();
     }
-  }, [bills, importBill, setCurrentBill, onClose]);
+  }, [bills, importBill, setBillId, setCurrentBill, onClose]);
   
   // Handle deleting a bill
   const handleDeleteBill = useCallback((billId) => {

@@ -188,14 +188,21 @@ const AppContent = () => {
   useDocumentTitle();
   // Check if we need to load the current bill from history
   const currentBill = useBillHistoryStore(state => state.getCurrentBill());
-  const importBill = useBillStore(state => state.importBill);
+  const { importBill, setBillId } = useBillStore(
+    useShallow(state => ({
+      importBill: state.importBill,
+      setBillId: state.setBillId
+    }))
+  );
   
   // Load current bill from history if it exists (only on initial load)
   useEffect(() => {
     if (currentBill) {
       importBill(currentBill.data);
+      // Also set the billId in the store to maintain connection to history
+      setBillId(currentBill.id);
     }
-  }, [currentBill, importBill]);
+  }, [currentBill, importBill, setBillId]);
   
   // Render the appropriate step
   const renderStep = () => {

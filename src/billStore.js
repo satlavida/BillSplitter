@@ -16,6 +16,7 @@ export const BILL_STORE_VERSION = '1.0.0';
 // Initial state with enhanced structure
 const initialState = {
   version: BILL_STORE_VERSION,
+  billId: null, // Add bill ID for history tracking
   step: 1,
   people: [],
   items: [],
@@ -184,8 +185,11 @@ const useBillStore = create(
       setCurrency: (currency) => set({ currency }),
       setTitle: (title) => set({ title }),
       
-      // Reset - modified to keep version
-      reset: () => set({ ...initialState, version: BILL_STORE_VERSION }, false),
+      // Reset - modified to keep version but clear billId
+      reset: () => set({ ...initialState, version: BILL_STORE_VERSION, billId: null }, false),
+      
+      // Set bill ID (used when loading from history)
+      setBillId: (billId) => set({ billId }),
       
       // Export current bill state
       exportBill: () => {

@@ -46,13 +46,75 @@ const useBillHistoryStore = create(
           id: billId,
           title: billData.title || 'Untitled Bill',
           date: new Date().toISOString(),
-          data: billData,
+          data: { ...billData, billId }, // Include billId in the data
           isCurrent: true,
           version: BILL_HISTORY_VERSION
         };
         
         return {
           bills: [...updatedBills, newBill],
+          currentBillId: billId
+        };
+      }),
+      
+      // Save an existing bill or create a new one if it doesn't exist
+      saveBill: (billData) => set((state) => {
+        // Check if bill already has an ID in the history
+        const existingBillId = billData.billId;
+        let billId = existingBillId;
+        let updatedBills = [];
+        let isNewBill = false;
+        
+        if (!existingBillId || !state.bills.some(bill => bill.id === existingBillId)) {
+          // Generate a new ID if bill doesn't have one or doesn't exist in history
+          billId = generateBillId();
+          isNewBill = true;
+        }
+        
+        // Update billData with the billId (new or existing)
+        const dataWithId = { ...billData, billId };
+        
+        if (isNewBill) {
+          // This is a new bill - add it to history
+          // Set all existing bills to not current
+          updatedBills = state.bills.map(bill => ({
+            ...bill,
+            isCurrent: false
+          }));
+          
+          // Add the new bill
+          const newBill = {
+            id: billId,
+            title: billData.title || 'Untitled Bill',
+            date: new Date().toISOString(),
+            data: dataWithId,
+            isCurrent: true,
+            version: BILL_HISTORY_VERSION
+          };
+          
+          updatedBills = [...updatedBills, newBill];
+        } else {
+          // This is an existing bill - update it
+          updatedBills = state.bills.map(bill => {
+            if (bill.id === billId) {
+              // Update the existing bill
+              return {
+                ...bill,
+                title: billData.title || bill.title,
+                date: new Date().toISOString(), // Update the date to now
+                data: dataWithId,
+                isCurrent: true,
+              };
+            }
+            return {
+              ...bill,
+              isCurrent: false // Set all other bills to not current
+            };
+          });
+        }
+        
+        return {
+          bills: updatedBills,
           currentBillId: billId
         };
       }),
