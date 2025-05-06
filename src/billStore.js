@@ -10,8 +10,13 @@ export const SPLIT_TYPES = {
   FRACTION: 'fraction'
 };
 
+// Add version for future compatibility
+export const BILL_STORE_VERSION = '1.0.0';
+
 // Initial state with enhanced structure
 const initialState = {
+  version: BILL_STORE_VERSION,
+  billId: null, // Add bill ID for history tracking
   step: 1,
   people: [],
   items: [],
@@ -180,8 +185,27 @@ const useBillStore = create(
       setCurrency: (currency) => set({ currency }),
       setTitle: (title) => set({ title }),
       
-      // Reset
-      reset: () => set(initialState, false),
+      // Reset - modified to keep version but clear billId
+      reset: () => set({ ...initialState, version: BILL_STORE_VERSION, billId: null }, false),
+      
+      // Set bill ID (used when loading from history)
+      setBillId: (billId) => set({ billId }),
+      
+      // Export current bill state
+      exportBill: () => {
+        const state = get();
+        return JSON.stringify({
+          version: BILL_STORE_VERSION,
+          data: state,
+          exportDate: new Date().toISOString()
+        });
+      },
+      
+      // Import bill state
+      importBill: (data) => {
+        // Preserve version during import
+        set({ ...data, version: BILL_STORE_VERSION });
+      },
       
       // Business logic helpers with support for different split types
       getPersonTotals: () => {
@@ -275,7 +299,8 @@ const useBillStore = create(
                 quantity: item.quantity,
                 splitType: item.splitType,
                 allocation: allocation.value,
-                share: share
+                share: share,
+                sharedWith: item.consumedBy.length // Add count of people sharing this item
               });
               
               totals[personId].subtotal += share;
@@ -398,36 +423,12 @@ const useBillStore = create(
 export const useBillPersons = () => useBillStore(useShallow(state => state.people));
 export const useBillItems = () => useBillStore(useShallow(state => state.items));
 
-// New selectors using latest Zustand patterns
-export const useBillStep = () => useBillStore(state => state.step);
-export const useBillCurrency = () => useBillStore(state => state.currency);
-export const useBillTitle = () => useBillStore(state => state.title);
-export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
-
 // More complex selectors with derived data
 export const useBillPersonTotals = () => {
   // We create a selector for the function itself
   const getPersonTotals = useBillStore(state => state.getPersonTotals);
   // Then call the function to get the current totals
   return getPersonTotals();
-};
-
-export const useItemSplitDetails = (itemId) => {
-  return useBillStore(
-    useShallow(state => state.getItemSplitDetails(itemId))
-  );
-};
-
-export const useBillSubtotal = () => {
-  return useBillStore(state => state.getSubtotal());
-};
-
-export const useBillGrandTotal = () => {
-  return useBillStore(state => state.getGrandTotal());
-};
-
-export const useUnassignedItems = () => {
-  return useBillStore(useShallow(state => state.getUnassignedItems()));
 };
 
 // Hook for updating document title based on bill title
