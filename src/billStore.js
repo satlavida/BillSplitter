@@ -398,36 +398,12 @@ const useBillStore = create(
 export const useBillPersons = () => useBillStore(useShallow(state => state.people));
 export const useBillItems = () => useBillStore(useShallow(state => state.items));
 
-// New selectors using latest Zustand patterns
-export const useBillStep = () => useBillStore(state => state.step);
-export const useBillCurrency = () => useBillStore(state => state.currency);
-export const useBillTitle = () => useBillStore(state => state.title);
-export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
-
 // More complex selectors with derived data
 export const useBillPersonTotals = () => {
   // We create a selector for the function itself
   const getPersonTotals = useBillStore(state => state.getPersonTotals);
   // Then call the function to get the current totals
   return getPersonTotals();
-};
-
-export const useItemSplitDetails = (itemId) => {
-  return useBillStore(
-    useShallow(state => state.getItemSplitDetails(itemId))
-  );
-};
-
-export const useBillSubtotal = () => {
-  return useBillStore(state => state.getSubtotal());
-};
-
-export const useBillGrandTotal = () => {
-  return useBillStore(state => state.getGrandTotal());
-};
-
-export const useUnassignedItems = () => {
-  return useBillStore(useShallow(state => state.getUnassignedItems()));
 };
 
 // Hook for updating document title based on bill title
