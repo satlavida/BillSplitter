@@ -288,6 +288,7 @@ export const FileUpload = memo(({
         type="file"
         ref={ref}
         accept={accept}
+        capture="environment"
         onChange={onChange}
         className="block w-full text-sm text-zinc-700 dark:text-zinc-300 transition-colors
           file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 
