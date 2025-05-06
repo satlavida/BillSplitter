@@ -1,9 +1,11 @@
 import { memo, useCallback } from 'react';
 import useBillStore, { useBillPersonTotals } from '../billStore';
+import useBillHistoryStore from '../billHistoryStore';
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
+import BillHistoryButton from './BillHistory/BillHistoryButton';
 
 // BillTitle component for displaying the title in summary view
 const BillTitle = memo(({ title }) => {
@@ -113,12 +115,20 @@ const EditButtons = memo(({ onEdit }) => {
 // Main BillSummary component
 const BillSummary = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { title, taxAmount, goToStep, reset } = useBillStore(
+  const { title, taxAmount, goToStep, reset, exportBill } = useBillStore(
     useShallow(state => ({
       title: state.title,
       taxAmount: state.taxAmount,
       goToStep: state.goToStep,
-      reset: state.reset
+      reset: state.reset,
+      exportBill: state.exportBill
+    }))
+  );
+  
+  // Get bill history actions
+  const { addBill } = useBillHistoryStore(
+    useShallow(state => ({
+      addBill: state.addBill
     }))
   );
   
@@ -138,15 +148,48 @@ const BillSummary = () => {
   }, [goToStep]);
   
   const handleReset = useCallback(() => {
-    const confirm = window.confirm('Are you sure you want to start over? This will reset everything.');
+    const confirm = window.confirm('Are you sure you want to start over? This will save the current bill to history and reset everything.');
     if (confirm) {
+      // Add current bill to history
+      const billData = useBillStore.getState();
+      addBill(billData);
+      
+      // Reset current bill state
       reset();
     }
-  }, [reset]);
+  }, [reset, addBill]);
   
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
+  
+  const handleExportJson = useCallback(() => {
+    const jsonData = exportBill();
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create temporary link and trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bill-${title || 'untitled'}-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  }, [exportBill, title]);
+  
+  const handleSaveBill = useCallback(() => {
+    // Add current bill to history
+    const billData = useBillStore.getState();
+    addBill(billData);
+    
+    // Show confirmation
+    alert('Bill saved to history successfully!');
+  }, [addBill]);
   
   return (
     <div>
@@ -175,11 +218,28 @@ const BillSummary = () => {
         </div>
       </PrintWrapper>
       
-      <div className="flex flex-wrap justify-between no-print">
+      <div className="flex flex-wrap justify-between items-center no-print">
         <EditButtons onEdit={handleEdit} />
         
-        <div className="space-x-4 flex justify-between">
+        <div className="space-x-2 mb-4 flex flex-wrap gap-2">
           <PrintButton onClick={handlePrint} />
+          
+          <Button
+            variant="success"
+            onClick={handleSaveBill}
+          >
+            Save Bill
+          </Button>
+          
+          <Button
+            variant="secondary"
+            onClick={handleExportJson}
+          >
+            Export JSON
+          </Button>
+          
+          <BillHistoryButton />
+          
           <Button
             variant="danger"
             onClick={handleReset}

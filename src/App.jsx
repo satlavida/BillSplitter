@@ -7,6 +7,7 @@ import ItemAssignment from './Components/ItemAssignment';
 import BillSummary from './Components/BillSummary';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
 import useBillStore from './billStore';
+import useBillHistoryStore from './billHistoryStore';
 import { useDocumentTitle } from './billStore';
 import { useShallow } from 'zustand/shallow';
 import './App.css';
@@ -185,6 +186,16 @@ const AppContent = () => {
   
   // Set document title based on bill title
   useDocumentTitle();
+  // Check if we need to load the current bill from history
+  const currentBill = useBillHistoryStore(state => state.getCurrentBill());
+  const importBill = useBillStore(state => state.importBill);
+  
+  // Load current bill from history if it exists (only on initial load)
+  useEffect(() => {
+    if (currentBill) {
+      importBill(currentBill.data);
+    }
+  }, [currentBill, importBill]);
   
   // Render the appropriate step
   const renderStep = () => {
