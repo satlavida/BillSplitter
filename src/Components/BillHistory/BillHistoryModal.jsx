@@ -83,10 +83,11 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
   }, [isOpen]);
   
   // Get bills from store
-  const { bills, deleteBill, setCurrentBill, exportBills, importBills } = 
+  const { bills, deleteBill, clearHistory, setCurrentBill, exportBills, importBills } = 
     useBillHistoryStore(useShallow(state => ({
       bills: state.bills,
       deleteBill: state.deleteBill,
+      clearHistory: state.clearHistory,
       setCurrentBill: state.setCurrentBill,
       exportBills: state.exportBills,
       importBills: state.importBills
@@ -150,6 +151,13 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
       deleteBill(billId);
     }
   }, [deleteBill]);
+  
+  // Handle deleting all bills
+  const handleDeleteAllBills = useCallback(() => {
+    if (window.confirm('Are you sure you want to delete all bills? This action cannot be undone.')) {
+      clearHistory();
+    }
+  }, [clearHistory]);
   
   // Handle exporting all bills
   const handleExport = useCallback(() => {
@@ -334,7 +342,7 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
           )}
           
           <div className="flex justify-between mt-4">
-            <div>
+            <div className="flex space-x-2">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -347,6 +355,14 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
                 onClick={handleImportClick}
               >
                 Import Bills
+              </Button>
+              
+              <Button
+                variant="danger"
+                onClick={handleDeleteAllBills}
+                disabled={bills.length === 0}
+              >
+                Delete All
               </Button>
             </div>
             
