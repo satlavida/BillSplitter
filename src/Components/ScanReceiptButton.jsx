@@ -6,13 +6,14 @@ import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 const API_URL = import.meta.env.VITE_WORKER_URL;
 
 // Receipt Upload Form Component
-const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef }) => {
+const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef, captureMode }) => {
   return (
     <form onSubmit={onSubmit}>
       <FileUpload
         ref={fileInputRef}
-        label="Select receipt image"
+        label={captureMode ? "Take photo of receipt" : "Select receipt image"}
         accept="image/*"
+        capture={captureMode ? "environment" : undefined}
         error={error}
       />
 
@@ -26,7 +27,7 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef 
           onClick={onCancel}
           type="button"
         >
-          Cancel
+          Back
         </Button>
         <Button
           type="submit"
@@ -38,11 +39,35 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef 
               Processing...
             </div>
           ) : (
-            'Upload Receipt'
+            captureMode ? 'Capture & Process' : 'Upload & Process'
           )}
         </Button>
       </div>
     </form>
+  );
+};
+
+// Mode Selection Component
+const ModeSelectionForm = ({ onSelectUpload, onSelectCapture }) => {
+  return (
+    <div>
+      <p className="mb-4 text-zinc-700 dark:text-zinc-300">How would you like to scan your receipt?</p>
+      <div className="flex flex-col space-y-4">
+        <Button onClick={onSelectUpload} className="flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+          </svg>
+          Upload from Gallery
+        </Button>
+        <Button onClick={onSelectCapture} className="flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+          </svg>
+          Take Photo with Camera
+        </Button>
+      </div>
+    </div>
   );
 };
 
@@ -59,19 +84,30 @@ const ScanReceiptButton = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [mode, setMode] = useState(null); // null, 'upload', or 'capture'
   const fileInputRef = useRef(null);
 
   const openModal = () => {
     setIsModalOpen(true);
     setError(null);
+    setMode(null);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setError(null);
+    setMode(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const selectUploadMode = () => {
+    setMode('upload');
+  };
+
+  const selectCaptureMode = () => {
+    setMode('capture');
   };
 
   const validateImageFile = (file) => {
@@ -181,6 +217,23 @@ const ScanReceiptButton = () => {
     }
   };
 
+  const renderModalContent = () => {
+    if (mode === null) {
+      return <ModeSelectionForm onSelectUpload={selectUploadMode} onSelectCapture={selectCaptureMode} />;
+    } else {
+      return (
+        <ReceiptUploadForm
+          onSubmit={handleSubmit}
+          onCancel={closeModal}
+          isLoading={isLoading}
+          error={error}
+          fileInputRef={fileInputRef}
+          captureMode={mode === 'capture'}
+        />
+      );
+    }
+  };
+
   return (
     <>
       <Button
@@ -194,15 +247,9 @@ const ScanReceiptButton = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title="Upload Receipt Image"
+        title="Scan Receipt"
       >
-        <ReceiptUploadForm
-          onSubmit={handleSubmit}
-          onCancel={closeModal}
-          isLoading={isLoading}
-          error={error}
-          fileInputRef={fileInputRef}
-        />
+        {renderModalContent()}
       </Modal>
     </>
   );
