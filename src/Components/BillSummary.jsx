@@ -159,6 +159,9 @@ const BillSummary = () => {
       
       // Reset current bill state
       reset();
+      //Save new bill state 
+      const newBillData = useBillStore.getState();
+      saveBill(newBillData);
     }
   }, [reset, saveBill]);
   

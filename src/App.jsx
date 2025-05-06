@@ -206,8 +206,6 @@ const AppContent = () => {
   useEffect(() => {
     if (currentBill) {
       importBill(currentBill.data);
-      // Also set the billId in the store to maintain connection to history
-      setBillId(currentBill.id);
     }
   }, [currentBill, importBill, setBillId]);
   
