@@ -1,309 +1,555 @@
-# Bill Splitter Application - Context Document
+# Bill Splitter - Technical Overview
 
-## Project Overview
+## 1. Project Overview
 
-Bill Splitter is a React application that helps users split bills among multiple people. The application guides users through a step-by-step process of adding people, items, assigning consumption with flexible splitting options, and calculating the final totals including tax. The app uses a modern React stack with Zustand for state management, Context API for theme management, and Tailwind CSS for styling.
+### Application Purpose
+Bill Splitter is an intuitive React application that simplifies the process of splitting bills among multiple people. It guides users through a step-by-step process of adding people, entering items, assigning consumption with flexible splitting options, and calculating final totals including tax.
 
-## Core Technologies and Project Structure
-
+### Tech Stack
 - **Framework**: React 19
 - **State Management**: Zustand with persistence
 - **Styling**: Tailwind CSS 4.0
 - **Build Tool**: Vite 6.2
+- **Testing Framework**: Jest with React Testing Library
+- **Language**: JavaScript (ES6+)
 - **Deployment**: GitHub Pages (via gh-pages branch and docs folder)
-- **Persistence**: localStorage
 
-## Environment Configuration
-
+### Environment Setup
 The application has two environment configurations:
 
-- `.env`: Development environment - Points to a local worker endpoint
+- **Development Environment** (`.env`):
   ```
   VITE_WORKER_URL="http://localhost:8787"
   ```
 
-- `.env.production`: Production environment - Points to a production Cloudflare Worker
+- **Production Environment** (`.env.production`):
   ```
-  VITE_WORKER_URL=https://bill-processor.satlavida.workers.dev
+  VITE_WORKER_URL="https://bill-processor.satlavida.workers.dev"
   ```
 
-## Key Files and Dependencies
+This configuration allows for different API endpoints based on the environment, with the worker URL being used for receipt scanning functionality.
 
-### Entry Points and Configuration
+## 2. Folder Structure
 
-#### `index.html`
-- Main HTML entry point
-- Mounts the React application to `#root`
-- References `src/main.jsx` as the script entry point
+```
+bill-splitter/
+├── src/                    # Source code
+│   ├── assets/             # Static assets
+│   ├── Components/         # React components
+│   │   ├── PassAndSplit/   # Pass and Split feature components
+│   │   │   └── stores/     # Pass and Split specific state
+│   ├── ui/                 # UI component library
+│   ├── App.jsx             # Main application component
+│   ├── App.css             # Global styles
+│   ├── ThemeContext.jsx    # Theme context provider
+│   ├── billStore.js        # Main state store
+│   ├── currencyStore.js    # Currency formatting store
+│   └── main.jsx            # Application entry point
+├── public/                 # Public assets
+├── docs/                   # Build output for GitHub Pages
+├── .env                    # Development environment variables
+├── .env.production         # Production environment variables
+└── vite.config.js          # Vite configuration
+```
 
-#### `main.jsx`
-- React application entry point
-- Renders the `App` component in `StrictMode`
-- Dependencies: `react`, `react-dom`, `App.jsx`
+The project follows a component-based architecture with feature-specific directories. Components are organized into logical groups, with shared UI components in the `ui` directory and feature-specific components in dedicated directories.
 
-#### `vite.config.js`
-- Vite build configuration
-- Configures React plugin and Tailwind CSS
-- Sets the output directory to `docs` for GitHub Pages compatibility
-- Dependencies: `vite`, `@vitejs/plugin-react`, `@tailwindcss/vite`
+## 3. Libraries and Tools
 
-#### `eslint.config.js`
-- ESLint configuration for the project
-- Sets up rules and plugins for React
-- Dependencies: `@eslint/js`, `globals`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`
+### Production Dependencies
+- **React**: UI framework for building the interface (v19.0.0)
+- **React DOM**: DOM-specific methods for React (v19.0.0)
+- **Zustand**: State management with persistence (v5.0.3)
+- **Tailwind CSS**: Utility-first CSS framework (v4.0.10)
+- **vite-plugin-pwa**: PWA integration for Vite
 
-### Core Application Files
+### Development Dependencies
+- **Vite**: Build tool and development server (v6.2.0)
+- **@vitejs/plugin-react**: React plugin for Vite (v4.3.4)
+- **@tailwindcss/vite**: Tailwind CSS plugin for Vite (v4.0.10)
+- **ESLint**: Linting tool with React plugins (v9.21.0)
+- **Jest**: Testing framework (v29.7.0)
+- **React Testing Library**: Testing utilities for React (v16.3.0)
+- **Babel**: JavaScript compiler (v7.26.9)
+- **PostCSS**: CSS post-processor (v8.5.3)
+- **Autoprefixer**: PostCSS plugin for vendor prefixes (v10.4.20)
 
-#### `App.jsx`
-- Main application component
-- Contains the application layout and step-based routing
-- Manages the current step and renders the appropriate component
-- Dependencies:
-  - `ThemeContext.jsx`: For theme management
-  - `ThemeSwitcher.jsx`: For toggling between light and dark modes
-  - `billStore.js`: For global state management
-  - Step components: `PeopleInput`, `ItemsInput`, `ItemAssignment`, `BillSummary`
-- Key Components:
-  - `StepIndicator`: Shows progress through the app workflow
-  - `Header`: Contains app title and theme switcher
-  - `AppContent`: Renders the appropriate step component
+## 4. State Management
 
-#### `ThemeContext.jsx`
-- Provides theme context to the entire application
-- Implements dark/light mode toggling
-- Persists theme preference in localStorage
-- Dependencies: `react`
-- Exports:
-  - `ThemeProvider`: Context provider component
-  - `useTheme`: Custom hook for accessing theme functions and state
-  - `THEMES`: Constants for theme values
+The application uses Zustand for state management with localStorage persistence. There are two main stores:
 
-### State Management
+### billStore.js
+The central store for all bill-related data and logic.
 
-#### `billStore.js`
-- Central state store using Zustand
-- Manages all bill-related data and logic
-- Persists state to localStorage using Zustand's persist middleware
-- Dependencies: `zustand`, `zustand/middleware`, `react`
-- Key State Elements:
-  - `step`: Current step in the bill splitting process (1-4)
-  - `people`: Array of people splitting the bill
-  - `items`: Array of bill items with enhanced split options
-  - `taxAmount`: Tax amount for the bill
-  - `title`: Title of the bill (e.g., restaurant name)
-- Key Functions:
-  - Navigation: `nextStep`, `prevStep`, `goToStep`
-  - People Management: `addPerson`, `removePerson`, `updatePerson`
-  - Item Management: `addItem`, `removeItem`, `updateItem`
-  - Split Types Management: `setSplitType`, `assignItemEqual`, `assignItemPercentage`, `assignItemFraction`
-  - Assignment: `assignAllPeopleEqual`, `removeAllPeople`
-  - Calculations: `getPersonTotals`, `getSubtotal`, `getGrandTotal`
-  - Helper Functions: `isItemAssigned`, `areAllItemsAssigned`, `getUnassignedItems`, `validateAllocations`
-  - Custom Hooks: `useBillPersons`, `useBillItems`, `useBillPersonTotals`, `useDocumentTitle`, `useBillStep`, `useBillCurrency`, `useBillTitle`, `useBillTaxAmount`
+#### Key States:
+- `step`: Current step in the bill splitting process (1-4)
+- `people`: Array of people splitting the bill
+- `items`: Array of bill items with enhanced split options
+- `taxAmount`: Tax amount for the bill
+- `title`: Title of the bill (e.g., restaurant name)
+- `currency`: Currency for formatting (defaults to 'INR')
 
-#### `currencyStore.js`
-- Manages currency-related state and formatting
-- Persists currency preference in localStorage
-- Dependencies: `zustand`, `zustand/middleware`
-- Key Functions:
-  - `formatCurrency`: Formats numbers as currency
-  - `changeCurrency`: Changes the current currency
-- Custom Hooks: `useFormatCurrency`
+#### Key Actions:
+- Navigation:
+  - `nextStep()`: Increments step by 1 (max 4)
+  - `prevStep()`: Decrements step by 1 (min 1)
+  - `goToStep(step: number)`: Sets current step to specified value
+  
+- People Management:
+  - `addPerson(name: string)`: Adds a new person with generated ID and returns the new person object
+  - `removePerson(id: string)`: Removes a person by ID and removes them from all item assignments
+  - `updatePerson(id: string, name: string)`: Updates a person's name
+  
+- Item Management:
+  - `addItem(item: {name: string, price: number, quantity: number})`: Adds a new item with generated ID
+  - `removeItem(id: string)`: Removes an item by ID
+  - `updateItem(id: string, data: {name?: string, price?: number, quantity?: number})`: Updates an item's properties
+  - `setTax(amount: number|string)`: Sets the tax amount, converting to float if needed
+  
+- Split Types:
+  - `setSplitType(itemId: string, splitType: string)`: Sets split type for an item ('equal', 'percentage', 'fraction')
+  - `assignItemEqual(itemId: string, peopleIds: string[])`: Assigns item equally among specified people
+  - `assignItemPercentage(itemId: string, allocations: {personId: string, value: number}[])`: Assigns item by percentage
+  - `assignItemFraction(itemId: string, allocations: {personId: string, value: number}[])`: Assigns item by fractional parts
+  
+- Assignment:
+  - `assignAllPeopleEqual(itemId: string)`: Assigns item equally to all people
+  - `removeAllPeople(itemId: string)`: Removes all people from an item
+  
+- Calculation:
+  - `getPersonTotals()`: Returns array of person total objects with itemized breakdowns
+  - `getSubtotal()`: Returns sum of all item prices × quantities
+  - `getGrandTotal()`: Returns subtotal + tax
+  
+- Settings:
+  - `setCurrency(currency: string)`: Sets the currency code
+  - `setTitle(title: string)`: Sets the bill title
+  
+- Utility:
+  - `isItemAssigned(itemId: string)`: Returns boolean indicating if item has any consumers
+  - `areAllItemsAssigned()`: Returns boolean indicating if all items have consumers
+  - `getUnassignedItems()`: Returns array of items with no consumers
+  - `validateAllocations(allocations: {value: number}[], splitType: string)`: Validates allocation values for a split type
 
-### Component Files
+#### Custom Hooks:
+- `useBillPersons`: Access people array with stable reference
+- `useBillItems`: Access items array with stable reference
+- `useBillPersonTotals`: Get calculated person totals
+- `useDocumentTitle`: Update document title based on bill title
 
-#### `src/Components/PeopleInput.jsx`
-- First step component for adding people to the bill
-- Contains input form and list of added people
-- Dependencies: 
-  - `billStore.js`: For people state management (`addPerson`, `removePerson`, `updatePerson`, `nextStep`, `setTitle`)
-  - `ThemeContext.jsx`: For theme-aware styling
-  - `ui/components.jsx`: For UI components
-  - `EditableTitle.jsx`: For editing the bill title
-  - `EditPersonModal.jsx`: For editing person details
-- Key Components:
-  - `PersonInputForm`: Form for adding a person
-  - `PeopleList`: Displays added people with edit/delete options
-- Main functionalities:
-  - Add people to the bill
-  - Edit existing people
-  - Remove people
-  - Set the bill title
-  - Navigate to the next step
+### currencyStore.js
+Manages currency-related state and formatting.
 
-#### `src/Components/ItemsInput.jsx`
-- Second step component for adding items to the bill
-- Contains item form, list, and tax input
-- Dependencies:
-  - `billStore.js`: For items state management (`addItem`, `removeItem`, `updateItem`, `setTax`, `nextStep`, `prevStep`)
-  - `currencyStore.js`: For currency formatting
-  - `ThemeContext.jsx`: For theme-aware styling
-  - `ui/components.jsx`: For UI components
-  - `ScanReceiptButton.jsx`: For receipt scanning functionality
-  - `EditItemModal.jsx`: For editing item details
-  - `BillTotalsSummary.jsx`: For displaying bill totals
-- Key Components:
-  - `ItemForm`: Form for adding an item
-  - `ItemsList`: Displays added items with edit/delete options
-  - `TaxInput`: Input for tax amount
-- Main functionalities:
-  - Add items with name, price, and quantity
-  - Edit existing items
-  - Remove items
-  - Set tax amount
-  - Calculate subtotal and total
-  - Scan receipts using OCR
-  - Navigate between steps
+#### Key States:
+- `currency`: Current currency code (detected from browser locale or defaults to 'USD')
 
-#### `src/Components/ItemAssignment.jsx`
-- Third step component for assigning items to people
-- Shows who consumed what items with advanced split options
-- Dependencies:
-  - `billStore.js`: For assignment state management including split types
-  - `currencyStore.js`: For currency formatting
-  - `ThemeContext.jsx`: For theme-aware styling
-  - `ui/components.jsx`: For UI components
-  - `SplitTypeDrawer.jsx`: For configuring different split types
-  - `SPLIT_TYPES`: Constants for split types (equal, percentage, fraction)
-- Key Components:
-  - `ItemCard`: Displays an item with people selection and split options
-- Main functionalities:
-  - Assign items to multiple people
-  - Configure split types (equal, percentage, or fractional)
-  - Calculate per-person costs based on split configuration
-  - Select/deselect all people for an item
-  - Navigate between steps
+#### Key Actions:
+- `formatCurrency(amount: number)`: Formats a number as currency based on current currency code and locale, returns a formatted string
+- `changeCurrency(newCurrency: string)`: Updates the currency code
 
-#### `src/Components/SplitTypeDrawer.jsx`
-- Modal-like drawer for configuring item split types
-- Allows users to define how an item's cost is distributed
-- Dependencies:
-  - `PercentageSplitInput.jsx`: For percentage-based splits
-  - `FractionalSplitInput.jsx`: For fractional-based splits
-  - `SPLIT_TYPES`: Constants from billStore.js
-- Main functionalities:
-  - Select split type (equal, percentage, fraction)
-  - Configure allocation values based on split type
-  - Save and apply split configuration to items
+#### Custom Hooks:
+- `useFormatCurrency()`: Returns the formatCurrency function with a stable reference using useShallow
 
-#### `src/Components/PercentageSplitInput.jsx`
-- Component for percentage-based split configuration
-- Uses sliders to adjust percentage allocations
-- Ensures allocations always sum to 100%
-- Dependencies: `ui/components.jsx`
+### passAndSplitStore.js
+Manages state for the Pass and Split feature.
 
-#### `src/Components/FractionalSplitInput.jsx`
-- Component for fractional split configuration
-- Allows arbitrary numerical values that determine relative shares
-- Dependencies: `ui/components.jsx`
+#### Key States:
+- `isActive`: Whether Pass and Split mode is active (boolean)
+- `currentPersonId`: ID of currently selecting person (string)
+- `completedPersonIds`: Array of IDs of people who have completed (string[])
+- `remainingPersonIds`: Array of IDs of people who haven't gone yet (string[])
+- `stage`: Current UI stage ('personSelection', 'itemSwiping', 'completion')
+- `itemQueue`: Array of item IDs yet to be shown (string[])
+- `pendingAssignments`: Object mapping person IDs to arrays of item IDs ({[personId: string]: string[]})
 
-#### `src/Components/BillSummary.jsx`
-- Fourth and final step component showing the bill summary
-- Displays per-person totals and overall bill summary
-- Dependencies:
-  - `billStore.js`: For accessing bill data and calculations (`title`, `taxAmount`, `goToStep`, `reset`)
-  - `currencyStore.js`: For currency formatting
-  - `ui/components.jsx`: For UI components
-  - `BillTotalsSummary.jsx`: For displaying bill totals
-- Key Components:
-  - `BillTitle`: Displays the bill title
-  - `PersonItemRow`: Shows an item assigned to a person
-  - `PersonCard`: Displays a person's items and totals
-  - `EditButtons`: Navigation buttons to edit different steps
-- Main functionalities:
-  - Display per-person itemized bills with split information
-  - Show subtotal, tax, and total per person
-  - Show overall bill totals
-  - Print functionality with print-specific styling
-  - Reset the application
-  - Navigate to edit previous steps
+#### Key Actions:
+- `activate()`: Activates Pass and Split mode, resets all state
+- `deactivate()`: Deactivates mode and resets all state
+- `selectPerson(personId: string)`: Sets current person and prepares their item queue
+- `assignCurrentItem()`: Marks current item as consumed by current person, removes from queue
+- `skipCurrentItem()`: Removes current item from queue without assigning
+- `completeCurrentPerson()`: Marks current person as completed, commits their assignments, moves to next stage
+- `resetCurrentPerson()`: Resets current person's selections and returns to person selection
+- `commitAssignmentsForPerson(personId: string)`: Commits a specific person's assignments to main bill store
+- `commitAssignments()`: Commits all pending assignments to main bill store
+- `addNewPerson(name: string)`: Adds a new person to the bill and selects them
 
-#### `src/Components/BillTotalsSummary.jsx`
-- Reusable component for displaying bill totals
-- Used in multiple steps for consistent totals display
-- Dependencies: `currencyStore.js` for currency formatting
-- Main functionality: Display subtotal, tax amount, and grand total
+## 5. Styling System
 
-#### `src/Components/EditItemModal.jsx`
-- Modal dialog for editing existing items
-- Dependencies: `ui/components.jsx` for UI components
-- Main functionality: Edit item name, price, and quantity
+### Approach
+The application uses Tailwind CSS for styling with dark mode support. The styling approach is utility-first, with reusable UI components in the `ui/components.jsx` file.
 
-#### `src/Components/EditPersonModal.jsx`
-- Modal dialog for editing existing people
-- Dependencies: `ui/components.jsx` for UI components
-- Main functionality: Edit person name
+### Theme Management
+Theme management is handled via React Context API in `ThemeContext.jsx`. The application supports light and dark modes.
 
-#### `src/Components/EditableTitle.jsx`
-- Component for editing the bill title with inline editing
-- Dependencies: `billStore.js` for title state
-- Main functionality: Toggle between display and edit mode for bill title
+#### Key Features:
+- Theme persistence in localStorage
+- System preference detection on initial load
+- Dark mode toggle with smooth transitions
+- Theme-aware components with proper color variables
 
-#### `src/Components/ScanReceiptButton.jsx`
-- Component for scanning receipts using OCR via a Worker API
-- Dependencies:
-  - `billStore.js`: For adding items and tax from scan results
-  - `ui/components.jsx`: For UI components
-- Main functionalities:
-  - Upload receipt image
-  - Send to worker API for processing
-  - Add detected items and tax to the bill
-  - Handle loading and error states
+#### Theme Provider:
+```jsx
+<ThemeProvider>
+  <AppContent />
+</ThemeProvider>
+```
 
-#### `src/Components/ThemeSwitcher.jsx`
-- Component for toggling between light and dark themes
-- Dependencies: `ThemeContext.jsx` for theme state and functions
-- Main functionality: Switch between light and dark modes
-- Includes both simple and labeled variant
+#### Theme Hook:
+```jsx
+const { theme, toggleTheme, isDark, isLight } = useTheme();
+```
 
-### UI Components
+### Adding New Styles
+To add new styles:
+1. Use Tailwind utility classes directly in component JSX
+2. For theme-aware styles, use the `dark:` prefix for dark mode variants
+3. For transitions, use `transition-colors` or other transition utilities
+4. For complex components, create reusable UI components in `ui/components.jsx`
 
-#### `src/ui/components.jsx`
-- Library of reusable UI components
-- Provides consistent UI styling throughout the application
-- Dependencies: `ThemeContext.jsx` for theme-aware styling
-- Components:
-  - `Button`: Styled button with multiple variants and sizes
-  - `Input`: Styled input field with label and error handling
-  - `Card`: Styled card container
-  - `ToggleButton`: Button for toggling selection
-  - `PrintButton`: Button for printing functionality
-  - `SelectAllButton`: Button for selecting all items
-  - `PrintWrapper`: Wrapper for printable content with media query
-  - `Modal`: Modal dialog with backdrop
-  - `FileUpload`: File upload input with styles
-  - `Spinner`: Loading spinner animation
-  - `Alert`: Alert message with multiple type variants
+## 6. Components
 
-## Application Flow
+### Key Reusable Components
 
-The application follows a 4-step process:
+#### UI Components (`src/ui/components.jsx`)
+- `Button`: 
+  - Props: `children`, `variant` ('primary', 'secondary', 'danger', 'success'), `size` ('sm', 'md', 'lg'), `disabled`, `onClick`, `type`, `className`
+  - Purpose: Consistent styled button with theme awareness
 
-1. **People Input (step 1)**:
-   - Set the bill title
-   - Add people who are splitting the bill
+- `Input`: 
+  - Props: `label`, `type`, `error`, `className`, `containerClassName`, `required`, `ref`, and other input attributes
+  - Purpose: Form input with label and error handling
 
-2. **Items Input (step 2)**:
-   - Add bill items with name, price, and quantity
-   - Scan a receipt (optional)
-   - Enter tax amount
+- `Card`: 
+  - Props: `children`, `className`
+  - Purpose: Container with consistent styling and theme support
 
-3. **Item Assignment (step 3)**:
-   - Assign each item to the people who consumed it
-   - Configure split types (equal, percentage, or fractional)
-   - Calculate shared costs per item based on split configuration
+- `ToggleButton`: 
+  - Props: `selected`, `onClick`, `children`, `className`
+  - Purpose: Toggle button for selection states
 
-4. **Bill Summary (step 4)**:
-   - Show a summary of what each person owes
-   - Display overall bill totals
-   - Print the bill
-   - Reset or edit previous steps
+- `PrintButton`: 
+  - Props: `onClick`
+  - Purpose: Button with print icon for printing functionality
 
-The application provides seamless navigation between these steps through the step indicator UI component and back/next buttons.
+- `SelectAllButton`: 
+  - Props: `allSelected`, `onSelectAll`, `onDeselectAll`, `className`
+  - Purpose: Button that toggles between select all/deselect all states
 
-## Data Structures
+- `PrintWrapper`: 
+  - Props: `children`
+  - Purpose: Wrapper for content that needs print-specific styling
 
-### Person Object
+- `Modal`: 
+  - Props: `isOpen`, `onClose`, `title`, `children`, `className`
+  - Purpose: Accessible modal dialog with backdrop
+
+- `FileUpload`: 
+  - Props: `label`, `accept`, `onChange`, `error`, `containerClassName`, `ref`
+  - Purpose: Styled file upload input with error handling
+
+- `Spinner`: 
+  - Props: `size` ('sm', 'md', 'lg'), `className`
+  - Purpose: Loading spinner animation
+
+- `Alert`: 
+  - Props: `type` ('info', 'success', 'warning', 'error'), `children`, `className`
+  - Purpose: Themed alert message for notifications
+
+#### Feature Components
+- `EditableTitle`: 
+  - Props: `title`, `onSave`, `placeholder`
+  - Purpose: In-place editable title component with edit/display modes
+
+- `ThemeSwitcher`: 
+  - Props: None
+  - Purpose: Toggle button between light and dark themes using ThemeContext
+
+- `BillTotalsSummary`: 
+  - Props: `subtotal`, `taxAmount`, `grandTotal`, `className`, `formatCurrency`
+  - Purpose: Reusable component for displaying bill financial totals
+
+- `EditPersonModal`: 
+  - Props: `isOpen`, `onClose`, `person`, `onSave`
+  - Purpose: Modal dialog for editing person name
+
+- `EditItemModal`: 
+  - Props: `isOpen`, `onClose`, `item`, `onSave`
+  - Purpose: Modal dialog for editing item name, price, and quantity
+
+- `SplitTypeDrawer`: 
+  - Props: `isOpen`, `onClose`, `item`, `people`, `onSave`
+  - Purpose: Bottom drawer for configuring how an item's cost is split
+
+- `PercentageSplitInput`: 
+  - Props: `people`, `allocations`, `onSave`, `onCancel`
+  - Purpose: Input interface for percentage-based splits
+
+- `FractionalSplitInput`: 
+  - Props: `people`, `allocations`, `onSave`, `onCancel`
+  - Purpose: Input interface for fractional-based splits
+
+- `ScanReceiptButton`: 
+  - Props: None
+  - Purpose: Button that triggers receipt scanning workflow with file upload
+
+- `PassAndSplitButton`: 
+  - Props: None
+  - Purpose: Button that opens the Pass and Split modal interface
+
+- `ItemCard` (in ItemAssignment): 
+  - Props: `item`, `people`, `onTogglePerson`, `formatCurrency`, `onOpenSplitDrawer`
+  - Purpose: Card showing item details with people assignment controls
+
+### Component Conventions
+- Components are organized by feature in the `Components` directory
+- Reusable UI components are in the `ui` directory
+- Each component has a single responsibility
+- Components are memoized for performance where appropriate
+- Props are destructured and typed with defaults
+- Theme-awareness is built into components
+
+### Props Patterns
+- Props are destructured with defaults
+- Optional props use default values
+- Callback props use `handle` prefix
+- Event handlers use `on` prefix
+- Children are used for composable components
+- Ref forwarding is used where necessary
+
+### Component Structure Guidelines
+1. Import dependencies and hooks
+2. Define memo-wrapped subcomponents if needed
+3. Define the main component with descriptive props
+4. Use hooks at the top level
+5. Define handler functions
+6. Return JSX with proper semantic structure
+7. Export the component (default export)
+
+Example:
+```jsx
+import React, { memo, useState, useCallback } from 'react';
+import { useShallow } from 'zustand/shallow';
+import { Button } from '../ui/components';
+import useBillStore from '../billStore';
+
+const ComponentName = ({ prop1, prop2 = defaultValue }) => {
+  // Hooks
+  const { state, action } = useBillStore(useShallow(state => ({
+    state: state.something,
+    action: state.doSomething
+  })));
+  
+  // State and handlers
+  const [localState, setLocalState] = useState(initialValue);
+  
+  const handleClick = useCallback(() => {
+    // Handle the click
+  }, [dependencies]);
+  
+  // Render
+  return (
+    <div className="theme-aware-class dark:theme-dark-variant">
+      <Button onClick={handleClick}>Action</Button>
+    </div>
+  );
+};
+
+export default ComponentName;
+```
+
+## 7. API & Data Fetching
+
+### Receipt Scanning API
+
+The application uses a single API endpoint for scanning receipts, configured through environment variables:
+
+```javascript
+const API_URL = import.meta.env.VITE_WORKER_URL;
+```
+
+#### Implementation
+The API is accessed in `ScanReceiptButton.jsx` using the Fetch API with the following pattern:
+
+```javascript
+const response = await fetch(endpoint, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(payload),
+  mode: 'cors',
+});
+```
+
+#### Request Format
+The API expects a base64-encoded image and returns parsed receipt data:
+
+```javascript
+const payload = {
+  image: {
+    base64Data: "...",
+    mimeType: "image/jpeg"
+  }
+};
+```
+
+#### Response Format
+The API returns a JSON object with items and tax information:
+
+```javascript
+{
+  items: [
+    { name: "Item Name", price: 10.99, quantity: 1 },
+    // ...more items
+  ],
+  tax: 1.23
+}
+```
+
+### Data Persistence
+Data is persisted locally using Zustand's persist middleware with localStorage. No other API calls or data fetching mechanisms are present in the application.
+
+## 8. Routing
+
+The application does not use traditional routing as it's a single-page application with a step-based flow. Navigation between steps is managed by the `billStore` state:
+
+```javascript
+const step = useBillStore(state => state.step);
+const nextStep = useBillStore(state => state.nextStep);
+const prevStep = useBillStore(state => state.prevStep);
+const goToStep = useBillStore(state => state.goToStep);
+```
+
+The application has 4 main steps:
+1. People Input (`PeopleInput.jsx`)
+2. Items Input (`ItemsInput.jsx`)
+3. Item Assignment (`ItemAssignment.jsx`)
+4. Bill Summary (`BillSummary.jsx`)
+
+The appropriate component is rendered based on the current step:
+
+```jsx
+const renderStep = () => {
+  switch(step) {
+    case 1: return <PeopleInput />;
+    case 2: return <ItemsInput />;
+    case 3: return <ItemAssignment />;
+    case 4: return <BillSummary />;
+    default: return <PeopleInput />;
+  }
+};
+```
+
+A `StepIndicator` component displays the current step and allows navigation between steps.
+
+## 9. Build & Deployment
+
+### Build Toolchain
+The application uses Vite as the build tool with several plugins:
+
+- `@vitejs/plugin-react`: React support
+- `@tailwindcss/vite`: Tailwind CSS integration
+- `vite-plugin-pwa`: PWA support
+
+### Build Configuration
+The build is configured in `vite.config.js`:
+
+```javascript
+export default defineConfig({
+  plugins: [react(), tailwindcss(), VitePWA({...})],
+  base: './',
+  build: {
+    outDir: 'docs/'
+  },
+  resolve: {
+    alias: {
+      src: "/src",
+      components: "/src/Components",
+      ui: "/src/ui",
+    },
+  },
+});
+```
+
+### Deployment
+The application is deployed to GitHub Pages using a custom deploy script (`deploy.sh`):
+
+1. Creates or switches to the `gh-pages` branch
+2. Merges the latest changes from the main branch
+3. Builds the project with `npm run build`
+4. Commits and forces push to the `gh-pages` branch
+
+### Environment Variables
+Environment variables are managed using `.env` files:
+- `.env` for development
+- `.env.production` for production
+
+These files configure the API endpoint for receipt scanning.
+
+### Scripts
+The following npm scripts are available:
+- `npm run dev`: Start development server
+- `npm run dev:open`: Start server and open in browser
+- `npm run build`: Build for production
+- `npm run preview`: Preview production build
+- `npm run test`: Run tests
+- `npm run lint`: Run ESLint
+
+## 10. Testing & Linting
+
+### Testing Framework
+The project uses Jest with React Testing Library for testing.
+
+#### Test Files:
+- `src/billStore.test.js`: Tests for the bill store
+
+#### Test Configuration:
+- `jest.config.js`: Jest configuration
+- `jest.setup.js`: Jest setup with DOM testing extensions
+- `babel.config.js`: Babel configuration for tests
+
+### Linting
+The project uses ESLint for linting with React-specific plugins.
+
+#### Linting Configuration:
+- `eslint.config.js`: ESLint configuration with React hooks and refresh plugins
+
+### Testing Guidelines
+- Tests focus on behavior rather than implementation
+- Tests are organized around features and use cases
+- Jest matchers and React Testing Library utilities are used
+- Tests verify state changes and component rendering
+
+## 11. Guidelines & Conventions
+
+### Naming Conventions
+- **Components**: PascalCase, named after their purpose (e.g., `PeopleInput`)
+- **Files**: Match component names (e.g., `PeopleInput.jsx`)
+- **Hooks**: camelCase with `use` prefix (e.g., `useTheme`)
+- **State Actions**: camelCase, descriptive verbs (e.g., `addPerson`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `SPLIT_TYPES`)
+
+### Code Style
+- **Imports**: Group by external, internal, and relative paths
+- **Props**: Destructure with defaults
+- **State**: Use Zustand with `useShallow` for performance
+- **Effects**: Keep dependencies accurate and minimal
+- **Memoization**: Use `memo`, `useCallback`, and `useMemo` appropriately
+- **Event Handlers**: Prefix with `handle` or `on`
+
+### Component Guidelines
+1. **Reusability**: Create reusable components for UI patterns
+2. **Single Responsibility**: Each component should do one thing well
+3. **Memoization**: Memoize components and handlers for performance
+4. **Theme Awareness**: Support both light and dark modes
+5. **Accessibility**: Use semantic HTML and ARIA attributes
+6. **State Management**: Use Zustand for shared state, local state for UI
+
+### Data Structure Guidelines
+The application uses the following data structures:
+
+#### Person Object
 ```javascript
 {
   id: string,
@@ -311,7 +557,7 @@ The application provides seamless navigation between these steps through the ste
 }
 ```
 
-### Item Object
+#### Item Object
 ```javascript
 {
   id: string,
@@ -323,18 +569,7 @@ The application provides seamless navigation between these steps through the ste
 }
 ```
 
-This is an enhancement of the original structure which was:
-```javascript
-{
-  id: string,
-  name: string,
-  price: number,
-  quantity: number,
-  consumedBy: string[] // Array of person IDs
-}
-```
-
-### Person Totals Object (calculated)
+#### Person Totals Object (calculated)
 ```javascript
 {
   id: string,
@@ -356,83 +591,8 @@ This is an enhancement of the original structure which was:
 }
 ```
 
-This is an enhancement of the original structure which was:
-```javascript
-{
-  id: string,
-  name: string,
-  items: [
-    {
-      id: string,
-      name: string,
-      price: number,
-      quantity: number,
-      sharedWith: number, // Number of people sharing the item
-      share: number // Price per person
-    }
-  ],
-  subtotal: number,
-  tax: number,
-  total: number
-}
-```
-
-## Future Development
-
-Based on the README.md TODO list and current implementation status, planned features include:
-
-1. Implement a feature to select all people for an item at once ✓ (already implemented)
-2. Define a print-friendly area for exporting the bill summary as a PDF ✓ (already implemented)
-3. Add functionality to export bill details in CSV and JSON formats
-4. Support for multiple currencies 
-5. Bill history 
-
-## Notes for Improvement and Implementation Details
-
-1. The README.md is slightly outdated as some of the TODO items have already been implemented:
-   - "Select All in People Assignment" is implemented in the `ItemAssignment.jsx` component
-   - "Print Area Definition for PDF Export" is implemented in the `PrintWrapper` component
-
-2. The code is well-structured with clear separation of concerns:
-   - UI components are separated from business logic
-   - State management is centralized in Zustand stores
-   - Theme management is handled via Context API
-   - Each step of the process has its own component
-
-3. The project uses modern React patterns:
-   - Functional components with hooks
-   - Memoization with `memo`, `useCallback`, and `useMemo`
-   - Custom hooks for common functionality
-   - Context API for global state like theming
-   - External state management with Zustand
-   - Persistent storage with localStorage
-
-4. Receipt scanning functionality:
-   - Currently uses a Cloudflare Worker API endpoint
-   - Development and production environments have different endpoints
-
-5. The bill splitting logic supports three types of splits:
-   - **Equal split**: Cost divided equally among assigned people
-   - **Percentage split**: Each person assigned a percentage of the cost
-   - **Fractional split**: Relative shares based on arbitrary numbers
-
-6. Performance optimizations:
-   - Component memoization to prevent unnecessary re-renders
-   - Zustand's `useShallow` to optimize store selectors
-   - Lazy loading of modal content
-   - Theme context with memoized values
-
-7. User experience considerations:
-   - Dark/light mode with system preference detection
-   - Responsive design with mobile-friendly controls
-   - Print-specific styles for bill export
-   - Form validation and error handling
-   - Confirmation dialogs for destructive actions
-   - Visual feedback for active states and loading
-
-8. Accessibility features:
-   - Keyboard navigation support
-   - ARIA attributes for interactive elements
-   - Sufficient color contrast
-   - Focus management for modals
-   - Semantic HTML structure
+### Future Development
+Based on project documentation, planned features include:
+1. Export bills in CSV and JSON formats
+2. Support for multiple currencies
+3. Bill history for tracking past expenses
