@@ -2,7 +2,8 @@ import React, { useState, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/shallow';
 import useBillHistoryStore from '../../billHistoryStore';
 import useBillStore from '../../billStore';
-import { Modal, Button, Alert } from '../../ui/components';
+import { Button, Alert } from '../../ui/components';
+import ModalPortal from '../PassAndSplit/ModalPortal';
 
 // Format date for display
 const formatDate = (dateString) => {
@@ -157,67 +158,83 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
   }, [importBills]);
   
   return (
-    <Modal 
+    <ModalPortal 
       isOpen={isOpen} 
-      onClose={onClose} 
-      title="Bill History"
-      className="max-w-xl"
+      onClose={onClose}
     >
-      <div className="mb-4">
-        {sortedBills.length > 0 ? (
-          sortedBills.map(bill => (
-            <BillHistoryItem
-              key={bill.id}
-              bill={bill}
-              onLoad={handleLoadBill}
-              onDelete={handleDeleteBill}
-            />
-          ))
-        ) : (
-          <p className="text-zinc-600 dark:text-zinc-400 text-center py-4 transition-colors">
-            No saved bills yet. Complete a bill to add it to history.
-          </p>
-        )}
-      </div>
-      
-      {importError && (
-        <Alert type="error" className="mb-4">
-          Import error: {importError}
-        </Alert>
-      )}
-      
-      {importSuccess && (
-        <Alert type="success" className="mb-4">
-          Bills imported successfully!
-        </Alert>
-      )}
-      
-      <div className="flex justify-between mt-4">
-        <div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".json"
-            className="hidden"
-          />
-          <Button
-            variant="secondary"
-            onClick={handleImportClick}
-          >
-            Import Bills
-          </Button>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 max-w-xl w-full transition-colors">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold dark:text-white transition-colors">Bill History</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 focus:outline-none"
+              aria-label="Close"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="mb-4">
+            {sortedBills.length > 0 ? (
+              sortedBills.map(bill => (
+                <BillHistoryItem
+                  key={bill.id}
+                  bill={bill}
+                  onLoad={handleLoadBill}
+                  onDelete={handleDeleteBill}
+                />
+              ))
+            ) : (
+              <p className="text-zinc-600 dark:text-zinc-400 text-center py-4 transition-colors">
+                No saved bills yet. Complete a bill to add it to history.
+              </p>
+            )}
+          </div>
+          
+          {importError && (
+            <Alert type="error" className="mb-4">
+              Import error: {importError}
+            </Alert>
+          )}
+          
+          {importSuccess && (
+            <Alert type="success" className="mb-4">
+              Bills imported successfully!
+            </Alert>
+          )}
+          
+          <div className="flex justify-between mt-4">
+            <div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".json"
+                className="hidden"
+              />
+              <Button
+                variant="secondary"
+                onClick={handleImportClick}
+              >
+                Import Bills
+              </Button>
+            </div>
+            
+            <Button
+              variant="primary"
+              onClick={handleExport}
+              disabled={sortedBills.length === 0}
+            >
+              Export All Bills
+            </Button>
+          </div>
         </div>
-        
-        <Button
-          variant="primary"
-          onClick={handleExport}
-          disabled={sortedBills.length === 0}
-        >
-          Export All Bills
-        </Button>
       </div>
-    </Modal>
+    </ModalPortal>
   );
 };
 

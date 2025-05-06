@@ -10,6 +10,7 @@ import useBillStore from './billStore';
 import useBillHistoryStore from './billHistoryStore';
 import { useDocumentTitle } from './billStore';
 import { useShallow } from 'zustand/shallow';
+import { BillHistoryProvider, useBillHistory } from './components/BillHistory/BillHistoryContext';
 import './App.css';
 
 // StepIndicator component 
@@ -111,6 +112,8 @@ const AppContent = () => {
   
   // Toggle sidebar
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  const { openModal } = useBillHistory();
   
   // Sidebar items
   const sidebarItems = [
@@ -177,10 +180,14 @@ const AppContent = () => {
     if (!isNaN(itemId)) {
       goToStep(Number(itemId));
     } else {
-      // Future: handle settings or history views
-      console.log(`Clicked on ${itemId}`);
-      // You can add a toast or notification here
-      alert(`${itemId} feature coming soon!`);
+      if(itemId === 'history') {
+        // Open the bill history modal  
+        openModal();
+      }
+      else {
+        alert(`${itemId} feature coming soon!`);
+      }
+      
     }
   };
   
@@ -251,7 +258,9 @@ const AppContent = () => {
 const App = () => {
   return (
     <ThemeProvider>
-      <AppContent />
+      <BillHistoryProvider>
+        <AppContent />
+      </BillHistoryProvider>
     </ThemeProvider>
   );
 };

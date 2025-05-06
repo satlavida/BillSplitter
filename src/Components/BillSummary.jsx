@@ -5,7 +5,7 @@ import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
-import BillHistoryButton from './BillHistory/BillHistoryButton';
+import { useBillHistory } from './BillHistory/BillHistoryContext';
 
 // BillTitle component for displaying the title in summary view
 const BillTitle = memo(({ title }) => {
@@ -134,6 +134,9 @@ const BillSummary = () => {
   
   const formatCurrency = useFormatCurrency();
   
+  // Get bill history modal controls
+  const { openModal } = useBillHistory();
+  
   // Get person totals using the specialized hook
   const personTotals = useBillPersonTotals();
   
@@ -238,7 +241,12 @@ const BillSummary = () => {
             Export JSON
           </Button>
           
-          <BillHistoryButton />
+          <Button
+            variant="secondary"
+            onClick={openModal}
+          >
+            Bill History
+          </Button>
           
           <Button
             variant="danger"
