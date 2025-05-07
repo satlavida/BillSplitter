@@ -268,12 +268,15 @@ export const Modal = memo(({
 });
 
 // File upload component
+
 export const FileUpload = memo(({ 
   label, 
   accept, 
   onChange, 
   error,
   containerClassName = '',
+  capture,
+  onClick,
   ref,
   ...props 
 }) => {
@@ -289,6 +292,9 @@ export const FileUpload = memo(({
         ref={ref}
         accept={accept}
         onChange={onChange}
+        onClick={onClick}
+        // Only add capture attribute when it's provided
+        {...(capture ? { capture } : {})}
         className="block w-full text-sm text-zinc-700 dark:text-zinc-300 transition-colors
           file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 
           file:text-sm file:font-medium 

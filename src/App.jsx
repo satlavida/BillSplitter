@@ -10,7 +10,7 @@ import useBillStore from './billStore';
 import useBillHistoryStore from './billHistoryStore';
 import { useDocumentTitle } from './billStore';
 import { useShallow } from 'zustand/shallow';
-import { BillHistoryProvider, useBillHistory } from './components/BillHistory/BillHistoryContext';
+import { BillHistoryProvider, useBillHistory } from './Components/BillHistory/BillHistoryContext';
 import './App.css';
 
 // StepIndicator component 
