@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import useBillStore from '../billStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
@@ -57,9 +57,9 @@ const ReceiptUploadForm = ({
   onFileInputClick,
   useCameraCapture 
 }) => {
-  // Prevent the default click behavior and show our custom modal instead
+  // Only intercept the click if useCameraCapture is undefined
   const handleFileInputClick = (e) => {
-    if (onFileInputClick) {
+    if (useCameraCapture === undefined && onFileInputClick) {
       e.preventDefault();
       onFileInputClick();
     }
@@ -128,11 +128,13 @@ const ScanReceiptButton = () => {
   const openModal = () => {
     setIsModalOpen(true);
     setError(null);
+    setUseCameraCapture(undefined);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setError(null);
+    setUseCameraCapture(undefined);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -146,28 +148,25 @@ const ScanReceiptButton = () => {
     setIsModeSelectionOpen(false);
   };
 
-  const handleSelectUpload = () => {
-    setUseCameraCapture(false);
-    closeModeSelection();
-    
-    // Allow time for React to re-render with updated props
-    setTimeout(() => {
-      if (fileInputRef.current) {
+  // React effect to trigger file input click when useCameraCapture changes from undefined
+  useEffect(() => {
+    // Only trigger if useCameraCapture is explicitly true or false (not undefined)
+    if (useCameraCapture !== undefined && fileInputRef.current) {
+      // Use setTimeout to ensure all state updates and renders have completed
+      setTimeout(() => {
         fileInputRef.current.click();
-      }
-    }, 100);
+      }, 100);
+    }
+  }, [useCameraCapture]);
+
+  const handleSelectUpload = () => {
+    closeModeSelection();
+    setUseCameraCapture(false);
   };
 
   const handleSelectCapture = () => {
-    setUseCameraCapture(true);
     closeModeSelection();
-    
-    // Allow time for React to re-render with updated props
-    setTimeout(() => {
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
-      }
-    }, 100);
+    setUseCameraCapture(true);
   };
 
   const validateImageFile = (file) => {
