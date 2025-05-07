@@ -342,7 +342,7 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
           )}
           
           <div className="flex justify-between mt-4">
-            <div className="flex space-x-2">
+            <div className="flex flex-row h-auto space-x-2">
               <input
                 type="file"
                 ref={fileInputRef}
