@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import useBillStore from '../billStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
@@ -48,7 +48,15 @@ const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }
 };
 
 // Receipt Upload Form Component
-const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef, onFileInputClick, captureMode }) => {
+const ReceiptUploadForm = ({ 
+  onSubmit, 
+  onCancel, 
+  isLoading, 
+  error, 
+  fileInputRef, 
+  onFileInputClick,
+  useCameraCapture 
+}) => {
   // Prevent the default click behavior and show our custom modal instead
   const handleFileInputClick = (e) => {
     if (onFileInputClick) {
@@ -61,9 +69,9 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef,
     <form onSubmit={onSubmit}>
       <FileUpload
         ref={fileInputRef}
-        label="Select receipt image"
+        label={useCameraCapture ? "Take photo of receipt" : "Select receipt image"}
         accept="image/*"
-        capture={captureMode}
+        capture={useCameraCapture ? "environment" : undefined}
         error={error}
         onClick={handleFileInputClick}
       />
@@ -112,31 +120,21 @@ const ScanReceiptButton = () => {
   const [isModeSelectionOpen, setIsModeSelectionOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [captureMode, setCaptureMode] = useState(undefined);
+  const [useCameraCapture, setUseCameraCapture] = useState(undefined);
   
-  // Using two refs to handle different capture modes
-  const uploadFileInputRef = useRef(null);
-  const captureFileInputRef = useRef(null);
-  
-  // Current active ref based on mode
-  const fileInputRef = captureMode === 'environment' ? captureFileInputRef : uploadFileInputRef;
+  // Single file input ref
+  const fileInputRef = useRef(null);
 
   const openModal = () => {
     setIsModalOpen(true);
     setError(null);
-    setCaptureMode(undefined);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setError(null);
-    setCaptureMode(undefined);
-    // Reset both inputs
-    if (uploadFileInputRef.current) {
-      uploadFileInputRef.current.value = '';
-    }
-    if (captureFileInputRef.current) {
-      captureFileInputRef.current.value = '';
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -149,23 +147,25 @@ const ScanReceiptButton = () => {
   };
 
   const handleSelectUpload = () => {
-    setCaptureMode(undefined);
+    setUseCameraCapture(false);
     closeModeSelection();
-    // Use setTimeout to ensure the modal is closed before triggering the click
+    
+    // Allow time for React to re-render with updated props
     setTimeout(() => {
-      if (uploadFileInputRef.current) {
-        uploadFileInputRef.current.click();
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
       }
     }, 100);
   };
 
   const handleSelectCapture = () => {
-    setCaptureMode('environment');
+    setUseCameraCapture(true);
     closeModeSelection();
-    // Use setTimeout to ensure the modal is closed before triggering the click
+    
+    // Allow time for React to re-render with updated props
     setTimeout(() => {
-      if (captureFileInputRef.current) {
-        captureFileInputRef.current.click();
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
       }
     }, 100);
   };
@@ -222,9 +222,7 @@ const ScanReceiptButton = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Get file from the appropriate input ref based on current mode
-    const fileInput = captureMode === 'environment' ? captureFileInputRef.current : uploadFileInputRef.current;
-    const file = fileInput.files[0];
+    const file = fileInputRef.current?.files?.[0];
     
     const validationError = validateImageFile(file);
     if (validationError) {
@@ -300,18 +298,9 @@ const ScanReceiptButton = () => {
           onCancel={closeModal}
           isLoading={isLoading}
           error={error}
-          fileInputRef={uploadFileInputRef}
+          fileInputRef={fileInputRef}
           onFileInputClick={openModeSelection}
-          captureMode={captureMode}
-        />
-        {/* Hidden file input for camera capture */}
-        <input 
-          type="file"
-          ref={captureFileInputRef}
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={() => {}} // Just to avoid React warning
+          useCameraCapture={useCameraCapture}
         />
       </Modal>
 
