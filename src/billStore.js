@@ -437,6 +437,10 @@ const useBillStore = create(
 // Custom selectors using useShallow to prevent infinite loops
 export const useBillPersons = () => useBillStore(useShallow(state => state.people));
 export const useBillItems = () => useBillStore(useShallow(state => state.items));
+export const useBillStep = () => useBillStore(state => state.step);
+export const useBillCurrency = () => useBillStore(state => state.currency);
+export const useBillTitle = () => useBillStore(state => state.title);
+export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
 
 // More complex selectors with derived data
 export const useBillPersonTotals = () => {
@@ -444,6 +448,16 @@ export const useBillPersonTotals = () => {
   const getPersonTotals = useBillStore(state => state.getPersonTotals);
   // Then call the function to get the current totals
   return getPersonTotals();
+};
+
+export const useBillSubtotal = () => {
+  const getSubtotal = useBillStore(state => state.getSubtotal);
+  return getSubtotal();
+};
+
+export const useBillGrandTotal = () => {
+  const getGrandTotal = useBillStore(state => state.getGrandTotal);
+  return getGrandTotal();
 };
 
 // Hook for updating document title based on bill title
