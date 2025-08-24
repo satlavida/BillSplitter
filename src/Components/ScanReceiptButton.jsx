@@ -217,11 +217,26 @@ const ScanReceiptButton = () => {
   const processReceiptItems = (data) => {
     // Add items to state
     data.items.forEach(item => {
-      addItem({
+      const newItem = {
         name: item.name,
         price: parseFloat(item.price) || 0,
         quantity: parseInt(item.quantity, 10) || 1
-      });
+      };
+
+      // Support optional discount information in two formats:
+      // 1. Structured discount object { value, discountType }
+      // 2. Flat discount fields (discount, discountType)
+      if (item.discount) {
+        if (typeof item.discount === 'object') {
+          newItem.discount = parseFloat(item.discount.value) || 0;
+          newItem.discountType = item.discount.discountType || 'flat';
+        } else {
+          newItem.discount = parseFloat(item.discount) || 0;
+          newItem.discountType = item.discountType || 'flat';
+        }
+      }
+
+      addItem(newItem);
     });
 
     // Set tax amount
