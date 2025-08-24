@@ -1,5 +1,5 @@
 import { useMemo, memo, useCallback, useState } from 'react';
-import useBillStore, { useBillPersons, useBillItems, SPLIT_TYPES } from '../billStore';
+import useBillStore, { useBillPersons, useBillItems, SPLIT_TYPES, getDiscountedItemPrice } from '../billStore';
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
@@ -9,7 +9,7 @@ import PassAndSplitButton from './PassAndSplit/PassAndSplitButton';
 
 // Individual Item Card component
 const ItemCard = memo(({ 
-  item, 
+  item,
   people, 
   onTogglePerson, 
   formatCurrency, 
@@ -97,6 +97,8 @@ const ItemCard = memo(({
     onTogglePerson('none', item.id);
   }, [onTogglePerson, item.id]);
   
+  const itemPrice = useMemo(() => getDiscountedItemPrice(item), [item]);
+
   return (
     <Card className="mb-4">
       <div className="mb-3 flex justify-between">
@@ -104,7 +106,7 @@ const ItemCard = memo(({
           <h3 className="text-lg font-medium text-zinc-800 dark:text-white transition-colors">{item.name}</h3>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
             {item.quantity > 1 ? `${item.quantity} × ` : ''}
-            {formatCurrency(parseFloat(item.price))}
+            {formatCurrency(itemPrice)}
           </p>
         </div>
         <button 
@@ -168,7 +170,7 @@ const ItemCard = memo(({
             </p>
           ) : item.consumedBy.length > 1 && (
             <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 transition-colors">
-              Each person pays: {formatCurrency((parseFloat(item.price) * item.quantity / item.consumedBy.length))}
+              Each person pays: {formatCurrency((itemPrice * item.quantity / item.consumedBy.length))}
             </p>
           )}
         </div>

@@ -5,7 +5,9 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    quantity: 1
+    quantity: 1,
+    discount: 0,
+    discountType: 'flat'
   });
   const nameInputRef = useRef(null);
 
@@ -15,7 +17,9 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
       setFormData({
         name: item.name,
         price: item.price,
-        quantity: item.quantity
+        quantity: item.quantity,
+        discount: item.discount || 0,
+        discountType: item.discountType || 'flat'
       });
       
       // Focus the name input when the modal opens
@@ -35,11 +39,13 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.name.trim() && Number(formData.price) > 0) {
+    if (formData.name.trim() && formData.price !== '' && !isNaN(Number(formData.price))) {
       onSave(item.id, {
         name: formData.name.trim(),
         price: parseFloat(formData.price),
-        quantity: parseInt(formData.quantity) || 1
+        quantity: parseInt(formData.quantity) || 1,
+        discount: parseFloat(formData.discount) || 0,
+        discountType: formData.discountType
       });
       onClose();
     }
@@ -77,7 +83,6 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
             id="itemPrice"
             name="price"
             type="number"
-            min="0"
             step="0.01"
             value={formData.price}
             onChange={handleChange}
@@ -89,6 +94,33 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
             placeholder="0.00"
             required
           />
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="itemDiscount" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Discount
+          </label>
+          <div className="flex space-x-2">
+            <input
+              id="itemDiscount"
+              name="discount"
+              type="number"
+              step="0.01"
+              value={formData.discount}
+              onChange={handleChange}
+              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
+              placeholder="0.00"
+            />
+            <select
+              name="discountType"
+              value={formData.discountType}
+              onChange={handleChange}
+              className="p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
+            >
+              <option value="flat">Flat</option>
+              <option value="percentage">%</option>
+            </select>
+          </div>
         </div>
 
         <div className="mb-4">

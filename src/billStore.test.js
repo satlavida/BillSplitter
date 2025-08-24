@@ -594,6 +594,25 @@ describe('billStore - Calculation Functions', () => {
      expect(wendyTotal.items.find(i => i.id === items[1].id).share).toBeCloseTo(100);
   });
 
+  test('should apply item discounts in subtotal and person totals', () => {
+    const { addPerson, addItem, updateItem, assignItemEqual, getSubtotal, getPersonTotals } = useBillStore.getState();
+    act(() => {
+      addPerson('Discount Tester');
+      addItem({ name: 'Discounted', price: 100, quantity: 1 });
+    });
+    const state = useBillStore.getState();
+    const itemId = state.items[0].id;
+    const personId = state.people[0].id;
+    act(() => {
+      updateItem(itemId, { discount: 10, discountType: 'percentage' });
+      assignItemEqual(itemId, [personId]);
+    });
+    expect(getSubtotal()).toBeCloseTo(90);
+    const totals = getPersonTotals();
+    const personTotal = totals.find(p => p.id === personId);
+    expect(personTotal.subtotal).toBeCloseTo(90);
+  });
+
   test('should handle items with zero consumers in totals calculation', () => {
     const { people, items } = setupScenario();
     const { getPersonTotals, getGrandTotal } = useBillStore.getState();
