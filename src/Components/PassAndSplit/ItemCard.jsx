@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../ThemeContext';
+import { getDiscountedItemPrice } from '../../billStore';
 
 const ItemCard = ({ 
   item, 
@@ -121,6 +122,8 @@ const ItemCard = ({
       : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.05)'
   };
   
+  const itemPrice = getDiscountedItemPrice(item);
+
   return (
     <div
       className="absolute w-full h-full rounded-xl"
@@ -136,10 +139,10 @@ const ItemCard = ({
           <h3 className="text-xl font-semibold truncate">{item.name}</h3>
           <div className="flex justify-between items-center mt-1">
             <span className="font-medium">
-              {formatCurrency(item.price)} × {item.quantity}
+              {formatCurrency(itemPrice)} × {item.quantity}
             </span>
             <span className="font-bold">
-              {formatCurrency(item.price * item.quantity)}
+              {formatCurrency(itemPrice * item.quantity)}
             </span>
           </div>
         </div>

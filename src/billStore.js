@@ -13,6 +13,16 @@ export const SPLIT_TYPES = {
 // Add version for future compatibility
 export const BILL_STORE_VERSION = '1.0.0';
 
+// Helper to apply item-level discounts
+export const getDiscountedItemPrice = (item) => {
+  const price = parseFloat(item.price) || 0;
+  const discount = parseFloat(item.discount) || 0;
+  if (item.discountType === 'percentage') {
+    return price - (price * discount) / 100;
+  }
+  return price - discount;
+};
+
 // Initial state with enhanced structure
 const initialState = {
   version: BILL_STORE_VERSION,
@@ -73,6 +83,8 @@ const useBillStore = create(
           name: item.name,
           price: parseFloat(item.price),
           quantity: parseInt(item.quantity) || 1,
+          discount: parseFloat(item.discount) || 0,
+          discountType: item.discountType || 'flat',
           consumedBy: [],
           splitType: SPLIT_TYPES.EQUAL // default split type
         }]
@@ -228,8 +240,9 @@ const useBillStore = create(
         state.items.forEach(item => {
           // Skip items with no consumers
           if (item.consumedBy.length === 0) return;
-          
-          const totalItemPrice = parseFloat(item.price) * item.quantity;
+
+          const itemPrice = getDiscountedItemPrice(item);
+          const totalItemPrice = itemPrice * item.quantity;
           
           // Calculate shares based on split type
           let shares = {};
@@ -295,12 +308,14 @@ const useBillStore = create(
               totals[personId].items.push({
                 id: item.id,
                 name: item.name,
-                price: parseFloat(item.price),
+                price: itemPrice,
                 quantity: item.quantity,
                 splitType: item.splitType,
                 allocation: allocation.value,
                 share: share,
-                sharedWith: item.consumedBy.length // Add count of people sharing this item
+                sharedWith: item.consumedBy.length,
+                discount: item.discount,
+                discountType: item.discountType
               });
               
               totals[personId].subtotal += share;
@@ -334,7 +349,7 @@ const useBillStore = create(
       getSubtotal: () => {
         const state = get();
         return state.items.reduce(
-          (sum, item) => sum + (parseFloat(item.price) * item.quantity), 
+          (sum, item) => sum + (getDiscountedItemPrice(item) * item.quantity),
           0
         );
       },
@@ -422,6 +437,10 @@ const useBillStore = create(
 // Custom selectors using useShallow to prevent infinite loops
 export const useBillPersons = () => useBillStore(useShallow(state => state.people));
 export const useBillItems = () => useBillStore(useShallow(state => state.items));
+export const useBillStep = () => useBillStore(state => state.step);
+export const useBillCurrency = () => useBillStore(state => state.currency);
+export const useBillTitle = () => useBillStore(state => state.title);
+export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
 
 // More complex selectors with derived data
 export const useBillPersonTotals = () => {
@@ -429,6 +448,16 @@ export const useBillPersonTotals = () => {
   const getPersonTotals = useBillStore(state => state.getPersonTotals);
   // Then call the function to get the current totals
   return getPersonTotals();
+};
+
+export const useBillSubtotal = () => {
+  const getSubtotal = useBillStore(state => state.getSubtotal);
+  return getSubtotal();
+};
+
+export const useBillGrandTotal = () => {
+  const getGrandTotal = useBillStore(state => state.getGrandTotal);
+  return getGrandTotal();
 };
 
 // Hook for updating document title based on bill title

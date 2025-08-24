@@ -1,5 +1,5 @@
 import { useState, useRef, memo, useCallback, useEffect } from 'react';
-import useBillStore, { useBillItems } from '../billStore';
+import useBillStore, { useBillItems, getDiscountedItemPrice } from '../billStore';
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card } from '../ui/components';
@@ -19,7 +19,7 @@ const ItemForm = memo(({ onAddItem }) => {
   
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (newItem.name.trim() && Number(newItem.price) > 0) {
+    if (newItem.name.trim() && newItem.price !== '' && !isNaN(Number(newItem.price))) {
       onAddItem({
         name: newItem.name.trim(),
         price: newItem.price,
@@ -65,7 +65,6 @@ const ItemForm = memo(({ onAddItem }) => {
           </label>
           <input
             type="number"
-            min="0"
             step="0.01"
             value={newItem.price}
             onChange={(e) => setNewItem({...newItem, price: e.target.value})}
@@ -124,7 +123,7 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
         <span className="font-medium dark:text-white transition-colors">{item.name}</span>
         <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
           {item.quantity > 1 ? `${item.quantity} × ` : ''}
-          {formatCurrency(Number(item.price))}
+          {formatCurrency(getDiscountedItemPrice(item))}
         </span>
       </div>
       <div className="flex space-x-2">
