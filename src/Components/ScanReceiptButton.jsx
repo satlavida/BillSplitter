@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import useBillStore from '../billStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
+import useOnlineStatus from '../hooks/useOnlineStatus';
 
 const API_URL = import.meta.env.VITE_WORKER_URL;
 
@@ -115,17 +116,24 @@ const ScanReceiptButton = () => {
       setTax: state.setTax
     }))
   );
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModeSelectionOpen, setIsModeSelectionOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [useCameraCapture, setUseCameraCapture] = useState(undefined);
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
+
+  const isOnline = useOnlineStatus();
   
   // Single file input ref
   const fileInputRef = useRef(null);
 
   const openModal = () => {
+    if (!isOnline) {
+      setIsOfflineModalOpen(true);
+      return;
+    }
     setIsModalOpen(true);
     setError(null);
     setUseCameraCapture(undefined);
@@ -138,6 +146,10 @@ const ScanReceiptButton = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const closeOfflineModal = () => {
+    setIsOfflineModalOpen(false);
   };
 
   const openModeSelection = () => {
@@ -205,11 +217,26 @@ const ScanReceiptButton = () => {
   const processReceiptItems = (data) => {
     // Add items to state
     data.items.forEach(item => {
-      addItem({
+      const newItem = {
         name: item.name,
         price: parseFloat(item.price) || 0,
         quantity: parseInt(item.quantity, 10) || 1
-      });
+      };
+
+      // Support optional discount information in two formats:
+      // 1. Structured discount object { value, discountType }
+      // 2. Flat discount fields (discount, discountType)
+      if (item.discount) {
+        if (typeof item.discount === 'object') {
+          newItem.discount = parseFloat(item.discount.value) || 0;
+          newItem.discountType = item.discount.discountType || 'flat';
+        } else {
+          newItem.discount = parseFloat(item.discount) || 0;
+          newItem.discountType = item.discountType || 'flat';
+        }
+      }
+
+      addItem(newItem);
     });
 
     // Set tax amount
@@ -303,12 +330,25 @@ const ScanReceiptButton = () => {
         />
       </Modal>
 
-      <ModeSelectionModal 
+      <ModeSelectionModal
         isOpen={isModeSelectionOpen}
         onClose={closeModeSelection}
         onSelectUpload={handleSelectUpload}
         onSelectCapture={handleSelectCapture}
       />
+
+      <Modal
+        isOpen={isOfflineModalOpen}
+        onClose={closeOfflineModal}
+        title="Offline"
+      >
+        <Alert type="warning">
+          <p>You are offline. Scan Receipt requires an internet connection.</p>
+        </Alert>
+        <div className="flex justify-end">
+          <Button onClick={closeOfflineModal}>OK</Button>
+        </div>
+      </Modal>
     </>
   );
 };

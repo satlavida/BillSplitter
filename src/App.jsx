@@ -5,6 +5,7 @@ import PeopleInput from './Components/PeopleInput';
 import ItemsInput from './Components/ItemsInput';
 import ItemAssignment from './Components/ItemAssignment';
 import BillSummary from './Components/BillSummary';
+import Settings from './Components/Settings';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
 import useBillStore from './billStore';
 import useBillHistoryStore from './billHistoryStore';
@@ -96,6 +97,7 @@ const AppContent = () => {
   
   // Sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeItemId, setActiveItemId] = useState(step);
   
   // Use local storage to remember sidebar state
   useEffect(() => {
@@ -109,6 +111,11 @@ const AppContent = () => {
   useEffect(() => {
     localStorage.setItem('sidebarOpen', JSON.stringify(isSidebarOpen));
   }, [isSidebarOpen]);
+
+  // Keep active sidebar item in sync with step changes
+  useEffect(() => {
+    setActiveItemId(step);
+  }, [step]);
   
   // Toggle sidebar
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -176,18 +183,14 @@ const AppContent = () => {
   
   // Handle sidebar item click
   const handleSidebarItemClick = (itemId) => {
-    // If it's a numeric ID, it's a step
     if (!isNaN(itemId)) {
-      goToStep(Number(itemId));
-    } else {
-      if(itemId === 'history') {
-        // Open the bill history modal  
-        openModal();
-      }
-      else {
-        alert(`${itemId} feature coming soon!`);
-      }
-      
+      const numericId = Number(itemId);
+      goToStep(numericId);
+      setActiveItemId(numericId);
+    } else if (itemId === 'history') {
+      openModal();
+    } else if (itemId === 'settings') {
+      setActiveItemId('settings');
     }
   };
   
@@ -195,19 +198,23 @@ const AppContent = () => {
   useDocumentTitle();
   // Check if we need to load the current bill from history
   const currentBill = useBillHistoryStore(state => state.getCurrentBill());
-  const { importBill, setBillId } = useBillStore(
+  const { importBill, billId, people, items } = useBillStore(
     useShallow(state => ({
       importBill: state.importBill,
-      setBillId: state.setBillId
+      billId: state.billId,
+      people: state.people,
+      items: state.items,
     }))
   );
-  
-  // Load current bill from history if it exists (only on initial load)
+
+  const hasBillData = billId || people.length > 0 || items.length > 0;
+
+  // Load current bill from history only if we don't already have bill data
   useEffect(() => {
-    if (currentBill) {
+    if (currentBill && !hasBillData) {
       importBill(currentBill.data);
     }
-  }, [currentBill, importBill, setBillId]);
+  }, [currentBill, importBill, hasBillData]);
   
   // Render the appropriate step
   const renderStep = () => {
@@ -224,15 +231,22 @@ const AppContent = () => {
         return <PeopleInput />;
     }
   };
+
+  const renderContent = () => {
+    if (activeItemId === 'settings') {
+      return <Settings />;
+    }
+    return renderStep();
+  };
   
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 transition-colors duration-200">
       {/* Sidebar */}
-      <Sidebar 
+      <Sidebar
         isOpen={isSidebarOpen}
         onToggle={toggleSidebar}
         items={sidebarItems}
-        activeItemId={step}
+        activeItemId={activeItemId}
         onItemClick={handleSidebarItemClick}
       />
       
@@ -243,8 +257,8 @@ const AppContent = () => {
         <div className="py-8 px-4">
           <div className="max-w-lg mx-auto bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg ring-1 ring-zinc-200/50 dark:ring-zinc-700/50 transition-colors duration-200">
             <Header toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
-            <StepIndicator />
-            {renderStep()}
+            {typeof activeItemId === 'number' && <StepIndicator />}
+            {renderContent()}
           </div>
         </div>
       </div>
