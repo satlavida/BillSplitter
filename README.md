@@ -81,7 +81,7 @@ Bill Splitter is an intuitive React application that simplifies the process of s
 
 ### Adding Items
 1. Enter item details (name, price, quantity)
-2. Alternatively, scan a receipt using the "Scan Receipt" button
+2. Alternatively, scan a receipt using the "Scan Receipt" button (supports item-level discounts)
 3. Add tax amount if applicable
 4. Click "Next" to proceed
 
