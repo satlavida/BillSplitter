@@ -7,14 +7,6 @@ import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
 import { useBillHistory } from './BillHistory/BillHistoryContext';
 
-// Generate a UPI payment link
-function generateUpiLink({ upiId, amount, note }) {
-  let link = `upi://pay?pa=${encodeURIComponent(upiId)}&cu=INR`;
-  if (amount) link += `&am=${encodeURIComponent(amount)}`;
-  if (note) link += `&tn=${encodeURIComponent(note.substring(0, 80))}`;
-  return link;
-}
-
 // BillTitle component for displaying the title in summary view
 const BillTitle = memo(({ title }) => {
   if (!title) return null;
@@ -30,43 +22,62 @@ const BillTitle = memo(({ title }) => {
 
 // PersonItemRow component for individual item rows
 const PersonItemRow = memo(({ item, formatCurrency }) => {
+  const hasDiscount = item.discount > 0;
+  const discountText = hasDiscount
+    ? `Discount ${
+        item.discountType === 'percentage'
+          ? `${item.discount}%`
+          : formatCurrency(item.discount)
+      }`
+    : '';
   return (
     <li className="flex justify-between items-start py-2">
       <div>
         <span className="dark:text-white transition-colors">{item.name}</span>
+        {hasDiscount && (
+          <span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400 transition-colors">
+            ({discountText})
+          </span>
+        )}
         {item.sharedWith > 1 && (
           <span className="text-sm text-zinc-600 dark:text-zinc-400 block transition-colors">
             Split by {item.sharedWith}
           </span>
         )}
       </div>
-      <span className="font-medium dark:text-white transition-colors">{formatCurrency(item.share)}</span>
+      <span className="font-medium dark:text-white transition-colors">
+        {formatCurrency(item.share)}
+      </span>
     </li>
   );
 });
 
 // PersonCard component for each person's summary
 const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
-  const upiLink = upiId
-    ? generateUpiLink({
-        upiId,
-        amount: person.total.toFixed(2),
-        note: `${person.name}${billTitle ? ' - ' + billTitle : ''}`,
-      })
-    : null;
-
   const handleShare = async () => {
+    const breakdown = person.items
+      .map(item => {
+        const discountText = item.discount > 0
+          ? ` (Discount ${
+              item.discountType === 'percentage'
+                ? `${item.discount}%`
+                : formatCurrency(item.discount)
+            })`
+          : '';
+        return `${item.name}: ${formatCurrency(item.share)} Split${discountText}`;
+      })
+      .join('\n');
     const text = `${person.name} owes ${formatCurrency(person.total)}${
-      billTitle ? ` for ${billTitle}` : ''
-    }${upiLink ? `\nPay: ${upiLink}` : ''}`;
+      upiId ? `; Split can be sent on "${upiId}"` : ''
+    }\nBreakdown:\n${breakdown}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: billTitle || 'Bill Payment', text, url: upiLink || undefined });
+        await navigator.share({ title: billTitle || 'Bill Payment', text });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(text);
         alert('Payment details copied to clipboard');
       }
-    } catch (err) {
+    } catch {
       // ignore
     }
   };
@@ -78,13 +89,10 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
           {person.name}
         </h3>
         <div className="flex items-center gap-2">
-          {upiLink && (
-            <a
-              href={upiLink}
-              className="text-blue-600 dark:text-blue-400 underline text-sm"
-            >
-              Pay
-            </a>
+          {upiId && (
+            <span className="text-sm text-zinc-800 dark:text-zinc-300 transition-colors">
+              {upiId}
+            </span>
           )}
           <Button
             size="sm"
@@ -122,9 +130,9 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
               </div>
             )}
 
-            <div className="flex justify-between font-bold text-lg pt-1">
-              <span className="text-zinc-900 dark:text-white transition-colors">Total:</span>
-              <span className="text-zinc-900 dark:text-white transition-colors">{formatCurrency(person.total)}</span>
+            <div className="flex justify-between font-bold text-lg pt-1 px-2 py-1 bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 print:bg-green-800 print:text-white rounded transition-colors">
+              <span>Total:</span>
+              <span>{formatCurrency(person.total)}</span>
             </div>
           </div>
         </>

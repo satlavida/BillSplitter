@@ -98,6 +98,14 @@ const ItemCard = memo(({
   }, [onTogglePerson, item.id]);
   
   const itemPrice = useMemo(() => getDiscountedItemPrice(item), [item]);
+  const hasDiscount = item.discount > 0;
+  const discountText = hasDiscount
+    ? `Discount ${
+        item.discountType === 'percentage'
+          ? `${item.discount}%`
+          : formatCurrency(item.discount)
+      }`
+    : '';
 
   return (
     <Card className="mb-4">
@@ -107,6 +115,11 @@ const ItemCard = memo(({
           <p className="text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
             {item.quantity > 1 ? `${item.quantity} × ` : ''}
             {formatCurrency(itemPrice)}
+            {hasDiscount && (
+              <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-400 transition-colors">
+                ({discountText})
+              </span>
+            )}
           </p>
         </div>
         <button 
@@ -315,10 +328,12 @@ const ItemAssignment = () => {
       case SPLIT_TYPES.FRACTION:
         assignItemFraction(itemId, allocations);
         break;
-      default:
+      default: {
         // For equal split, we need to extract just the personIds
         const personIds = allocations.map(a => a.id);
         assignItemEqual(itemId, personIds);
+        break;
+      }
     }
   }, [setSplitType, assignItemPercentage, assignItemFraction, assignItemEqual]);
   
