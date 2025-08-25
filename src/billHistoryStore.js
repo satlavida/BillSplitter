@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 // Current version of bill history store
-export const BILL_HISTORY_VERSION = '1.0.0';
+export const BILL_HISTORY_VERSION = '1.1.0';
 
 // Function to generate 5-digit alphanumeric ID
 const generateBillId = () => {
