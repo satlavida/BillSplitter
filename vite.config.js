@@ -6,7 +6,7 @@ import  { VitePWA }  from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [react(), tailwindcss(),VitePWA({
     base: '/BillSplitter/', // Match the base path
-    registerType: 'autoUpdate',
+    registerType: 'prompt',
     includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
     manifest: {
       name: 'Bill Splitter',

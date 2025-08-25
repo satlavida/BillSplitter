@@ -11,7 +11,7 @@ export const SPLIT_TYPES = {
 };
 
 // Add version for future compatibility
-export const BILL_STORE_VERSION = '1.0.0';
+export const BILL_STORE_VERSION = '1.1.0';
 
 // Helper to apply item-level discounts
 export const getDiscountedItemPrice = (item) => {
