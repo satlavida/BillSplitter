@@ -23,9 +23,9 @@ const BillTotalsSummary = memo(({
           {formatCurrency(taxAmount)}
         </span>
       </div>
-      <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-zinc-200 dark:border-zinc-600">
-        <span className="text-zinc-900 dark:text-white transition-colors">Grand Total:</span>
-        <span className="text-zinc-900 dark:text-white transition-colors">
+      <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-zinc-200 dark:border-zinc-600 px-2 py-1 bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 print:bg-green-800 print:text-white rounded transition-colors">
+        <span>Grand Total:</span>
+        <span>
           {formatCurrency(grandTotal)}
         </span>
       </div>

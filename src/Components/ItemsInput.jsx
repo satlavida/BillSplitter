@@ -112,11 +112,20 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
   const handleRemove = useCallback(() => {
     onRemove(item.id);
   }, [item.id, onRemove]);
-  
+
   const handleEdit = useCallback(() => {
     onEdit(item);
   }, [item, onEdit]);
-  
+
+  const hasDiscount = item.discount > 0;
+  const discountText = hasDiscount
+    ? `Discount ${
+        item.discountType === 'percentage'
+          ? `${item.discount}%`
+          : formatCurrency(item.discount)
+      }`
+    : '';
+
   return (
     <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
       <div>
@@ -125,9 +134,14 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
           {item.quantity > 1 ? `${item.quantity} × ` : ''}
           {formatCurrency(getDiscountedItemPrice(item))}
         </span>
+        {hasDiscount && (
+          <span className="block text-xs text-zinc-500 dark:text-zinc-400 transition-colors">
+            ({discountText})
+          </span>
+        )}
       </div>
       <div className="flex space-x-2">
-        <button 
+        <button
           onClick={handleEdit}
           className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
           aria-label={`Edit ${item.name}`}

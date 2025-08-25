@@ -12,6 +12,7 @@ import useBillHistoryStore from './billHistoryStore';
 import { useDocumentTitle } from './billStore';
 import { useShallow } from 'zustand/shallow';
 import { BillHistoryProvider, useBillHistory } from './Components/BillHistory/BillHistoryContext';
+import ServiceWorkerPrompt from './Components/Prompts/ServiceWorkerPrompt';
 import './App.css';
 
 // StepIndicator component 
@@ -272,6 +273,7 @@ const App = () => {
     <ThemeProvider>
       <BillHistoryProvider>
         <AppContent />
+        <ServiceWorkerPrompt />
       </BillHistoryProvider>
     </ThemeProvider>
   );
