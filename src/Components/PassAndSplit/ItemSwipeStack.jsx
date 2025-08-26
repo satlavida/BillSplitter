@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useTheme } from '../../ThemeContext';
 import usePassAndSplitStore from './stores/passAndSplitStore';
 import useBillStore from '../../billStore';
 import useFormatCurrency from '../../currencyStore';
@@ -9,7 +8,6 @@ import ItemCard from './ItemCard';
 const SWIPE_THRESHOLD = 100; // Minimum px to trigger dismiss
 
 const ItemSwipeStack = () => {
-  const { theme } = useTheme();
   const formatCurrency = useFormatCurrency().formatCurrency;
   
   // Get relevant data from stores

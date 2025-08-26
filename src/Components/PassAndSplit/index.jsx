@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { useTheme } from '../../ThemeContext';
 import PassAndSplitController from './PassAndSplitController';
 import usePassAndSplitStore from 'components/PassAndSplit/stores/passAndSplitStore.js';
 import useBillStore from '../../billStore';

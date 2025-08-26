@@ -8,8 +8,7 @@ import { createPortal } from 'react-dom';
 const ModalPortal = ({ 
   children, 
   isOpen, 
-  onClose, 
-  lockScroll = true 
+  onClose
 }) => {
   // Don't render anything if the modal isn't open
   if (!isOpen) return null;

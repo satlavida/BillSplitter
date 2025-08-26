@@ -1,10 +1,8 @@
 import React from 'react';
-import { useTheme } from '../../ThemeContext';
 import usePassAndSplitStore from './stores/passAndSplitStore';
 import useBillStore from '../../billStore';
 
 const CompletionScreen = () => {
-  const { theme } = useTheme();
   const currentPersonId = usePassAndSplitStore(state => state.currentPersonId);
   const pendingAssignments = usePassAndSplitStore(state => state.pendingAssignments);
   const completeCurrentPerson = usePassAndSplitStore(state => state.completeCurrentPerson);
@@ -114,7 +112,7 @@ const CompletionScreen = () => {
           onClick={handleRedoSelection}
           className={`
             py-3 px-6 rounded-lg font-medium
-            dark:bg-gray-700 dark:hover:bg-gray-600 text-white bg-gray-200 hover:bg-gray-300 text-gray-800
+            dark:bg-gray-700 dark:hover:bg-gray-600 bg-gray-200 hover:bg-gray-300 text-gray-800
             transition-colors
           `}
         >

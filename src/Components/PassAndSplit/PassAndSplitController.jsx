@@ -1,5 +1,4 @@
 import React from 'react';
-import { useTheme } from '../../ThemeContext';
 import usePassAndSplitStore, { STAGES } from './stores/passAndSplitStore';
 import PersonSelection from './PersonSelection';
 import ItemSwipeStack from './ItemSwipeStack';
@@ -8,7 +7,6 @@ import ParticipantTracker from './ParticipantTracker';
 import useBillStore from '../../billStore';
 
 const PassAndSplitController = () => {
-  const { theme } = useTheme();
   const stage = usePassAndSplitStore(state => state.stage);
   const currentPersonId = usePassAndSplitStore(state => state.currentPersonId);
   const people = useBillStore(state => state.people);
