@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useTheme } from '../../ThemeContext';
 import PassAndSplit from '../PassAndSplit';
 import ModalPortal from './ModalPortal';
 
@@ -7,7 +6,6 @@ import ModalPortal from './ModalPortal';
  * Button to activate Pass and Split mode from the item assignment screen
  */
 const PassAndSplitButton = () => {
-  const { theme } = useTheme();
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   const openModal = () => setIsModalOpen(true);

@@ -1,12 +1,9 @@
 import React from 'react';
-import { useTheme } from '../../ThemeContext';
 import usePassAndSplitStore from './stores/passAndSplitStore';
 import useBillStore from '../../billStore';
 
 const ParticipantTracker = () => {
-  const { theme } = useTheme();
   const completedPersonIds = usePassAndSplitStore(state => state.completedPersonIds);
-  const remainingPersonIds = usePassAndSplitStore(state => state.remainingPersonIds);
   
   // Get people from billStore
   const people = useBillStore(state => state.people);

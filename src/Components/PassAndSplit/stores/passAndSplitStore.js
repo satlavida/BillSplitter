@@ -67,7 +67,7 @@ const usePassAndSplitStore = create(
       
       // Mark current item as consumed (swiped right)
       assignCurrentItem: () => {
-        const { currentPersonId, itemQueue, pendingAssignments } = get();
+        const { currentPersonId, itemQueue } = get();
         
         if (!currentPersonId || itemQueue.length === 0) return;
         

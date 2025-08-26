@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useTheme } from '../../ThemeContext';
 import usePassAndSplitStore from 'components/PassAndSplit/stores/passAndSplitStore';
 import useBillStore from '../../billStore';
 
 const PersonSelection = () => {
-  const { theme } = useTheme();
   const [newPersonName, setNewPersonName] = useState('');
   
   // Get people from billStore
@@ -14,7 +12,6 @@ const PersonSelection = () => {
   const selectPerson = usePassAndSplitStore(state => state.selectPerson);
   const addNewPerson = usePassAndSplitStore(state => state.addNewPerson);
   const completedPersonIds = usePassAndSplitStore(state => state.completedPersonIds);
-  const remainingPersonIds = usePassAndSplitStore(state => state.remainingPersonIds);
   
   // Handle person selection
   const handleSelectPerson = (personId) => {

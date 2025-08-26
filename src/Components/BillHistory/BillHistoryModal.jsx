@@ -202,7 +202,7 @@ const BillHistoryModal = ({ isOpen, onClose }) => {
         } else {
           setImportError(result.error || 'Failed to import bills');
         }
-      } catch (error) {
+      } catch (_) {
         setImportError('Invalid file format');
       }
     };

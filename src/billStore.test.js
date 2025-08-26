@@ -614,7 +614,7 @@ describe('billStore - Calculation Functions', () => {
   });
 
   test('should handle items with zero consumers in totals calculation', () => {
-    const { people, items } = setupScenario();
+    setupScenario();
     const { getPersonTotals, getGrandTotal } = useBillStore.getState();
     
     // No items assigned yet
