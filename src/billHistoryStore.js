@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import createIndexedDBStorage from './storage/indexedDBStorage';
 
 // Current version of bill history store
-export const BILL_HISTORY_VERSION = '1.1.0';
+export const BILL_HISTORY_VERSION = '1.2.0';
 
 // Function to generate 5-digit alphanumeric ID
 const generateBillId = () => {
@@ -34,23 +35,27 @@ const useBillHistoryStore = create(
       addBill: (billData) => set((state) => {
         // Generate a unique ID
         const billId = generateBillId();
-        
+        const now = new Date().toISOString();
+
         // Set all existing bills to not current
         const updatedBills = state.bills.map(bill => ({
           ...bill,
           isCurrent: false
         }));
-        
+
         // Add the new bill as current
         const newBill = {
           id: billId,
           title: billData.title || 'Untitled Bill',
-          date: new Date().toISOString(),
-          data: { ...billData, billId }, // Include billId in the data
+          createdAt: now,
+          updatedAt: now,
+          lastSyncedAt: null,
+          date: now,
+          data: { ...billData, billId, createdAt: billData.createdAt || now, updatedAt: now, lastSyncedAt: billData.lastSyncedAt || null },
           isCurrent: true,
           version: BILL_HISTORY_VERSION
         };
-        
+
         return {
           bills: [...updatedBills, newBill],
           currentBillId: billId
@@ -64,16 +69,17 @@ const useBillHistoryStore = create(
         let billId = existingBillId;
         let updatedBills = [];
         let isNewBill = false;
-        
+        const now = new Date().toISOString();
+
         if (!existingBillId || !state.bills.some(bill => bill.id === existingBillId)) {
           // Generate a new ID if bill doesn't have one or doesn't exist in history
           billId = generateBillId();
           isNewBill = true;
         }
-        
+
         // Update billData with the billId (new or existing)
-        const dataWithId = { ...billData, billId };
-        
+        const dataWithId = { ...billData, billId, updatedAt: now, createdAt: billData.createdAt || now, lastSyncedAt: billData.lastSyncedAt || null };
+
         if (isNewBill) {
           // This is a new bill - add it to history
           // Set all existing bills to not current
@@ -81,17 +87,20 @@ const useBillHistoryStore = create(
             ...bill,
             isCurrent: false
           }));
-          
+
           // Add the new bill
           const newBill = {
             id: billId,
             title: billData.title || 'Untitled Bill',
-            date: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
+            lastSyncedAt: null,
+            date: now,
             data: dataWithId,
             isCurrent: true,
             version: BILL_HISTORY_VERSION
           };
-          
+
           updatedBills = [...updatedBills, newBill];
         } else {
           // This is an existing bill - update it
@@ -101,7 +110,8 @@ const useBillHistoryStore = create(
               return {
                 ...bill,
                 title: billData.title || bill.title,
-                date: new Date().toISOString(), // Update the date to now
+                updatedAt: now,
+                date: now,
                 data: dataWithId,
                 isCurrent: true,
               };
@@ -112,7 +122,7 @@ const useBillHistoryStore = create(
             };
           });
         }
-        
+
         return {
           bills: updatedBills,
           currentBillId: billId
@@ -177,8 +187,24 @@ const useBillHistoryStore = create(
           set((state) => {
             // Keep existing bills and add new ones, avoiding duplicates by ID
             const existingIds = new Set(state.bills.map(bill => bill.id));
-            const newBills = imported.bills.filter(bill => !existingIds.has(bill.id));
-            
+            const newBills = imported.bills
+              .filter(bill => !existingIds.has(bill.id))
+              .map(bill => {
+                const timestamp = bill.date || new Date().toISOString();
+                return {
+                  ...bill,
+                  createdAt: bill.createdAt || timestamp,
+                  updatedAt: bill.updatedAt || timestamp,
+                  lastSyncedAt: bill.lastSyncedAt || null,
+                  data: {
+                    ...bill.data,
+                    createdAt: bill.data?.createdAt || timestamp,
+                    updatedAt: bill.data?.updatedAt || timestamp,
+                    lastSyncedAt: bill.data?.lastSyncedAt || null
+                  }
+                };
+              });
+
             return {
               bills: [...state.bills, ...newBills],
               // Keep current bill ID as is
@@ -196,7 +222,31 @@ const useBillHistoryStore = create(
       clearHistory: () => set(initialState),
     }),
     {
-      name: 'billHistory', // Name for persistence
+      name: 'billHistory',
+      version: 2,
+      storage: createJSONStorage(() => createIndexedDBStorage()),
+      migrate: (persistedState, version) => {
+        if (!persistedState) return { ...initialState };
+        if (version < 2) {
+          const bills = (persistedState.bills || []).map(bill => {
+            const timestamp = bill.date || new Date().toISOString();
+            return {
+              ...bill,
+              createdAt: bill.createdAt || timestamp,
+              updatedAt: bill.updatedAt || timestamp,
+              lastSyncedAt: bill.lastSyncedAt || null,
+              data: {
+                ...bill.data,
+                createdAt: bill.data?.createdAt || timestamp,
+                updatedAt: bill.data?.updatedAt || timestamp,
+                lastSyncedAt: bill.data?.lastSyncedAt || null
+              }
+            };
+          });
+          return { ...persistedState, bills, version: BILL_HISTORY_VERSION };
+        }
+        return persistedState;
+      }
     }
   )
 );

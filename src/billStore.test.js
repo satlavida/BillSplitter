@@ -3,7 +3,7 @@
  */
 
 // Import necessary functions and constants from the store and testing library
-import useBillStore, { 
+import useBillStore, {
     SPLIT_TYPES, 
     useBillPersons, 
     useBillItems, 
@@ -14,8 +14,9 @@ import useBillStore, {
     useBillTaxAmount,
     useBillSubtotal,
     useBillGrandTotal
-  } from '../src/billStore'; // Adjust the path if your store is located elsewhere
+} from '../src/billStore'; // Adjust the path if your store is located elsewhere
 import { renderHook, act } from '@testing-library/react';
+import { clear as clearIDB } from 'idb-keyval';
 
 // Mock localStorage for testing persistence
 const mockLocalStorageData = {};
@@ -41,7 +42,8 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 // Reset the Zustand store and clear the mock localStorage before each test
-beforeEach(() => {
+beforeEach(async () => {
+  await clearIDB();
   act(() => {
     useBillStore.getState().reset(); // Reset store state
   });

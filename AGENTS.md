@@ -11,7 +11,7 @@ Bill Splitter is an intuitive React application that simplifies the process of s
 
 ### Tech Stack
 - **Framework**: React 19
-- **State Management**: Zustand with persistence
+- **State Management**: Zustand with IndexedDB persistence
 - **Styling**: Tailwind CSS 4.0
 - **Build Tool**: Vite 6.2
 - **Testing Framework**: Jest with React Testing Library
@@ -69,6 +69,7 @@ The project follows a component-based architecture with feature-specific directo
 - **React**: UI framework for building the interface (v19.0.0)
 - **React DOM**: DOM-specific methods for React (v19.0.0)
 - **Zustand**: State management with persistence (v5.0.3)
+- **idb-keyval**: IndexedDB wrapper for offline persistence (v6.2.1)
 - **Tailwind CSS**: Utility-first CSS framework (v4.0.10)
 - **vite-plugin-pwa**: PWA integration for Vite
 
@@ -85,7 +86,7 @@ The project follows a component-based architecture with feature-specific directo
 
 ## 4. State Management
 
-The application uses Zustand for state management with localStorage persistence. There are two main stores:
+The application uses Zustand for state management with IndexedDB persistence (via idb-keyval). There are two main stores:
 
 ### billStore.js
 The central store for all bill-related data and logic.
@@ -436,7 +437,7 @@ The API returns a JSON object with items and tax information:
 ```
 
 ### Data Persistence
-Data is persisted locally using Zustand's persist middleware with localStorage. No other API calls or data fetching mechanisms are present in the application.
+Data is persisted locally using Zustand's persist middleware with IndexedDB (via idb-keyval). No other API calls or data fetching mechanisms are present in the application.
 
 ## 8. Routing
 
@@ -683,6 +684,15 @@ The application uses the following data structures:
   subtotal: number,
   tax: number,
   total: number
+}
+```
+
+#### Bill Metadata
+```javascript
+{
+  createdAt: string,      // UTC ISO timestamp when the bill was created
+  updatedAt: string,      // UTC ISO timestamp of the last modification
+  lastSyncedAt: string | null // UTC ISO timestamp when last synced or null
 }
 ```
 

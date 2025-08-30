@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
+import createIndexedDBStorage from './storage/indexedDBStorage';
 
 // Define constants for split types
 export const SPLIT_TYPES = {
@@ -11,7 +12,7 @@ export const SPLIT_TYPES = {
 };
 
 // Add version for future compatibility
-export const BILL_STORE_VERSION = '1.1.0';
+export const BILL_STORE_VERSION = '1.2.0';
 
 // Helper to apply item-level discounts
 export const getDiscountedItemPrice = (item) => {
@@ -32,7 +33,10 @@ const initialState = {
   items: [],
   taxAmount: 0,
   currency: 'INR',
-  title: '', 
+  title: '',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  lastSyncedAt: null,
 };
 
 // Create the Zustand store with persistence
@@ -53,27 +57,30 @@ const useBillStore = create(
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // cleaner ID
           name,
         };
-        
+
         set((state) => ({
           people: [...state.people, newPerson],
+          updatedAt: new Date().toISOString()
         }));
-      
+
         return newPerson; // return the new ID immediately
       },
-      
-      removePerson: (id) => set(state => ({ 
+
+      removePerson: (id) => set(state => ({
         people: state.people.filter(person => person.id !== id),
         // Also remove this person from all consumedBy arrays
         items: state.items.map(item => ({
           ...item,
           consumedBy: item.consumedBy.filter(allocation => allocation.personId !== id)
-        }))
+        })),
+        updatedAt: new Date().toISOString()
       })),
-      
+
       updatePerson: (id, name) => set(state => ({
-        people: state.people.map(person => 
+        people: state.people.map(person =>
           person.id === id ? { ...person, name } : person
-        )
+        ),
+        updatedAt: new Date().toISOString()
       })),
       
       // Item management with enhanced consumedBy structure
@@ -87,21 +94,24 @@ const useBillStore = create(
           discountType: item.discountType || 'flat',
           consumedBy: [],
           splitType: SPLIT_TYPES.EQUAL // default split type
-        }]
+        }],
+        updatedAt: new Date().toISOString()
       })),
       
       removeItem: (id) => set(state => ({
-        items: state.items.filter(item => item.id !== id)
+        items: state.items.filter(item => item.id !== id),
+        updatedAt: new Date().toISOString()
       })),
       
       updateItem: (id, data) => set(state => ({
-        items: state.items.map(item => 
+        items: state.items.map(item =>
           item.id === id ? { ...item, ...data } : item
-        )
+        ),
+        updatedAt: new Date().toISOString()
       })),
       
       // Tax management
-      setTax: (amount) => set({ taxAmount: parseFloat(amount) || 0 }),
+      setTax: (amount) => set({ taxAmount: parseFloat(amount) || 0, updatedAt: new Date().toISOString() }),
       
       // Assignment actions with split type support
       assignItemEqual: (itemId, peopleIds) => set(state => ({
@@ -112,15 +122,16 @@ const useBillStore = create(
               personId,
               value: 1 // Each person gets equal share
             }));
-            
-            return { 
-              ...item, 
+
+            return {
+              ...item,
               consumedBy: allocations,
               splitType: SPLIT_TYPES.EQUAL
             };
           }
           return item;
-        })
+        }),
+        updatedAt: new Date().toISOString()
       })),
 
       // New function to set percentage split
@@ -128,14 +139,15 @@ const useBillStore = create(
         items: state.items.map(item => {
           if (item.id === itemId) {
             // allocations should be array of {personId, value} where value is percentage
-            return { 
-              ...item, 
+            return {
+              ...item,
               consumedBy: allocations,
               splitType: SPLIT_TYPES.PERCENTAGE
             };
           }
           return item;
-        })
+        }),
+        updatedAt: new Date().toISOString()
       })),
 
       // New function to set fractional split
@@ -143,14 +155,15 @@ const useBillStore = create(
         items: state.items.map(item => {
           if (item.id === itemId) {
             // allocations should be array of {personId, value} where value is numerator of fraction
-            return { 
-              ...item, 
+            return {
+              ...item,
               consumedBy: allocations,
               splitType: SPLIT_TYPES.FRACTION
             };
           }
           return item;
-        })
+        }),
+        updatedAt: new Date().toISOString()
       })),
       
       // Update split type for an item
@@ -158,14 +171,15 @@ const useBillStore = create(
         items: state.items.map(item => {
           if (item.id === itemId) {
             // When changing split type, reset allocations for consistency
-            return { 
-              ...item, 
+            return {
+              ...item,
               splitType,
               consumedBy: [] // Reset allocations when changing split type
             };
           }
           return item;
-        })
+        }),
+        updatedAt: new Date().toISOString()
       })),
       
       assignAllPeopleEqual: (itemId) => set(state => ({
@@ -176,32 +190,41 @@ const useBillStore = create(
               personId: person.id,
               value: 1 // Each person gets equal share
             }));
-            
-            return { 
-              ...item, 
+
+            return {
+              ...item,
               consumedBy: allocations,
               splitType: SPLIT_TYPES.EQUAL
             };
           }
           return item;
-        })
+        }),
+        updatedAt: new Date().toISOString()
       })),
       
       removeAllPeople: (itemId) => set(state => ({
-        items: state.items.map(item => 
+        items: state.items.map(item =>
           item.id === itemId ? { ...item, consumedBy: [] } : item
-        )
+        ),
+        updatedAt: new Date().toISOString()
       })),
       
       // Other settings
-      setCurrency: (currency) => set({ currency }),
-      setTitle: (title) => set({ title }),
+      setCurrency: (currency) => set({ currency, updatedAt: new Date().toISOString() }),
+      setTitle: (title) => set({ title, updatedAt: new Date().toISOString() }),
       
       // Reset - modified to keep version but clear billId
-      reset: () => set({ ...initialState, version: BILL_STORE_VERSION, billId: null }, false),
+      reset: () => set({
+        ...initialState,
+        version: BILL_STORE_VERSION,
+        billId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastSyncedAt: null
+      }, false),
       
       // Set bill ID (used when loading from history)
-      setBillId: (billId) => set({ billId }),
+      setBillId: (billId) => set({ billId, updatedAt: new Date().toISOString() }),
       
       // Export current bill state
       exportBill: () => {
@@ -216,7 +239,13 @@ const useBillStore = create(
       // Import bill state
       importBill: (data) => {
         // Preserve version during import
-        set({ ...data, version: BILL_STORE_VERSION });
+        set({
+          ...data,
+          version: BILL_STORE_VERSION,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastSyncedAt: data.lastSyncedAt || null
+        });
       },
       
       // Business logic helpers with support for different split types
@@ -429,7 +458,23 @@ const useBillStore = create(
       }
     }),
     {
-      name: 'billSplitter', // Name for localStorage persistence
+      name: 'billSplitter',
+      version: 2,
+      storage: createJSONStorage(() => createIndexedDBStorage()),
+      migrate: (persistedState, version) => {
+        if (!persistedState) return { ...initialState };
+        if (version < 2) {
+          return {
+            ...initialState,
+            ...persistedState,
+            createdAt: persistedState.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            lastSyncedAt: persistedState.lastSyncedAt || null,
+            version: BILL_STORE_VERSION,
+          };
+        }
+        return persistedState;
+      }
     }
   )
 );

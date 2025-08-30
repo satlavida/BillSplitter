@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { useShallow } from 'zustand/shallow';
+import createIndexedDBStorage from './storage/indexedDBStorage';
 
 // Default to USD if locale detection fails
 const DEFAULT_CURRENCY = 'USD';
@@ -15,10 +16,13 @@ const detectCurrency = () => {
   }
 };
 
+export const CURRENCY_STORE_VERSION = '1.2.0';
+
 // Create the currency store with persistence
 const useCurrencyStore = create(
   persist(
     (set, get) => ({
+      version: CURRENCY_STORE_VERSION,
       currency: detectCurrency(),
       
       // Format a number as currency
@@ -46,6 +50,15 @@ const useCurrencyStore = create(
     }),
     {
       name: 'billSplitterCurrency',
+      version: 2,
+      storage: createJSONStorage(() => createIndexedDBStorage()),
+      migrate: (persistedState, version) => {
+        if (!persistedState) return { version: CURRENCY_STORE_VERSION, currency: detectCurrency() };
+        if (version < 2) {
+          return { ...persistedState, version: CURRENCY_STORE_VERSION };
+        }
+        return persistedState;
+      }
     }
   )
 );

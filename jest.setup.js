@@ -1,6 +1,12 @@
 // jest.setup.js
 // Extends Jest expect with helpful matchers for testing DOM nodes
+import 'fake-indexeddb/auto';
 import '@testing-library/jest-dom';// Mock for localStorage
+
+// Polyfill structuredClone for environments where it's missing
+if (typeof global.structuredClone === 'undefined') {
+  global.structuredClone = (val) => JSON.parse(JSON.stringify(val));
+}
 
 
 // beforeEach(() => {
