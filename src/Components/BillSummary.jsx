@@ -1,5 +1,5 @@
-import { memo, useCallback, useState } from 'react';
-import useBillStore, { useBillPersonTotals } from '../billStore';
+import { useMemo, memo, useCallback, useState } from 'react';
+import useBillStore, { SPLIT_TYPES, useBillPersonTotals } from '../billStore';
 import useBillHistoryStore from '../billHistoryStore';
 import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
@@ -21,7 +21,7 @@ const BillTitle = memo(({ title }) => {
 });
 
 // PersonItemRow component for individual item rows
-const PersonItemRow = memo(({ item, formatCurrency }) => {
+const PersonItemRow = memo(({ item, formatCurrency, displayShare, showBadge }) => {
   const hasDiscount = item.discount > 0;
   const discountText = hasDiscount
     ? `Discount ${
@@ -45,15 +45,18 @@ const PersonItemRow = memo(({ item, formatCurrency }) => {
           </span>
         )}
       </div>
-      <span className="font-medium dark:text-white transition-colors">
-        {formatCurrency(item.share)}
+      <span className="font-medium dark:text-white transition-colors flex items-center gap-2">
+        {formatCurrency(displayShare ?? item.share)}
+        {showBadge && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 uppercase tracking-wide">incl. tax</span>
+        )}
       </span>
     </li>
   );
 });
 
 // PersonCard component for each person's summary
-const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
+const PersonCard = memo(({ person, formatCurrency, upiId, billTitle, itemDisplayShareMap, showPostTax }) => {
   const handleShare = async () => {
     const breakdown = person.items
       .map(item => {
@@ -113,6 +116,8 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
                 key={item.id}
                 item={item}
                 formatCurrency={formatCurrency}
+                displayShare={showPostTax ? itemDisplayShareMap[`${person.id}-${item.id}`] : undefined}
+                showBadge={!!showPostTax}
               />
             ))}
           </ul>
@@ -123,7 +128,7 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
               <span className="text-zinc-700 dark:text-zinc-300 transition-colors">{formatCurrency(person.subtotal)}</span>
             </div>
 
-            {person.tax > 0 && (
+            {!showPostTax && person.tax > 0 && (
               <div className="flex justify-between">
                 <span className="text-zinc-700 dark:text-zinc-300 transition-colors">Tax:</span>
                 <span className="text-zinc-700 dark:text-zinc-300 transition-colors">{formatCurrency(person.tax)}</span>
@@ -175,14 +180,17 @@ const EditButtons = memo(({ onEdit }) => {
 // Main BillSummary component
 const BillSummary = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { title, taxAmount, goToStep, reset, exportBill, getSectionsSummary } = useBillStore(
+  const { title, taxAmount, goToStep, reset, exportBill, getSectionsSummary, items, sections, showPostTaxPrice } = useBillStore(
     useShallow(state => ({
       title: state.title,
       taxAmount: state.taxAmount,
       goToStep: state.goToStep,
       reset: state.reset,
       exportBill: state.exportBill,
-      getSectionsSummary: state.getSectionsSummary
+      getSectionsSummary: state.getSectionsSummary,
+      items: state.items,
+      sections: state.sections,
+      showPostTaxPrice: state.showPostTaxPrice
     }))
   );
   
@@ -216,6 +224,59 @@ const BillSummary = () => {
   // Calculate grand total from person totals
   const grandTotal = personTotals.reduce((sum, person) => sum + person.total, 0);
   const totalSectionsTax = sectionsSummary.reduce((sum, s) => sum + (parseFloat(s.tax) || 0), 0);
+
+  // Build per-item display shares (pre-tax + allocated tax) when setting is enabled
+  const itemDisplayShareMap = useMemo(() => {
+    if (!showPostTaxPrice) return {};
+    const sectionSubtotals = {};
+    const itemSubtotals = {};
+    items.forEach(it => {
+      const price = parseFloat(it.price) || 0;
+      const discount = parseFloat(it.discount) || 0;
+      const discounted = it.discountType === 'percentage' ? price - (price * discount) / 100 : price - discount;
+      const subtotal = (isNaN(discounted) ? 0 : discounted) * (parseInt(it.quantity) || 1);
+      itemSubtotals[it.id] = subtotal;
+      const key = it.sectionId || 'default';
+      sectionSubtotals[key] = (sectionSubtotals[key] || 0) + subtotal;
+    });
+    const sectionTaxes = {};
+    sections.forEach(s => { sectionTaxes[s.id] = parseFloat(s.taxAmount) || 0; });
+    sectionTaxes['default'] = parseFloat(taxAmount) || 0;
+
+    const ratio = (item, alloc) => {
+      if (!item || !alloc || !item.consumedBy || item.consumedBy.length === 0) return 0;
+      switch (item.splitType) {
+        case SPLIT_TYPES.PERCENTAGE: {
+          const sum = item.consumedBy.reduce((t, a) => t + (a.value || 0), 0) || 0;
+          return sum > 0 ? (alloc.value || 0) / sum : 0;
+        }
+        case SPLIT_TYPES.FRACTION: {
+          const sum = item.consumedBy.reduce((t, a) => t + (a.value || 0), 0) || 0;
+          return sum > 0 ? (alloc.value || 0) / sum : 0;
+        }
+        case SPLIT_TYPES.EQUAL:
+        default:
+          return 1 / item.consumedBy.length;
+      }
+    };
+
+    const map = {};
+    items.forEach(it => {
+      if (!it.consumedBy || it.consumedBy.length === 0) return;
+      const key = it.sectionId || 'default';
+      const itemSubtotal = itemSubtotals[it.id] || 0;
+      const secSubtotal = sectionSubtotals[key] || 0;
+      const secTax = sectionTaxes[key] || 0;
+      const itemTaxTotal = secSubtotal > 0 ? (itemSubtotal / secSubtotal) * secTax : 0;
+      it.consumedBy.forEach(alloc => {
+        const r = ratio(it, alloc);
+        const pre = itemSubtotal * r;
+        const tx = itemTaxTotal * r;
+        map[`${alloc.personId}-${it.id}`] = pre + tx;
+      });
+    });
+    return map;
+  }, [items, sections, taxAmount, showPostTaxPrice]);
   
   const handleEdit = useCallback((step) => {
     goToStep(step);
@@ -319,6 +380,8 @@ const BillSummary = () => {
               formatCurrency={formatCurrency}
               upiId={isInr ? upiId : ''}
               billTitle={title}
+              itemDisplayShareMap={itemDisplayShareMap}
+              showPostTax={!!showPostTaxPrice}
             />
           ))}
           
@@ -338,7 +401,7 @@ const BillSummary = () => {
                 {sectionsSummary.map(sec => (
                   <li key={sec.id ?? 'default'} className="py-2 flex justify-between items-center">
                     <div className="text-zinc-800 dark:text-zinc-200">
-                      {sec.name && sec.name.trim().length > 0 ? sec.name : '(Unlabeled)'}
+                      {sec.name && sec.name.trim().length > 0 ? sec.name : 'Default'}
                     </div>
                     <div className="text-sm text-zinc-700 dark:text-zinc-300 flex gap-4">
                       <span>Subtotal: {formatCurrency(sec.subtotal)}</span>

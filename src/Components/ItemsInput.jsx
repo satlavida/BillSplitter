@@ -108,7 +108,7 @@ const ItemForm = memo(({ onAddItem }) => {
 });
 
 // Individual item list item (draggable)
-const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency, onDragStart, displayAmount }) => {
+const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency, onDragStart, displayAmount, postTaxEnabled }) => {
   const handleRemove = useCallback(() => {
     onRemove(item.id);
   }, [item.id, onRemove]);
@@ -133,12 +133,17 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency, onDragStart
       onDragStart={(e) => onDragStart(e, item.id)}
     >
       <div>
-        <div>
+        <div className="flex items-center gap-2">
           <span className="font-medium dark:text-white transition-colors">{item.name}</span>
-          <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
             {item.quantity > 1 ? `${item.quantity} × ` : ''}
             {formatCurrency(displayAmount)}
           </span>
+          {postTaxEnabled && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 uppercase tracking-wide">
+              incl. tax
+            </span>
+          )}
         </div>
         {hasDiscount && (
           <span className="block text-xs text-zinc-500 dark:text-zinc-400 transition-colors">
@@ -171,12 +176,16 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency, onDragStart
 });
 
 // Section block with heading and drop target for moving items
-const SectionBlock = memo(({ title, items, sectionId, onDropToSection, onRemoveItem, onEditItem, formatCurrency, computeDisplayAmount }) => {
+const SectionBlock = memo(({ title, items, sectionId, onDropToSection, onRemoveItem, onEditItem, formatCurrency, computeDisplayAmount, postTaxEnabled }) => {
+  const [isOver, setIsOver] = useState(false);
   const handleDragOver = useCallback((e) => { e.preventDefault(); }, []);
+  const handleDragEnter = useCallback((e) => { e.preventDefault(); setIsOver(true); }, []);
+  const handleDragLeave = useCallback(() => { setIsOver(false); }, []);
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     const itemId = e.dataTransfer.getData('text/plain');
     if (itemId) onDropToSection(itemId, sectionId);
+    setIsOver(false);
   }, [onDropToSection, sectionId]);
   const handleDragStart = useCallback((e, id) => {
     e.dataTransfer.setData('text/plain', id);
@@ -187,8 +196,10 @@ const SectionBlock = memo(({ title, items, sectionId, onDropToSection, onRemoveI
     <div className="mb-6">
       <h3 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-zinc-100 transition-colors">{title}</h3>
       <ul
-        className="mb-2 space-y-2 p-2 border border-dashed border-zinc-300 dark:border-zinc-600 rounded-md min-h-[2.5rem]"
+        className={`mb-2 space-y-2 p-2 border border-dashed rounded-md min-h-[2.5rem] transition-colors ${isOver ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/20' : 'border-zinc-300 dark:border-zinc-600'}`}
         onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {items.map(item => (
@@ -200,6 +211,7 @@ const SectionBlock = memo(({ title, items, sectionId, onDropToSection, onRemoveI
             onDragStart={handleDragStart}
             formatCurrency={formatCurrency}
             displayAmount={computeDisplayAmount(item)}
+            postTaxEnabled={postTaxEnabled}
           />
         ))}
       </ul>
@@ -330,6 +342,7 @@ const ItemsInput = () => {
   const [localTaxAmount, setLocalTaxAmount] = useState(taxAmount || '');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
+  const [showSectionsManager, setShowSectionsManager] = useState(false);
   
   // Sync the local tax amount with the store on first render
   useEffect(() => {
@@ -374,14 +387,7 @@ const ItemsInput = () => {
     }
   }, [items.length, localTaxAmount, setTax, nextStep]);
 
-  // Get subtotal from the store helper
-  const subtotal = useShallow(getSubtotal)();
-  const sectionsSummary = useShallow(getSectionsSummary)();
-  const sectionTaxTotal = sectionsSummary.reduce((sum, s) => sum + (parseFloat(s.tax) || 0), 0);
-  const tax = sectionTaxTotal || (parseFloat(localTaxAmount) || 0);
-  const total = subtotal + tax;
-
-  // Compute post-tax display per item (proportional allocation of section tax)
+  // Compute section subtotals for tax logic and item display
   const sectionSubtotals = (() => {
     const map = {};
     items.forEach(it => {
@@ -390,21 +396,38 @@ const ItemsInput = () => {
     });
     return map;
   })();
+  
+  // Get subtotal from the store helper
+  const subtotal = useShallow(getSubtotal)();
+  
+  // Live tax: treat each section like a mini-bill
+  // - Include a section's tax only if that section has items (subtotal > 0)
+  // - Default (unlabeled) section uses the global tax input
+  const defaultSectionSubtotal = sectionSubtotals[''] || 0;
+  const labeledTaxSum = sections.reduce((sum, s) => {
+    const secSubtotal = sectionSubtotals[s.id] || 0;
+    const secTax = parseFloat(s.taxAmount) || 0;
+    return sum + (secSubtotal > 0 ? secTax : 0);
+  }, 0);
+  const defaultTax = defaultSectionSubtotal > 0 ? (parseFloat(localTaxAmount) || 0) : 0;
+  const tax = labeledTaxSum + defaultTax;
+  const total = subtotal + tax;
   const sectionTaxes = (() => {
     const map = {};
     sections.forEach(s => { map[s.id] = parseFloat(s.taxAmount) || 0; });
     map[''] = parseFloat(localTaxAmount) || 0; // tax for default unlabeled
     return map;
   })();
+  const postTaxEnabled = useBillStore(state => state.showPostTaxPrice);
   const computeDisplayAmount = useCallback((item) => {
     const base = getDiscountedItemPrice(item) * (parseInt(item.quantity) || 1);
-    if (!useBillStore.getState().showPostTaxPrice) return base;
+    if (!postTaxEnabled) return base;
     const key = item.sectionId || '';
     const secSubtotal = sectionSubtotals[key] || 0;
     const secTax = sectionTaxes[key] || 0;
     if (secSubtotal <= 0 || secTax <= 0) return base;
     return base + (base / secSubtotal) * secTax;
-  }, [sectionSubtotals, sectionTaxes]);
+  }, [postTaxEnabled, sectionSubtotals, sectionTaxes]);
   
   return (
     <div>
@@ -427,7 +450,7 @@ const ItemsInput = () => {
         blocks.push(
           <SectionBlock
             key="__default__"
-            title="(Unlabeled)"
+            title="Default"
             items={itemsBySection.get('') || []}
             sectionId={null}
             onDropToSection={handleDropToSection}
@@ -435,6 +458,7 @@ const ItemsInput = () => {
             onEditItem={handleEditItem}
             formatCurrency={formatCurrency}
             computeDisplayAmount={computeDisplayAmount}
+            postTaxEnabled={postTaxEnabled}
           />
         );
         // Labeled sections
@@ -450,6 +474,7 @@ const ItemsInput = () => {
               onEditItem={handleEditItem}
               formatCurrency={formatCurrency}
               computeDisplayAmount={computeDisplayAmount}
+              postTaxEnabled={postTaxEnabled}
             />
           );
         });
@@ -458,12 +483,23 @@ const ItemsInput = () => {
       
       {items.length > 0 && (
         <>
-          <SectionsManager
-            sections={sections}
-            onAdd={addSection}
-            onUpdate={updateSection}
-            onRemove={removeSection}
-          />
+          <div className="mb-4 flex items-center justify-between">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowSectionsManager(v => !v)}
+            >
+              {showSectionsManager ? 'Hide Add New Section' : 'Add New Section'}
+            </Button>
+          </div>
+          {showSectionsManager && (
+            <SectionsManager
+              sections={sections}
+              onAdd={addSection}
+              onUpdate={updateSection}
+              onRemove={removeSection}
+            />
+          )}
 
           {/* Default (unlabeled) section tax */}
           <TaxInput 
@@ -477,6 +513,19 @@ const ItemsInput = () => {
             grandTotal={total}
             formatCurrency={formatCurrency}
             className="mb-6"
+            taxesBreakdown={(() => {
+              const appliedSectionRows = sections
+                .map(s => ({
+                  label: (s.name && s.name.trim().length > 0 ? s.name : 'Section') + ' Tax',
+                  amount: parseFloat(s.taxAmount) || 0,
+                  subtotal: sectionSubtotals[s.id] || 0,
+                }))
+                .filter(s => s.subtotal > 0 && s.amount > 0)
+                .map(({ label, amount }) => ({ label, amount }));
+              const rows = [...appliedSectionRows];
+              if (defaultTax > 0) rows.push({ label: 'Global Tax', amount: defaultTax });
+              return rows;
+            })()}
           />
         </>
       )}

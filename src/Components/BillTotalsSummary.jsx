@@ -6,7 +6,8 @@ const BillTotalsSummary = memo(({
   taxAmount, 
   grandTotal, 
   className = '', 
-  formatCurrency 
+  formatCurrency,
+  taxesBreakdown = [] // optional: [{ label: string, amount: number }]
 }) => {
   
   return (
@@ -23,6 +24,21 @@ const BillTotalsSummary = memo(({
           {formatCurrency(taxAmount)}
         </span>
       </div>
+      {Array.isArray(taxesBreakdown) && taxesBreakdown.length > 0 && (
+        <div className="mt-2 mb-2">
+          <div className="text-sm font-medium text-zinc-800 dark:text-zinc-100 mb-1 transition-colors">
+            Taxes Applied
+          </div>
+          <ul className="space-y-1">
+            {taxesBreakdown.map((row, idx) => (
+              <li key={`${row.label}-${idx}`} className="flex justify-between text-sm text-zinc-700 dark:text-zinc-300">
+                <span>{row.label}</span>
+                <span>{formatCurrency(parseFloat(row.amount) || 0)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-zinc-200 dark:border-zinc-600 px-2 py-1 bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 print:bg-green-800 print:text-white rounded transition-colors">
         <span>Grand Total:</span>
         <span>

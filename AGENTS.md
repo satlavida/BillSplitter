@@ -660,6 +660,11 @@ The App.css file has been updated with new styles for the sidebar:
 - Added a setting in `Settings` (Options) page: “Show Post-tax price for item”.
 - When enabled, the Items list shows each item’s total including its proportion of the section/global tax based on the current inputs.
 
+### 11.4 ItemsInput UX and Tax Behavior
+- Sections Manager is now collapsed by default on the Items step. A button toggles visibility with labels "Add New Section" and "Hide Add New Section". When opened, it reveals the Sections Manager for creating/updating/removing sections and setting per-section taxes.
+- Global tax (default unlabeled section) is only applied when there are items in the default section. Labeled sections apply their own tax only when those sections contain items. This treats each section like a mini-bill and prevents double-applying tax to default-section items.
+- The Items step totals now include only the taxes for sections that have a non-zero subtotal (default tax included only when default section has items). A "Taxes Applied" breakdown now lists per-section taxes and shows the Global Tax as the last item.
+
 ## 12. Guidelines & Conventions
 
 ### Naming Conventions
