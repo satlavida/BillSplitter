@@ -110,10 +110,12 @@ const ReceiptUploadForm = ({
 // Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { addItem, setTax } = useBillStore(
+  const { addItem, addTax, addSection, sections } = useBillStore(
     useShallow(state => ({
       addItem: state.addItem,
-      setTax: state.setTax
+      addTax: state.addTax,
+      addSection: state.addSection,
+      sections: state.sections,
     }))
   );
 
@@ -215,34 +217,79 @@ const ScanReceiptButton = () => {
   };
 
   const processReceiptItems = (data) => {
+    // Validate new API schema strictly
+    if (!data || !Array.isArray(data.items) || !Array.isArray(data.taxes)) {
+      throw new Error('Invalid response format: expected { items: [], taxes: [] }');
+    }
+
+    // Build a local cache of section name -> id to avoid duplicates
+    const sectionNameToId = new Map();
+    (sections || []).forEach(s => {
+      if (s?.name) sectionNameToId.set(s.name.trim().toLowerCase(), s.id);
+    });
+
     // Add items to state
     data.items.forEach(item => {
       const newItem = {
-        name: item.name,
+        name: String(item.name || '').trim(),
         price: parseFloat(item.price) || 0,
         quantity: parseInt(item.quantity, 10) || 1
       };
 
-      // Support optional discount information in two formats:
-      // 1. Structured discount object { value, discountType }
-      // 2. Flat discount fields (discount, discountType)
-      if (item.discount) {
-        if (typeof item.discount === 'object') {
-          newItem.discount = parseFloat(item.discount.value) || 0;
-          newItem.discountType = item.discount.discountType || 'flat';
-        } else {
-          newItem.discount = parseFloat(item.discount) || 0;
-          newItem.discountType = item.discountType || 'flat';
+      // Optional discount object { type: 'flat'|'percentage', value: number }
+      if (item.discount && typeof item.discount === 'object') {
+        newItem.discount = parseFloat(item.discount.value) || 0;
+        newItem.discountType = item.discount.type === 'percentage' ? 'percentage' : 'flat';
+      }
+
+      // Optional section mapping from OCR: supports item.sectionName or item.sectionId
+      if (item.sectionId) {
+        newItem.sectionId = item.sectionId;
+      } else if (item.sectionName) {
+        const rawSectionName = String(item.sectionName).trim();
+        if (rawSectionName) {
+          const key = rawSectionName.toLowerCase();
+          let secId = sectionNameToId.get(key);
+          if (!secId) {
+            const created = addSection({ name: rawSectionName });
+            secId = created?.id;
+            if (secId) sectionNameToId.set(key, secId);
+          }
+          newItem.sectionId = secId || null;
         }
+      } else {
+        newItem.sectionId = null; // default section
       }
 
       addItem(newItem);
     });
 
-    // Set tax amount
-    if (typeof data.tax === 'number' || typeof data.tax === 'string') {
-      setTax(parseFloat(data.tax) || 0);
-    }
+    // Handle taxes array (new API only)
+    data.taxes.forEach(t => {
+      const value = parseFloat(t?.value) || 0;
+      if (value <= 0) return;
+      let targetSectionId = null;
+      if (t?.sectionId !== undefined) {
+        targetSectionId = t.sectionId || null;
+      } else if (t?.sectionName) {
+        const key = String(t.sectionName).trim().toLowerCase();
+        let secId = sectionNameToId.get(key);
+        if (!secId) {
+          const created = addSection({ name: t.sectionName });
+          secId = created?.id;
+          if (secId) sectionNameToId.set(key, secId);
+        }
+        targetSectionId = secId || null;
+      } else {
+        // No section specified -> treat as GLOBAL tax (applies to all sections)
+        targetSectionId = 'global';
+      }
+      addTax(targetSectionId, {
+        label: t?.label ? String(t.label) : '',
+        type: t?.type === 'percentage' ? 'percentage' : 'flat',
+        value
+      });
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -286,12 +333,7 @@ const ScanReceiptButton = () => {
 
       const data = await response.json();
       
-      // Validate the response structure
-      if (!data.items || !Array.isArray(data.items)) {
-        throw new Error('Invalid response format: missing items array');
-      }
-      
-      // Process the received data
+      // Validate and process the received data using new API schema
       processReceiptItems(data);
 
       // Close modal after successful processing
