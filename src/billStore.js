@@ -32,8 +32,12 @@ const initialState = {
   people: [],
   items: [],
   // Sections: items can belong to labeled sections, otherwise default unlabeled section
-  sections: [], // [{ id, name, taxAmount, paidByPersonId }]
-  taxAmount: 0,
+  sections: [], // [{ id, name, paidByPersonId }]
+  // Legacy single-value taxes (kept for backward compatibility)
+  taxAmount: 0, // default section legacy tax
+  // New: multi-tax support per section (including default)
+  // Map keyed by section id or 'default' for unlabeled section
+  sectionTaxes: {}, // { [key: string]: [{ id, label, type: 'flat'|'percentage', value: number }] }
   currency: 'INR',
   title: '',
   createdAt: new Date().toISOString(),
@@ -120,7 +124,7 @@ const useBillStore = create(
         const newSection = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
           name: name?.trim() || '',
-          taxAmount: parseFloat(taxAmount) || 0,
+          taxAmount: parseFloat(taxAmount) || 0, // legacy field kept for compatibility
           paidByPersonId: paidByPersonId || null
         };
         set(state => ({
@@ -132,7 +136,7 @@ const useBillStore = create(
 
       updateSection: (sectionId, data) => set(state => ({
         sections: state.sections.map(sec =>
-          sec.id === sectionId ? { ...sec, ...data, taxAmount: data.taxAmount !== undefined ? (parseFloat(data.taxAmount) || 0) : sec.taxAmount } : sec
+          sec.id === sectionId ? { ...sec, ...data } : sec
         ),
         updatedAt: new Date().toISOString()
       })),
@@ -150,6 +154,55 @@ const useBillStore = create(
       
       // Tax management
       setTax: (amount) => set({ taxAmount: parseFloat(amount) || 0, updatedAt: new Date().toISOString() }),
+
+      // New multi-tax management
+      addTax: (sectionId, { label = '', type = 'flat', value = 0 }) => {
+        const key = sectionId ?? 'default';
+        const newTax = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          label: label?.trim() || '',
+          type: type === 'percentage' ? 'percentage' : 'flat',
+          value: parseFloat(value) || 0
+        };
+        set(state => ({
+          sectionTaxes: {
+            ...state.sectionTaxes,
+            [key]: [...(state.sectionTaxes?.[key] || []), newTax]
+          },
+          updatedAt: new Date().toISOString()
+        }));
+        return newTax;
+      },
+
+      updateTax: (sectionId, taxId, data) => set(state => {
+        const key = sectionId ?? 'default';
+        const taxes = state.sectionTaxes?.[key] || [];
+        return {
+          sectionTaxes: {
+            ...state.sectionTaxes,
+            [key]: taxes.map(t => t.id === taxId ? {
+              ...t,
+              ...data,
+              type: data?.type === 'percentage' ? 'percentage' : (data?.type === 'flat' ? 'flat' : t.type),
+              value: data?.value !== undefined ? (parseFloat(data.value) || 0) : t.value,
+              label: data?.label !== undefined ? (data.label?.trim() || '') : t.label
+            } : t)
+          },
+          updatedAt: new Date().toISOString()
+        };
+      }),
+
+      removeTax: (sectionId, taxId) => set(state => {
+        const key = sectionId ?? 'default';
+        const taxes = state.sectionTaxes?.[key] || [];
+        return {
+          sectionTaxes: {
+            ...state.sectionTaxes,
+            [key]: taxes.filter(t => t.id !== taxId)
+          },
+          updatedAt: new Date().toISOString()
+        };
+      }),
       
       // Assignment actions with split type support
       assignItemEqual: (itemId, peopleIds) => set(state => ({
@@ -292,7 +345,8 @@ const useBillStore = create(
         const state = get();
         const totals = {};
         const sectionsById = Object.fromEntries((state.sections || []).map(s => [s.id, s]));
-        
+        const taxesBySection = state.sectionTaxes || {};
+
         // Initialize totals for each person
         state.people.forEach(person => {
           totals[person.id] = {
@@ -404,21 +458,56 @@ const useBillStore = create(
         });
         
         // Calculate tax proportionally by section
-        const defaultSectionTax = parseFloat(state.taxAmount) || 0;
-        const sectionTaxMap = Object.fromEntries((state.sections || []).map(s => [s.id, parseFloat(s.taxAmount) || 0]));
-        sectionTaxMap[null] = defaultSectionTax;
+        // Helper: compute total tax for a section based on multi-tax config
+        const computeSectionTaxTotal = (sectionIdOrNull) => {
+          const key = sectionIdOrNull === null ? 'default' : sectionIdOrNull;
+          const subtotalKey = sectionIdOrNull === null ? 'null' : sectionIdOrNull;
+          const sectionSubtotal = sectionSubtotalTotals[subtotalKey] || 0;
+          if (sectionSubtotal <= 0) return 0;
 
-        Object.entries(sectionTaxMap).forEach(([sectionKeyStr, taxAmount]) => {
-          const sectionKey = sectionKeyStr === 'null' ? null : sectionKeyStr;
-          const sectionSubtotal = sectionSubtotalTotals[sectionKey] || 0;
-          if (taxAmount > 0 && sectionSubtotal > 0) {
-            Object.values(totals).forEach(person => {
-              const personSectionSubtotal = (perPersonSectionSubtotals[person.id] && perPersonSectionSubtotals[person.id][sectionKey]) || 0;
-              if (personSectionSubtotal > 0) {
-                person.tax += (personSectionSubtotal / sectionSubtotal) * taxAmount;
+          const taxes = taxesBySection[key];
+          if (taxes && taxes.length > 0) {
+            let total = 0;
+            taxes.forEach(t => {
+              if (!t) return;
+              const val = parseFloat(t.value) || 0;
+              if (val <= 0) return;
+              if (t.type === 'percentage') {
+                total += (sectionSubtotal * val) / 100;
+              } else {
+                total += val;
               }
             });
+            return total;
           }
+
+          // Legacy fallback
+          if (sectionIdOrNull === null || sectionIdOrNull === 'null') {
+            return parseFloat(state.taxAmount) || 0;
+          }
+          const legacySection = sectionsById[sectionIdOrNull];
+          if (legacySection && legacySection.taxAmount !== undefined) {
+            return parseFloat(legacySection.taxAmount) || 0;
+          }
+          return 0;
+        };
+
+        // Distribute per-section tax totals proportionally by person's share within the section
+        const subtotalKeys = Object.keys(sectionSubtotalTotals).map(k => (k === 'null' ? null : k));
+        const taxKeys = Object.keys(taxesBySection).map(k => (k === 'default' ? null : k));
+        const allSectionKeys = new Set([...subtotalKeys, ...taxKeys]);
+        allSectionKeys.forEach((sectionKey) => {
+          const subtotalKey = sectionKey === null ? 'null' : sectionKey;
+          const sectionSubtotal = sectionSubtotalTotals[subtotalKey] || 0;
+          if (sectionSubtotal <= 0) return;
+          const taxAmount = computeSectionTaxTotal(sectionKey);
+          if (taxAmount <= 0) return;
+          Object.values(totals).forEach(person => {
+            const personSectionSubtotal = (perPersonSectionSubtotals[person.id] && perPersonSectionSubtotals[person.id][subtotalKey]) || 0;
+            if (personSectionSubtotal > 0) {
+              person.tax += (personSectionSubtotal / sectionSubtotal) * taxAmount;
+            }
+          });
         });
 
         // Compute totals
@@ -455,17 +544,42 @@ const useBillStore = create(
         });
 
         const result = [];
+        const taxesBySection = state.sectionTaxes || {};
+        const computeSectionTaxTotal = (sectionIdOrNull) => {
+          const key = sectionIdOrNull === null ? 'default' : sectionIdOrNull;
+          const subtotalKey = sectionIdOrNull === null ? 'null' : sectionIdOrNull;
+          const subtotal = subtotals[subtotalKey] || 0;
+          if (subtotal <= 0) return 0;
+          const taxes = taxesBySection[key];
+          if (taxes && taxes.length > 0) {
+            let total = 0;
+            taxes.forEach(t => {
+              if (!t) return;
+              const val = parseFloat(t.value) || 0;
+              if (val <= 0) return;
+              if (t.type === 'percentage') total += (subtotal * val) / 100;
+              else total += val;
+            });
+            return total;
+          }
+          // Legacy fallback
+          if (sectionIdOrNull === null || sectionIdOrNull === 'null') return parseFloat(state.taxAmount) || 0;
+          const sec = sections.find(s => s.id === sectionIdOrNull);
+          if (sec && sec.taxAmount !== undefined) return parseFloat(sec.taxAmount) || 0;
+          return 0;
+        };
+
         sections.forEach(sec => {
           const subtotal = subtotals[sec.id] || 0;
           if (subtotal > 0) {
-            const tax = parseFloat(sec.taxAmount) || 0;
+            const tax = computeSectionTaxTotal(sec.id);
             result.push({ id: sec.id, name: sec.name || '', subtotal, tax, total: subtotal + tax, paidByPersonId: sec.paidByPersonId || null });
           }
         });
 
         const defaultSubtotal = subtotals[null] || 0;
         if (defaultSubtotal > 0) {
-          const defaultTax = parseFloat(state.taxAmount) || 0;
+          const defaultTax = computeSectionTaxTotal(null);
           result.unshift({ id: null, name: '', subtotal: defaultSubtotal, tax: defaultTax, total: defaultSubtotal + defaultTax, paidByPersonId: null });
         }
         return result;
@@ -542,7 +656,7 @@ const useBillStore = create(
     }),
     {
       name: 'billSplitter',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => createIndexedDBStorage()),
       migrate: (persistedState, version) => {
         if (!persistedState) return { ...initialState };
@@ -565,6 +679,13 @@ const useBillStore = create(
           };
           return migrated;
         }
+        if (version < 4) {
+          // Initialize new multi-tax structure; keep legacy values for compatibility
+          return {
+            ...persistedState,
+            sectionTaxes: {},
+          };
+        }
         return persistedState;
       }
     }
@@ -580,6 +701,7 @@ export const useBillTitle = () => useBillStore(state => state.title);
 export const useBillTaxAmount = () => useBillStore(state => state.taxAmount);
 export const useBillSections = () => useBillStore(useShallow(state => state.sections));
 export const useShowPostTaxPrice = () => useBillStore(state => state.showPostTaxPrice);
+export const useSectionTaxes = () => useBillStore(useShallow(state => state.sectionTaxes));
 
 // More complex selectors with derived data
 export const useBillPersonTotals = () => {

@@ -96,7 +96,8 @@ The central store for all bill-related data and logic.
 - `people`: Array of people splitting the bill
 - `items`: Array of bill items with enhanced split options
 - `sections`: Array of labeled sections; items without a section belong to a default unlabeled section
-- `taxAmount`: Tax amount for the default unlabeled section
+- `taxAmount`: Tax amount for the default unlabeled section (legacy, kept for compatibility)
+- `sectionTaxes`: Map of per-section taxes (including 'default'), allowing multiple flat/percentage taxes per section
 - `title`: Title of the bill (e.g., restaurant name)
 - `currency`: Currency for formatting (defaults to 'INR')
 
@@ -119,9 +120,13 @@ The central store for all bill-related data and logic.
   - `setTax(amount: number|string)`: Sets the tax amount for the default unlabeled section, converting to float if needed
 
 - Section Management:
-  - `addSection(section: {name: string, taxAmount?: number, paidByPersonId?: string|null})`: Adds a labeled section (with future `paidByPersonId`)
-  - `updateSection(id: string, data: {name?: string, taxAmount?: number, paidByPersonId?: string|null})`: Updates a section
+  - `addSection(section: {name: string, paidByPersonId?: string|null})`: Adds a labeled section (with future `paidByPersonId`)
+  - `updateSection(id: string, data: {name?: string, paidByPersonId?: string|null})`: Updates a section
   - `removeSection(id: string)`: Removes a section and moves its items to the default unlabeled section
+  - Taxes:
+    - `addTax(sectionId: string|null, tax: { label?: string, type: 'flat'|'percentage', value: number })`
+    - `updateTax(sectionId: string|null, taxId: string, data: { label?: string, type?: 'flat'|'percentage', value?: number })`
+    - `removeTax(sectionId: string|null, taxId: string)`
   
 - Split Types:
   - `setSplitType(itemId: string, splitType: string)`: Sets split type for an item ('equal', 'percentage', 'fraction')
@@ -312,6 +317,7 @@ To add new styles:
   - Props: `subtotal`, `taxAmount`, `grandTotal`, `className`, `formatCurrency`
   - Purpose: Reusable component for displaying bill financial totals
   - Note: When sections exist, the taxAmount passed is the sum of all section taxes (including the default unlabeled section tax)
+  - Supports `taxesBreakdown?: { label: string, amount: number }[]` to render per-section taxes with Global (Default) last
 
 - `EditPersonModal`: 
   - Props: `isOpen`, `onClose`, `person`, `onSave`
@@ -652,7 +658,7 @@ The App.css file has been updated with new styles for the sidebar:
 ### 11.2 UI Changes to Items Input
 - Items are now displayed under Section headings (default unlabeled section at top followed by labeled sections).
 - You can move items between sections using native HTML drag-and-drop by dragging an item into a section's drop area, or by using the Edit Item modal’s section chooser.
-- SectionsManager remains for creating, renaming, removing sections and setting per-section taxes.
+- SectionsManager remains for creating, renaming, removing sections. Taxes are now managed separately in a Taxes Manager.
 - Section drop areas highlight on drag-over for better affordance.
 - When the “Show Post-tax price for item” setting is enabled, a small “incl. tax” badge appears next to each item’s displayed price.
 
@@ -660,10 +666,10 @@ The App.css file has been updated with new styles for the sidebar:
 - Added a setting in `Settings` (Options) page: “Show Post-tax price for item”.
 - When enabled, the Items list shows each item’s total including its proportion of the section/global tax based on the current inputs.
 
-### 11.4 ItemsInput UX and Tax Behavior
-- Sections Manager is now collapsed by default on the Items step. A button toggles visibility with labels "Add New Section" and "Hide Add New Section". When opened, it reveals the Sections Manager for creating/updating/removing sections and setting per-section taxes.
-- Global tax (default unlabeled section) is only applied when there are items in the default section. Labeled sections apply their own tax only when those sections contain items. This treats each section like a mini-bill and prevents double-applying tax to default-section items.
-- The Items step totals now include only the taxes for sections that have a non-zero subtotal (default tax included only when default section has items). A "Taxes Applied" breakdown now lists per-section taxes and shows the Global Tax as the last item.
+- Sections Manager is collapsed by default on the Items step. A button toggles visibility with labels "Add New Section" and "Hide Add New Section". It only manages section names.
+- Taxes Manager: manage taxes for Default and for each labeled section in one place; supports multiple taxes per section with Flat or Percentage types.
+- Tax calculation: per-section tax = sum(flat taxes) + sum(percentage taxes × section subtotal). Default applies only when Default has items. Taxes are distributed proportionally within each section.
+- Totals in Items step now show a breakdown (via BillTotalsSummary) sorted with Global (Default) tax last.
 
 ## 12. Guidelines & Conventions
 
@@ -719,8 +725,17 @@ The application uses the following data structures:
 {
   id: string,
   name: string,
-  taxAmount: number,
   paidByPersonId: string | null // not yet used in calculations
+}
+```
+
+#### Tax Object
+```javascript
+{
+  id: string,
+  label: string,              // optional display label
+  type: 'flat' | 'percentage',
+  value: number               // flat currency amount or percentage (0-100)
 }
 ```
 

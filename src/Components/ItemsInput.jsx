@@ -3,6 +3,7 @@ import useBillStore, { useBillItems, getDiscountedItemPrice } from '../billStore
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card } from '../ui/components';
+import TaxManager from './TaxManager';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
 import BillTotalsSummary from './BillTotalsSummary';
@@ -222,14 +223,12 @@ const SectionBlock = memo(({ title, items, sectionId, onDropToSection, onRemoveI
 // Sections Manager component
 const SectionsManager = memo(({ sections, onAdd, onUpdate, onRemove }) => {
   const [name, setName] = useState('');
-  const [tax, setTax] = useState('');
 
   const handleAdd = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onAdd({ name: name.trim(), taxAmount: parseFloat(tax) || 0 });
+    onAdd({ name: name.trim() });
     setName('');
-    setTax('');
   };
 
   return (
@@ -246,14 +245,6 @@ const SectionsManager = memo(({ sections, onAdd, onUpdate, onRemove }) => {
                 className="flex-1 p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
                 placeholder="Section name"
               />
-              <input
-                type="number"
-                step="0.01"
-                value={sec.taxAmount ?? 0}
-                onChange={(e) => onUpdate(sec.id, { taxAmount: e.target.value })}
-                className="w-32 p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
-                placeholder="Tax"
-              />
               <Button variant="danger" size="sm" onClick={() => onRemove(sec.id)}>Remove</Button>
             </li>
           ))}
@@ -269,17 +260,7 @@ const SectionsManager = memo(({ sections, onAdd, onUpdate, onRemove }) => {
             className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
           />
         </div>
-        <div className="col-span-3">
-          <input
-            type="number"
-            step="0.01"
-            value={tax}
-            onChange={(e) => setTax(e.target.value)}
-            placeholder="Tax"
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
-          />
-        </div>
-        <div className="col-span-2">
+        <div className="col-span-5">
           <Button type="submit" className="w-full">Add</Button>
         </div>
       </form>
@@ -287,45 +268,18 @@ const SectionsManager = memo(({ sections, onAdd, onUpdate, onRemove }) => {
   );
 });
 
-// Tax input component
-const TaxInput = memo(({ taxAmount, onTaxChange }) => {
-  const taxRef = useRef(null);
-  
-  return (
-    <div className="mb-6">
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
-        Tax Amount
-      </label>
-      <input
-        ref={taxRef}
-        type="number"
-        min="0"
-        step="0.01"
-        value={taxAmount}
-        onChange={onTaxChange}
-        placeholder="0.00"
-        className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
-          bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-          rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-          dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-          transition-colors"
-      />
-    </div>
-  );
-});
+// Removed legacy TaxInput; taxes are managed via TaxesManager
 
 // Main ItemsInput component
 const ItemsInput = () => {
   // Use Zustand store with specialized hooks and useShallow
   const items = useBillItems();
   
-  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal, sections, addSection, updateSection, removeSection, assignItemToSection, getSectionsSummary } = 
+  const { addItem, removeItem, updateItem, nextStep, prevStep, getSubtotal, sections, addSection, updateSection, removeSection, assignItemToSection, getSectionsSummary, sectionTaxes, addTax, updateTax, removeTax } = 
     useBillStore(useShallow(state => ({
-      taxAmount: state.taxAmount,
       addItem: state.addItem,
       removeItem: state.removeItem,
       updateItem: state.updateItem,
-      setTax: state.setTax,
       nextStep: state.nextStep,
       prevStep: state.prevStep,
       getSubtotal: state.getSubtotal,
@@ -334,20 +288,18 @@ const ItemsInput = () => {
       updateSection: state.updateSection,
       removeSection: state.removeSection,
       assignItemToSection: state.assignItemToSection,
-      getSectionsSummary: state.getSectionsSummary
+      getSectionsSummary: state.getSectionsSummary,
+      sectionTaxes: state.sectionTaxes,
+      addTax: state.addTax,
+      updateTax: state.updateTax,
+      removeTax: state.removeTax,
     })));
   
   const formatCurrency = useFormatCurrency();
   
-  const [localTaxAmount, setLocalTaxAmount] = useState(taxAmount || '');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [showSectionsManager, setShowSectionsManager] = useState(false);
-  
-  // Sync the local tax amount with the store on first render
-  useEffect(() => {
-    setLocalTaxAmount(taxAmount || '');
-  }, [taxAmount]);
   
   const handleAddItem = useCallback((itemData) => {
     addItem(itemData);
@@ -370,22 +322,17 @@ const ItemsInput = () => {
     assignItemToSection(itemId, sectionId || null);
   }, [assignItemToSection]);
   
-  const handleTaxChange = useCallback((e) => {
-    setLocalTaxAmount(e.target.value);
-  }, []);
-  
   const handlePrev = useCallback(() => {
     prevStep();
   }, [prevStep]);
   
   const handleNext = useCallback(() => {
     if (items.length > 0) {
-      setTax(localTaxAmount);
       nextStep();
     } else {
       alert('Please add at least one item');
     }
-  }, [items.length, localTaxAmount, setTax, nextStep]);
+  }, [items.length, nextStep]);
 
   // Compute section subtotals for tax logic and item display
   const sectionSubtotals = (() => {
@@ -399,23 +346,12 @@ const ItemsInput = () => {
   
   // Get subtotal from the store helper
   const subtotal = useShallow(getSubtotal)();
-  
-  // Live tax: treat each section like a mini-bill
-  // - Include a section's tax only if that section has items (subtotal > 0)
-  // - Default (unlabeled) section uses the global tax input
-  const defaultSectionSubtotal = sectionSubtotals[''] || 0;
-  const labeledTaxSum = sections.reduce((sum, s) => {
-    const secSubtotal = sectionSubtotals[s.id] || 0;
-    const secTax = parseFloat(s.taxAmount) || 0;
-    return sum + (secSubtotal > 0 ? secTax : 0);
-  }, 0);
-  const defaultTax = defaultSectionSubtotal > 0 ? (parseFloat(localTaxAmount) || 0) : 0;
-  const tax = labeledTaxSum + defaultTax;
+  const sectionsSummary = useShallow(getSectionsSummary)();
+  const tax = sectionsSummary.reduce((sum, s) => sum + (parseFloat(s.tax) || 0), 0);
   const total = subtotal + tax;
-  const sectionTaxes = (() => {
+  const sectionTaxTotalsMap = (() => {
     const map = {};
-    sections.forEach(s => { map[s.id] = parseFloat(s.taxAmount) || 0; });
-    map[''] = parseFloat(localTaxAmount) || 0; // tax for default unlabeled
+    sectionsSummary.forEach(s => { map[s.id || ''] = parseFloat(s.tax) || 0; });
     return map;
   })();
   const postTaxEnabled = useBillStore(state => state.showPostTaxPrice);
@@ -424,10 +360,10 @@ const ItemsInput = () => {
     if (!postTaxEnabled) return base;
     const key = item.sectionId || '';
     const secSubtotal = sectionSubtotals[key] || 0;
-    const secTax = sectionTaxes[key] || 0;
+    const secTax = sectionTaxTotalsMap[key] || 0;
     if (secSubtotal <= 0 || secTax <= 0) return base;
     return base + (base / secSubtotal) * secTax;
-  }, [postTaxEnabled, sectionSubtotals, sectionTaxes]);
+  }, [postTaxEnabled, sectionSubtotals, sectionTaxTotalsMap]);
   
   return (
     <div>
@@ -501,32 +437,31 @@ const ItemsInput = () => {
             />
           )}
 
-          {/* Default (unlabeled) section tax */}
-          <TaxInput 
-            taxAmount={localTaxAmount}
-            onTaxChange={handleTaxChange}
+          {/* Taxes manager (default + sections) */}
+          <TaxManager
+            sections={sections}
+            sectionTaxes={sectionTaxes}
+            onAddTax={addTax}
+            onUpdateTax={updateTax}
+            onRemoveTax={removeTax}
           />
           
-          <BillTotalsSummary
-            subtotal={subtotal}
-            taxAmount={tax}
-            grandTotal={total}
-            formatCurrency={formatCurrency}
-            className="mb-6"
-            taxesBreakdown={(() => {
-              const appliedSectionRows = sections
-                .map(s => ({
-                  label: (s.name && s.name.trim().length > 0 ? s.name : 'Section') + ' Tax',
-                  amount: parseFloat(s.taxAmount) || 0,
-                  subtotal: sectionSubtotals[s.id] || 0,
-                }))
-                .filter(s => s.subtotal > 0 && s.amount > 0)
-                .map(({ label, amount }) => ({ label, amount }));
-              const rows = [...appliedSectionRows];
-              if (defaultTax > 0) rows.push({ label: 'Global Tax', amount: defaultTax });
-              return rows;
-            })()}
-          />
+          {(() => {
+            const appliedRows = sectionsSummary
+              .filter(s => (parseFloat(s.tax) || 0) > 0)
+              .map(s => ({ label: (s.name && s.name.trim().length > 0 ? s.name : 'Global') + ' Tax', amount: s.tax, id: s.id }));
+            const rows = [...appliedRows.filter(r => r.id), ...appliedRows.filter(r => !r.id)].map(({ label, amount }) => ({ label, amount }));
+            return (
+              <BillTotalsSummary
+                subtotal={subtotal}
+                taxAmount={tax}
+                grandTotal={total}
+                formatCurrency={formatCurrency}
+                className="mb-6"
+                taxesBreakdown={rows}
+              />
+            );
+          })()}
         </>
       )}
 
