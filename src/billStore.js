@@ -12,7 +12,7 @@ export const SPLIT_TYPES = {
 };
 
 // Add version for future compatibility
-export const BILL_STORE_VERSION = '1.3.0';
+export const BILL_STORE_VERSION = '1.4.0';
 
 // Helper to apply item-level discounts
 export const getDiscountedItemPrice = (item) => {
@@ -330,13 +330,46 @@ const useBillStore = create(
       
       // Import bill state
       importBill: (data) => {
+        // Migrate legacy data on import to ensure sections and default tax exist
+        const migrateImported = (raw) => {
+          const cloned = { ...(raw || {}) };
+          // Ensure sections array exists
+          if (!Array.isArray(cloned.sections)) cloned.sections = [];
+          // Ensure items exist and each has sectionId defaulted to null
+          if (Array.isArray(cloned.items)) {
+            cloned.items = cloned.items.map(it => ({
+              ...it,
+              sectionId: it?.sectionId ?? null
+            }));
+          } else {
+            cloned.items = [];
+          }
+          // Ensure sectionTaxes exists and migrate legacy flat tax to default
+          const taxAmount = parseFloat(cloned.taxAmount) || 0;
+          const sectionTaxes = { ...(cloned.sectionTaxes || {}) };
+          const hasDefaultTaxes = Array.isArray(sectionTaxes['default']) && sectionTaxes['default'].length > 0;
+          if (!hasDefaultTaxes && taxAmount > 0) {
+            sectionTaxes['default'] = [
+              {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                label: 'Total Tax',
+                type: 'flat',
+                value: taxAmount
+              }
+            ];
+          }
+          cloned.sectionTaxes = sectionTaxes;
+          return cloned;
+        };
+
+        const migrated = migrateImported(data);
         // Preserve version during import
         set({
-          ...data,
+          ...migrated,
           version: BILL_STORE_VERSION,
-          createdAt: data.createdAt || new Date().toISOString(),
+          createdAt: migrated.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          lastSyncedAt: data.lastSyncedAt || null
+          lastSyncedAt: migrated.lastSyncedAt || null
         });
       },
       
@@ -656,7 +689,7 @@ const useBillStore = create(
     }),
     {
       name: 'billSplitter',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => createIndexedDBStorage()),
       migrate: (persistedState, version) => {
         if (!persistedState) return { ...initialState };
@@ -685,6 +718,28 @@ const useBillStore = create(
             ...persistedState,
             sectionTaxes: {},
           };
+        }
+        if (version < 5) {
+          // Migrate legacy single tax to default section tax and ensure items are in default section
+          const state = { ...persistedState };
+          // Ensure items have sectionId
+          state.items = (state.items || []).map(it => ({ ...it, sectionId: it?.sectionId ?? null }));
+          // Migrate legacy taxAmount into sectionTaxes['default'] if absent
+          const taxAmount = parseFloat(state.taxAmount) || 0;
+          const sectionTaxes = { ...(state.sectionTaxes || {}) };
+          const hasDefaultTaxes = Array.isArray(sectionTaxes['default']) && sectionTaxes['default'].length > 0;
+          if (!hasDefaultTaxes && taxAmount > 0) {
+            sectionTaxes['default'] = [
+              {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                label: 'Total Tax',
+                type: 'flat',
+                value: taxAmount
+              }
+            ];
+          }
+          state.sectionTaxes = sectionTaxes;
+          return state;
         }
         return persistedState;
       }

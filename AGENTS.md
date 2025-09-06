@@ -671,6 +671,21 @@ The App.css file has been updated with new styles for the sidebar:
 - Tax calculation: per-section tax = sum(flat taxes) + sum(percentage taxes × section subtotal). Default applies only when Default has items. Taxes are distributed proportionally within each section.
 - Totals in Items step now show a breakdown (via BillTotalsSummary) sorted with Global (Default) tax last.
 
+## 11.4 Data Migration: Legacy Bills
+
+- Older bills (created before Sections and multi-tax support) are automatically migrated on load/import.
+- Items without a `sectionId` are assigned to the default unlabeled section (`sectionId: null`).
+- The legacy single tax value (`taxAmount`) is migrated into `sectionTaxes['default']` as one flat tax with label "Total Tax".
+- Migration triggers in:
+  - Store persistence migrate step (storage version 5).
+  - `importBill()` when loading a bill from history or external JSON.
+- Legacy fields are preserved for compatibility; calculations prefer `sectionTaxes` when present.
+
+## 11.5 Bill Summary Tax Display Fix
+
+- Bill Summary per-person tax now reflects all taxes (default and per-section multi-taxes), not only the legacy global tax.
+- Item-level "incl. tax" amounts (when the setting is enabled) now use the multi-tax computation via Sections Summary, allocating each section’s total tax proportionally to items and then to consumers.
+
 ## 12. Guidelines & Conventions
 
 ### Naming Conventions

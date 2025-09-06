@@ -239,9 +239,12 @@ const BillSummary = () => {
       const key = it.sectionId || 'default';
       sectionSubtotals[key] = (sectionSubtotals[key] || 0) + subtotal;
     });
+    // Use multi-tax aware sections summary (falls back to legacy internally)
     const sectionTaxes = {};
-    sections.forEach(s => { sectionTaxes[s.id] = parseFloat(s.taxAmount) || 0; });
-    sectionTaxes['default'] = parseFloat(taxAmount) || 0;
+    sectionsSummary.forEach(s => {
+      const k = (s.id ?? 'default');
+      sectionTaxes[k] = (parseFloat(s.tax) || 0);
+    });
 
     const ratio = (item, alloc) => {
       if (!item || !alloc || !item.consumedBy || item.consumedBy.length === 0) return 0;
@@ -276,7 +279,7 @@ const BillSummary = () => {
       });
     });
     return map;
-  }, [items, sections, taxAmount, showPostTaxPrice]);
+  }, [items, sectionsSummary, showPostTaxPrice]);
   
   const handleEdit = useCallback((step) => {
     goToStep(step);
