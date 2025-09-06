@@ -653,6 +653,8 @@ The App.css file has been updated with new styles for the sidebar:
 - Items are now displayed under Section headings (default unlabeled section at top followed by labeled sections).
 - You can move items between sections using native HTML drag-and-drop by dragging an item into a section's drop area, or by using the Edit Item modal’s section chooser.
 - SectionsManager remains for creating, renaming, removing sections and setting per-section taxes.
+- Section drop areas highlight on drag-over for better affordance.
+- When the “Show Post-tax price for item” setting is enabled, a small “incl. tax” badge appears next to each item’s displayed price.
 
 ### 11.3 Settings
 - Added a setting in `Settings` (Options) page: “Show Post-tax price for item”.

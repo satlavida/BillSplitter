@@ -645,6 +645,110 @@ describe('billStore - Calculation Functions', () => {
   });
 });
 
+// Test suite for sections and per-section tax behavior
+describe('billStore - Sections and Per-Section Tax', () => {
+  test('should support assigning items to sections and compute section taxes', () => {
+    const {
+      addPerson,
+      addItem,
+      addSection,
+      assignItemToSection,
+      setTax,
+      assignItemEqual,
+      getPersonTotals,
+      getSectionsSummary,
+      getGrandTotal,
+    } = useBillStore.getState();
+
+    act(() => {
+      // People
+      addPerson('A');
+      addPerson('B');
+      // Items
+      addItem({ name: 'Default Item', price: 100, quantity: 1 }); // default section
+      addItem({ name: 'Drinks', price: 50, quantity: 1 }); // will be in a labeled section
+    });
+
+    const people = useBillStore.getState().people;
+    const items = useBillStore.getState().items;
+    const aId = people[0].id;
+    const bId = people[1].id;
+
+    // Create section with its own tax
+    let drinksSection;
+    act(() => {
+      drinksSection = addSection({ name: 'Drinks', taxAmount: 20 });
+    });
+
+    // Assign second item to Drinks section, keep first item in default (null)
+    act(() => {
+      assignItemToSection(items[1].id, drinksSection.id);
+    });
+
+    // Set global (default section) tax
+    act(() => setTax(10));
+
+    // Assign consumption: default item -> A, drinks -> B
+    act(() => {
+      assignItemEqual(items[0].id, [aId]);
+      assignItemEqual(items[1].id, [bId]);
+    });
+
+    const totals = getPersonTotals();
+    const a = totals.find(p => p.id === aId);
+    const b = totals.find(p => p.id === bId);
+
+    // A gets default item 100 + default tax 10
+    expect(a.subtotal).toBeCloseTo(100);
+    expect(a.tax).toBeCloseTo(10);
+    expect(a.total).toBeCloseTo(110);
+
+    // B gets drinks item 50 + drinks section tax 20
+    expect(b.subtotal).toBeCloseTo(50);
+    expect(b.tax).toBeCloseTo(20);
+    expect(b.total).toBeCloseTo(70);
+
+    // Sections summary
+    const sectionsSummary = getSectionsSummary();
+    // Expect default and the Drinks section
+    const defaultSec = sectionsSummary.find(s => s.id === null);
+    const drinksSec = sectionsSummary.find(s => s.id === drinksSection.id);
+    expect(defaultSec.subtotal).toBeCloseTo(100);
+    expect(defaultSec.tax).toBeCloseTo(10);
+    expect(defaultSec.total).toBeCloseTo(110);
+    expect(drinksSec.subtotal).toBeCloseTo(50);
+    expect(drinksSec.tax).toBeCloseTo(20);
+    expect(drinksSec.total).toBeCloseTo(70);
+
+    // Grand total
+    expect(getGrandTotal()).toBeCloseTo(180);
+  });
+
+  test('removing a section moves its items to default section', () => {
+    const { addSection, addItem, assignItemToSection, removeSection, getSectionsSummary } = useBillStore.getState();
+
+    let sec;
+    act(() => {
+      sec = addSection({ name: 'Temp', taxAmount: 5 });
+      addItem({ name: 'Temp Item', price: 10, quantity: 1 });
+    });
+    const itemId = useBillStore.getState().items.slice(-1)[0].id;
+    act(() => assignItemToSection(itemId, sec.id));
+
+    // Verify it's in the section
+    expect(useBillStore.getState().items.find(i => i.id === itemId).sectionId).toBe(sec.id);
+
+    // Remove section
+    act(() => removeSection(sec.id));
+    // Item should now be in default (null)
+    expect(useBillStore.getState().items.find(i => i.id === itemId).sectionId).toBeNull();
+
+    // Sections summary should not include the removed section
+    const summary = getSectionsSummary();
+    expect(summary.find(s => s.id === sec.id)).toBeUndefined();
+  });
+});
+
 // Test suite for utility helper functions
 describe('billStore - Utility Functions', () => {
   beforeEach(() => {
