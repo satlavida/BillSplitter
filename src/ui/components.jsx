@@ -1,4 +1,4 @@
-import React, { memo} from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 
 // Reusable Button component
 export const Button = memo(({ 
@@ -348,6 +348,82 @@ export const Alert = memo(({
       {...props}
     >
       {children}
+    </div>
+  );
+});
+
+// Dropdown (custom select) component
+// Props: options [{ value, label }], value, onChange(value), placeholder, className, buttonClassName
+export const Dropdown = memo(({ 
+  options = [],
+  value = '',
+  onChange,
+  placeholder = 'Select...',
+  className = '',
+  buttonClassName = '',
+  disabled = false,
+}) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  const selected = options.find(o => String(o.value) === String(value));
+  const label = selected ? selected.label : placeholder;
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, []);
+
+  const handleSelect = (val) => {
+    onChange && onChange(val);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={rootRef} className={`relative ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen(o => !o)}
+        className={`w-full flex items-center justify-between px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 transition-colors ${buttonClassName}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className={!selected ? 'text-zinc-500 dark:text-zinc-400' : ''}>{label}</span>
+        <svg className="w-4 h-4 ml-2 text-zinc-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.25 8.27a.75.75 0 01-.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open && (
+        <ul role="listbox" className="absolute z-20 mt-1 w-full bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-md shadow-lg max-h-60 overflow-auto">
+          {options.length === 0 && (
+            <li className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-300">No options</li>
+          )}
+          {options.map(opt => (
+            <li
+              key={String(opt.value)}
+              role="option"
+              aria-selected={String(opt.value) === String(value)}
+              onClick={() => handleSelect(opt.value)}
+              className={`px-3 py-2 cursor-pointer text-sm hover:bg-zinc-100 dark:hover:bg-zinc-600 ${String(opt.value) === String(value) ? 'bg-zinc-100 dark:bg-zinc-600' : ''}`}
+            >
+              {opt.label}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 });

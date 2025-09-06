@@ -107,8 +107,8 @@ const ItemForm = memo(({ onAddItem }) => {
   );
 });
 
-// Individual item list item
-const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
+// Individual item list item (draggable)
+const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency, onDragStart, displayAmount }) => {
   const handleRemove = useCallback(() => {
     onRemove(item.id);
   }, [item.id, onRemove]);
@@ -127,13 +127,19 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
     : '';
 
   return (
-    <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
+    <li
+      className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors"
+      draggable
+      onDragStart={(e) => onDragStart(e, item.id)}
+    >
       <div>
-        <span className="font-medium dark:text-white transition-colors">{item.name}</span>
-        <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
-          {item.quantity > 1 ? `${item.quantity} × ` : ''}
-          {formatCurrency(getDiscountedItemPrice(item))}
-        </span>
+        <div>
+          <span className="font-medium dark:text-white transition-colors">{item.name}</span>
+          <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400 transition-colors">
+            {item.quantity > 1 ? `${item.quantity} × ` : ''}
+            {formatCurrency(displayAmount)}
+          </span>
+        </div>
         {hasDiscount && (
           <span className="block text-xs text-zinc-500 dark:text-zinc-400 transition-colors">
             ({discountText})
@@ -164,25 +170,108 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
   );
 });
 
-// Items list component
-const ItemsList = memo(({ items, onRemove, onEdit, formatCurrency }) => {
-  if (items.length === 0) return null;
-  
+// Section block with heading and drop target for moving items
+const SectionBlock = memo(({ title, items, sectionId, onDropToSection, onRemoveItem, onEditItem, formatCurrency, computeDisplayAmount }) => {
+  const handleDragOver = useCallback((e) => { e.preventDefault(); }, []);
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    const itemId = e.dataTransfer.getData('text/plain');
+    if (itemId) onDropToSection(itemId, sectionId);
+  }, [onDropToSection, sectionId]);
+  const handleDragStart = useCallback((e, id) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
   return (
-    <>
-      <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">Items</h3>
-      <ul className="mb-6 space-y-2">
+    <div className="mb-6">
+      <h3 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-zinc-100 transition-colors">{title}</h3>
+      <ul
+        className="mb-2 space-y-2 p-2 border border-dashed border-zinc-300 dark:border-zinc-600 rounded-md min-h-[2.5rem]"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {items.map(item => (
-          <ItemListItem 
-            key={item.id} 
-            item={item} 
-            onRemove={onRemove}
-            onEdit={onEdit}
+          <ItemListItem
+            key={item.id}
+            item={item}
+            onRemove={onRemoveItem}
+            onEdit={onEditItem}
+            onDragStart={handleDragStart}
             formatCurrency={formatCurrency}
+            displayAmount={computeDisplayAmount(item)}
           />
         ))}
       </ul>
-    </>
+    </div>
+  );
+});
+
+// Sections Manager component
+const SectionsManager = memo(({ sections, onAdd, onUpdate, onRemove }) => {
+  const [name, setName] = useState('');
+  const [tax, setTax] = useState('');
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onAdd({ name: name.trim(), taxAmount: parseFloat(tax) || 0 });
+    setName('');
+    setTax('');
+  };
+
+  return (
+    <Card>
+      <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">Sections</h3>
+      {sections.length > 0 && (
+        <ul className="mb-4 divide-y divide-zinc-100 dark:divide-zinc-700">
+          {sections.map(sec => (
+            <li key={sec.id} className="py-2 flex items-center gap-2">
+              <input
+                type="text"
+                value={sec.name}
+                onChange={(e) => onUpdate(sec.id, { name: e.target.value })}
+                className="flex-1 p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
+                placeholder="Section name"
+              />
+              <input
+                type="number"
+                step="0.01"
+                value={sec.taxAmount ?? 0}
+                onChange={(e) => onUpdate(sec.id, { taxAmount: e.target.value })}
+                className="w-32 p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
+                placeholder="Tax"
+              />
+              <Button variant="danger" size="sm" onClick={() => onRemove(sec.id)}>Remove</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={handleAdd} className="grid grid-cols-12 gap-2">
+        <div className="col-span-7">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="New section name"
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
+          />
+        </div>
+        <div className="col-span-3">
+          <input
+            type="number"
+            step="0.01"
+            value={tax}
+            onChange={(e) => setTax(e.target.value)}
+            placeholder="Tax"
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md"
+          />
+        </div>
+        <div className="col-span-2">
+          <Button type="submit" className="w-full">Add</Button>
+        </div>
+      </form>
+    </Card>
   );
 });
 
@@ -218,7 +307,7 @@ const ItemsInput = () => {
   // Use Zustand store with specialized hooks and useShallow
   const items = useBillItems();
   
-  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = 
+  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal, sections, addSection, updateSection, removeSection, assignItemToSection, getSectionsSummary } = 
     useBillStore(useShallow(state => ({
       taxAmount: state.taxAmount,
       addItem: state.addItem,
@@ -227,7 +316,13 @@ const ItemsInput = () => {
       setTax: state.setTax,
       nextStep: state.nextStep,
       prevStep: state.prevStep,
-      getSubtotal: state.getSubtotal
+      getSubtotal: state.getSubtotal,
+      sections: state.sections,
+      addSection: state.addSection,
+      updateSection: state.updateSection,
+      removeSection: state.removeSection,
+      assignItemToSection: state.assignItemToSection,
+      getSectionsSummary: state.getSectionsSummary
     })));
   
   const formatCurrency = useFormatCurrency();
@@ -257,6 +352,10 @@ const ItemsInput = () => {
   const handleSaveItem = useCallback((itemId, updatedData) => {
     updateItem(itemId, updatedData);
   }, [updateItem]);
+
+  const handleDropToSection = useCallback((itemId, sectionId) => {
+    assignItemToSection(itemId, sectionId || null);
+  }, [assignItemToSection]);
   
   const handleTaxChange = useCallback((e) => {
     setLocalTaxAmount(e.target.value);
@@ -277,8 +376,35 @@ const ItemsInput = () => {
 
   // Get subtotal from the store helper
   const subtotal = useShallow(getSubtotal)();
-  const tax = parseFloat(localTaxAmount) || 0;
+  const sectionsSummary = useShallow(getSectionsSummary)();
+  const sectionTaxTotal = sectionsSummary.reduce((sum, s) => sum + (parseFloat(s.tax) || 0), 0);
+  const tax = sectionTaxTotal || (parseFloat(localTaxAmount) || 0);
   const total = subtotal + tax;
+
+  // Compute post-tax display per item (proportional allocation of section tax)
+  const sectionSubtotals = (() => {
+    const map = {};
+    items.forEach(it => {
+      const key = it.sectionId || '';
+      map[key] = (map[key] || 0) + (getDiscountedItemPrice(it) * (parseInt(it.quantity) || 1));
+    });
+    return map;
+  })();
+  const sectionTaxes = (() => {
+    const map = {};
+    sections.forEach(s => { map[s.id] = parseFloat(s.taxAmount) || 0; });
+    map[''] = parseFloat(localTaxAmount) || 0; // tax for default unlabeled
+    return map;
+  })();
+  const computeDisplayAmount = useCallback((item) => {
+    const base = getDiscountedItemPrice(item) * (parseInt(item.quantity) || 1);
+    if (!useBillStore.getState().showPostTaxPrice) return base;
+    const key = item.sectionId || '';
+    const secSubtotal = sectionSubtotals[key] || 0;
+    const secTax = sectionTaxes[key] || 0;
+    if (secSubtotal <= 0 || secTax <= 0) return base;
+    return base + (base / secSubtotal) * secTax;
+  }, [sectionSubtotals, sectionTaxes]);
   
   return (
     <div>
@@ -289,15 +415,57 @@ const ItemsInput = () => {
         <ItemForm onAddItem={handleAddItem} />
       </Card>
       
-      <ItemsList 
-        items={items} 
-        onRemove={handleRemoveItem}
-        onEdit={handleEditItem}
-        formatCurrency={formatCurrency}
-      />
+      {(() => {
+        const itemsBySection = new Map();
+        items.forEach(it => {
+          const key = it.sectionId || '';
+          if (!itemsBySection.has(key)) itemsBySection.set(key, []);
+          itemsBySection.get(key).push(it);
+        });
+        const blocks = [];
+        // Default unlabeled
+        blocks.push(
+          <SectionBlock
+            key="__default__"
+            title="(Unlabeled)"
+            items={itemsBySection.get('') || []}
+            sectionId={null}
+            onDropToSection={handleDropToSection}
+            onRemoveItem={handleRemoveItem}
+            onEditItem={handleEditItem}
+            formatCurrency={formatCurrency}
+            computeDisplayAmount={computeDisplayAmount}
+          />
+        );
+        // Labeled sections
+        sections.forEach(sec => {
+          blocks.push(
+            <SectionBlock
+              key={sec.id}
+              title={sec.name || 'Section'}
+              items={itemsBySection.get(sec.id) || []}
+              sectionId={sec.id}
+              onDropToSection={handleDropToSection}
+              onRemoveItem={handleRemoveItem}
+              onEditItem={handleEditItem}
+              formatCurrency={formatCurrency}
+              computeDisplayAmount={computeDisplayAmount}
+            />
+          );
+        });
+        return blocks;
+      })()}
       
       {items.length > 0 && (
         <>
+          <SectionsManager
+            sections={sections}
+            onAdd={addSection}
+            onUpdate={updateSection}
+            onRemove={removeSection}
+          />
+
+          {/* Default (unlabeled) section tax */}
           <TaxInput 
             taxAmount={localTaxAmount}
             onTaxChange={handleTaxChange}

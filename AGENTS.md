@@ -95,7 +95,8 @@ The central store for all bill-related data and logic.
 - `step`: Current step in the bill splitting process (1-4)
 - `people`: Array of people splitting the bill
 - `items`: Array of bill items with enhanced split options
-- `taxAmount`: Tax amount for the bill
+- `sections`: Array of labeled sections; items without a section belong to a default unlabeled section
+- `taxAmount`: Tax amount for the default unlabeled section
 - `title`: Title of the bill (e.g., restaurant name)
 - `currency`: Currency for formatting (defaults to 'INR')
 
@@ -114,7 +115,13 @@ The central store for all bill-related data and logic.
   - `addItem(item: {name: string, price: number, quantity: number})`: Adds a new item with generated ID
   - `removeItem(id: string)`: Removes an item by ID
   - `updateItem(id: string, data: {name?: string, price?: number, quantity?: number})`: Updates an item's properties
-  - `setTax(amount: number|string)`: Sets the tax amount, converting to float if needed
+  - `assignItemToSection(itemId: string, sectionId: string|null)`: Assigns an item to a labeled section or to default when `null`
+  - `setTax(amount: number|string)`: Sets the tax amount for the default unlabeled section, converting to float if needed
+
+- Section Management:
+  - `addSection(section: {name: string, taxAmount?: number, paidByPersonId?: string|null})`: Adds a labeled section (with future `paidByPersonId`)
+  - `updateSection(id: string, data: {name?: string, taxAmount?: number, paidByPersonId?: string|null})`: Updates a section
+  - `removeSection(id: string)`: Removes a section and moves its items to the default unlabeled section
   
 - Split Types:
   - `setSplitType(itemId: string, splitType: string)`: Sets split type for an item ('equal', 'percentage', 'fraction')
@@ -127,9 +134,10 @@ The central store for all bill-related data and logic.
   - `removeAllPeople(itemId: string)`: Removes all people from an item
   
 - Calculation:
-  - `getPersonTotals()`: Returns array of person total objects with itemized breakdowns
+  - `getPersonTotals()`: Returns array of person totals. Taxes are computed per section and distributed proportionally within each section (default section uses global `taxAmount`).
+  - `getSectionsSummary()`: Returns array of `{ id, name, subtotal, tax, total, paidByPersonId }` including the default unlabeled section when applicable
   - `getSubtotal()`: Returns sum of all item prices × quantities
-  - `getGrandTotal()`: Returns subtotal + tax
+  - `getGrandTotal()`: Returns sum of person totals
   
 - Settings:
   - `setCurrency(currency: string)`: Sets the currency code
@@ -146,6 +154,7 @@ The central store for all bill-related data and logic.
 - `useBillItems`: Access items array with stable reference
 - `useBillPersonTotals`: Get calculated person totals
 - `useDocumentTitle`: Update document title based on bill title
+- `useBillSections`: Access sections array with stable reference
 
 ### currencyStore.js
 Manages currency-related state and formatting.
@@ -266,6 +275,10 @@ To add new styles:
   - Props: `type` ('info', 'success', 'warning', 'error'), `children`, `className`
   - Purpose: Themed alert message for notifications
 
+- `Dropdown`:
+  - Props: `options` ({ value, label }[]), `value`, `onChange(value)`, `placeholder`, `className`, `buttonClassName`, `disabled`
+  - Purpose: Custom-styled select replacement for better UI/UX and keyboard/mouse control
+
 #### Sidebar Components (`src/Components/Sidebar`)
 - `Sidebar`: 
   - Props: `isOpen`, `onToggle`, `items`, `activeItemId`, `onItemClick`
@@ -298,6 +311,7 @@ To add new styles:
 - `BillTotalsSummary`: 
   - Props: `subtotal`, `taxAmount`, `grandTotal`, `className`, `formatCurrency`
   - Purpose: Reusable component for displaying bill financial totals
+  - Note: When sections exist, the taxAmount passed is the sum of all section taxes (including the default unlabeled section tax)
 
 - `EditPersonModal`: 
   - Props: `isOpen`, `onClose`, `person`, `onSave`
@@ -306,6 +320,14 @@ To add new styles:
 - `EditItemModal`: 
   - Props: `isOpen`, `onClose`, `item`, `onSave`
   - Purpose: Modal dialog for editing item name, price, and quantity
+  - Now includes a Section chooser using the `Dropdown` component
+
+- `SectionsManager` (within `ItemsInput.jsx`):
+  - Props: managed internally via store actions
+  - Purpose: Create/update/delete labeled sections and set per-section taxes
+
+- Item Section Selector (within `ItemsInput.jsx` list):
+  - Purpose: Assign each item to a labeled section or leave it in the default unlabeled section
 
 - `SplitTypeDrawer`: 
   - Props: `isOpen`, `onClose`, `item`, `people`, `onSave`
@@ -617,6 +639,25 @@ The App.css file has been updated with new styles for the sidebar:
 - Print styles to hide sidebar when printing
 - Accessibility focus styles
 
+## 11.1 Recent Changes: Sections Support
+
+- Added labeled Sections support with per-section taxes and a default unlabeled section using the global tax input.
+- Items can be assigned to a section; items without a section belong to the default unlabeled section.
+- New store state: `sections` with actions `addSection`, `updateSection`, `removeSection`, and `assignItemToSection`.
+- Person totals now compute tax per section and distribute it proportionally to consumers within that section.
+- ItemsInput now includes a Sections manager and per-item Section selector.
+- Bill Summary displays a Sections breakdown (section subtotal, tax, total).
+- Introduced `paidByPersonId` field on sections for future use (not yet used in calculations).
+
+### 11.2 UI Changes to Items Input
+- Items are now displayed under Section headings (default unlabeled section at top followed by labeled sections).
+- You can move items between sections using native HTML drag-and-drop by dragging an item into a section's drop area, or by using the Edit Item modal’s section chooser.
+- SectionsManager remains for creating, renaming, removing sections and setting per-section taxes.
+
+### 11.3 Settings
+- Added a setting in `Settings` (Options) page: “Show Post-tax price for item”.
+- When enabled, the Items list shows each item’s total including its proportion of the section/global tax based on the current inputs.
+
 ## 12. Guidelines & Conventions
 
 ### Naming Conventions
@@ -661,7 +702,18 @@ The application uses the following data structures:
   price: number,
   quantity: number,
   consumedBy: Array<string | {personId: string, value: number}>, // Enhanced to support split types
-  splitType: 'equal' | 'percentage' | 'fraction' // From SPLIT_TYPES
+  splitType: 'equal' | 'percentage' | 'fraction', // From SPLIT_TYPES
+  sectionId: string | null // Section membership; null for default unlabeled
+}
+```
+
+#### Section Object
+```javascript
+{
+  id: string,
+  name: string,
+  taxAmount: number,
+  paidByPersonId: string | null // not yet used in calculations
 }
 ```
 
@@ -678,7 +730,9 @@ The application uses the following data structures:
       quantity: number,
       splitType: string, // Split type used
       allocation: number, // Person's allocation value based on split type
-      share: number // Final price per person based on split type
+      share: number, // Final price per person based on split type
+      sectionId: string | null,
+      sectionName: string
     }
   ],
   subtotal: number,

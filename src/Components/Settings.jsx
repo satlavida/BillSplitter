@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import useCurrencyStore from '../currencyStore';
+import useBillStore from '../billStore';
 import { useShallow } from 'zustand/shallow';
 
 const getCurrencySymbol = (code) => {
@@ -37,6 +38,13 @@ const Settings = () => {
     }))
   );
 
+  const { showPostTaxPrice, setShowPostTaxPrice } = useBillStore(
+    useShallow(state => ({
+      showPostTaxPrice: state.showPostTaxPrice,
+      setShowPostTaxPrice: state.setShowPostTaxPrice,
+    }))
+  );
+
   const currencyOptions = useMemo(() => {
     return getCurrencyCodes()
       .map(code => ({ code, symbol: getCurrencySymbol(code) }))
@@ -63,9 +71,21 @@ const Settings = () => {
           ))}
         </select>
       </div>
+
+      <div>
+        <label className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={!!showPostTaxPrice}
+            onChange={(e) => setShowPostTaxPrice(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Show Post-tax price for item
+        </label>
+        <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Display each item's total price including allocated section/global tax.</p>
+      </div>
     </div>
   );
 };
 
 export default Settings;
-

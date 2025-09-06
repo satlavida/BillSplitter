@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, Button } from '../ui/components';
+import { Modal, Button, Dropdown } from '../ui/components';
+import useBillStore from '../billStore';
 
 const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
   const [formData, setFormData] = useState({
@@ -7,9 +8,11 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
     price: '',
     quantity: 1,
     discount: 0,
-    discountType: 'flat'
+    discountType: 'flat',
+    sectionId: '' // '' represents default unlabeled
   });
   const nameInputRef = useRef(null);
+  const sections = useBillStore(state => state.sections);
 
   // Initialize form data when modal opens or item changes
   useEffect(() => {
@@ -19,7 +22,8 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
         price: item.price,
         quantity: item.quantity,
         discount: item.discount || 0,
-        discountType: item.discountType || 'flat'
+        discountType: item.discountType || 'flat',
+        sectionId: item.sectionId || ''
       });
       
       // Focus the name input when the modal opens
@@ -45,7 +49,8 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
         price: parseFloat(formData.price),
         quantity: parseInt(formData.quantity) || 1,
         discount: parseFloat(formData.discount) || 0,
-        discountType: formData.discountType
+        discountType: formData.discountType,
+        sectionId: formData.sectionId || null
       });
       onClose();
     }
@@ -121,6 +126,17 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
               <option value="percentage">%</option>
             </select>
           </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Section
+          </label>
+          <Dropdown
+            options={[{ value: '', label: '(Unlabeled)' }, ...sections.map(s => ({ value: s.id, label: s.name || 'Section' }))]}
+            value={formData.sectionId}
+            onChange={(val) => setFormData(prev => ({ ...prev, sectionId: val }))}
+          />
         </div>
 
         <div className="mb-4">

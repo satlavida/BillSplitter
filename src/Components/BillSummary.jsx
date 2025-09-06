@@ -175,13 +175,14 @@ const EditButtons = memo(({ onEdit }) => {
 // Main BillSummary component
 const BillSummary = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { title, taxAmount, goToStep, reset, exportBill } = useBillStore(
+  const { title, taxAmount, goToStep, reset, exportBill, getSectionsSummary } = useBillStore(
     useShallow(state => ({
       title: state.title,
       taxAmount: state.taxAmount,
       goToStep: state.goToStep,
       reset: state.reset,
-      exportBill: state.exportBill
+      exportBill: state.exportBill,
+      getSectionsSummary: state.getSectionsSummary
     }))
   );
   
@@ -207,12 +208,14 @@ const BillSummary = () => {
 
   // Get person totals using the specialized hook
   const personTotals = useBillPersonTotals();
+  const sectionsSummary = useShallow(getSectionsSummary)();
   
   // Calculate subtotal from person totals
   const subtotal = personTotals.reduce((sum, person) => sum + person.subtotal, 0);
   
   // Calculate grand total from person totals
   const grandTotal = personTotals.reduce((sum, person) => sum + person.total, 0);
+  const totalSectionsTax = sectionsSummary.reduce((sum, s) => sum + (parseFloat(s.tax) || 0), 0);
   
   const handleEdit = useCallback((step) => {
     goToStep(step);
@@ -321,11 +324,32 @@ const BillSummary = () => {
           
           <BillTotalsSummary 
             subtotal={subtotal}
-            taxAmount={parseFloat(taxAmount) || 0}
+            taxAmount={totalSectionsTax || (parseFloat(taxAmount) || 0)}
             grandTotal={grandTotal}
             formatCurrency={formatCurrency}
             className="mb-6"
           />
+
+          {/* Sections breakdown */}
+          {sectionsSummary.length > 0 && (
+            <Card>
+              <h3 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">Sections</h3>
+              <ul className="space-y-1 divide-y divide-zinc-100 dark:divide-zinc-700 transition-colors">
+                {sectionsSummary.map(sec => (
+                  <li key={sec.id ?? 'default'} className="py-2 flex justify-between items-center">
+                    <div className="text-zinc-800 dark:text-zinc-200">
+                      {sec.name && sec.name.trim().length > 0 ? sec.name : '(Unlabeled)'}
+                    </div>
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300 flex gap-4">
+                      <span>Subtotal: {formatCurrency(sec.subtotal)}</span>
+                      {sec.tax > 0 && <span>Tax: {formatCurrency(sec.tax)}</span>}
+                      <span className="font-medium">Total: {formatCurrency(sec.total)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </div>
       </PrintWrapper>
       
