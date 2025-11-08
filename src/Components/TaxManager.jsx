@@ -53,7 +53,7 @@ const TaxManager = memo(({ sections = [], sectionTaxes = {}, onAddTax, onUpdateT
       <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">Taxes</h3>
       <div className="space-y-4">
         <div>
-          <h4 className="text-sm font-semibold mb-1 text-zinc-700 dark:text-zinc-300">Default (Global)</h4>
+          <h4 className="text-sm font-semibold mb-1 text-zinc-700 dark:text-zinc-300">Default</h4>
           <ul className="mb-2 divide-y divide-zinc-100 dark:divide-zinc-700">
             {defaultTaxes.map(t => renderTaxRow(null, t))}
           </ul>
