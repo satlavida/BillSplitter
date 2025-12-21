@@ -451,21 +451,44 @@ const payload = {
 };
 ```
 
-#### Response Format
-The API returns a JSON object with items and tax information:
+#### Response Schema (new API; legacy unsupported)
+The endpoint must return this structure. The legacy single `tax` field is not supported.
 
 ```javascript
 {
   items: [
-    { name: "Item Name", price: 10.99, quantity: 1 },
-    // ...more items
+    {
+      name: string,
+      price: number,
+      quantity: number,
+      sectionId?: string | null,
+      sectionName?: string, // used to create/find a section if sectionId missing
+      discount?: { type: 'flat' | 'percentage', value: number }
+    }
   ],
-  tax: 1.23
+  taxes: [
+    {
+      label?: string,
+      type: 'flat' | 'percentage',
+      value: number, // flat currency or percentage (0-100)
+      sectionId?: string | null,
+      sectionName?: string // used to create/find section if sectionId missing
+    }
+  ]
 }
 ```
 
+Rules:
+- `items` and `taxes` are both required arrays (can be empty).
+- If both `sectionId` and `sectionName` are omitted on a tax, it is treated as a Global tax and applies to every section.
+- If an unknown `sectionName` appears, the app creates a new section with that name.
+
 ### Data Persistence
 Data is persisted locally using Zustand's persist middleware with IndexedDB (via idb-keyval). No other API calls or data fetching mechanisms are present in the application.
+
+### Scan Receipt Handling and Sections/Taxes
+- Items from scanning default to the unlabeled section; if `sectionName` is provided per item, a section is created/linked and the item assigned accordingly.
+- Each tax in `taxes` is added to the appropriate section (by `sectionId` or `sectionName`). If neither is provided, it is added to Global and applied across all sections.
 
 ## 8. Routing
 
