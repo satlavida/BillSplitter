@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect, type FormEvent, type MouseEvent, type RefObject } from 'react';
+import { useParams } from 'react-router-dom';
 import useBillStore from '../billStore';
+import useSessionStore from '../sessionStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import { ReceiptScanResponseSchema, type ReceiptScanResponse } from '../schemas/receiptScan.schema';
+import { resizeImageToDataUrl } from '../lib/imageResize';
+import { saveImageBlob, dataUrlToBlob } from '../lib/imageStore';
+import { generateId } from '../lib/generateId';
 
 const API_URL = import.meta.env.VITE_WORKER_URL;
 
@@ -119,6 +124,8 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef,
 
 // Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
+  const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
+
   // Use Zustand store with useShallow to prevent unnecessary re-renders
   const { addItem, setTax } = useBillStore(
     useShallow((state) => ({
@@ -290,6 +297,22 @@ const ScanReceiptButton = () => {
 
       // Process the received data
       processReceiptItems(data);
+
+      // Capture a resized copy of the receipt for later reference, independent
+      // of the full-resolution bytes already sent to the OCR worker above.
+      // Failure here shouldn't block the scan flow - items are already added.
+      if (sessionId && billId) {
+        try {
+          const resized = await resizeImageToDataUrl(file as File);
+          const refKey = generateId();
+          await saveImageBlob(refKey, dataUrlToBlob(resized.dataUrl));
+          useSessionStore.getState().updateBill(sessionId, billId, {
+            receiptImage: { refKey, width: resized.width, height: resized.height },
+          });
+        } catch (imageErr) {
+          console.error('Failed to store receipt image:', imageErr);
+        }
+      }
 
       // Close modal after successful processing
       closeModal();

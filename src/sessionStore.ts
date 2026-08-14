@@ -234,6 +234,20 @@ const useSessionStore = create<SessionStore>()(
       importSession: (jsonString) => {
         try {
           const imported = JSON.parse(jsonString);
+
+          // Distinguish a pre-v3 (bill/billHistory) export from a session
+          // export by shape, so the error message actually helps the user
+          // instead of a generic "invalid format".
+          if (imported && typeof imported === 'object' && 'bills' in imported && !('session' in imported)) {
+            return {
+              success: false,
+              error: 'This is an old bill-history export (pre-session format) and cannot be imported here directly.',
+            };
+          }
+          if (!imported || typeof imported !== 'object' || !('session' in imported)) {
+            return { success: false, error: 'Invalid session data format' };
+          }
+
           const result = SessionSchema.safeParse(imported.session);
           if (!result.success) {
             return { success: false, error: 'Invalid session data format' };

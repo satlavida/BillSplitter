@@ -156,4 +156,15 @@ describe('sessionStore - export/import', () => {
     const result = useSessionStore.getState().importSession('not json');
     expect(result.success).toBe(false);
   });
+
+  test('importSession gives a distinguishing error for an old pre-session (bill-history) export', () => {
+    const oldFormatExport = JSON.stringify({
+      version: '1.1.0',
+      bills: [{ id: 'A', title: 'Old bill', date: '2025-01-01T00:00:00.000Z', data: {}, isCurrent: true, version: '1.1.0' }],
+      exportDate: '2025-01-01T00:00:00.000Z',
+    });
+    const result = useSessionStore.getState().importSession(oldFormatExport);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/old bill-history export/i);
+  });
 });

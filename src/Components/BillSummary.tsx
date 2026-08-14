@@ -1,11 +1,75 @@
-import { memo, useCallback, useState, type ChangeEvent } from 'react';
+import { memo, useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import useBillStore, { useBillPersonTotals, type PersonTotal, type PersonTotalItem } from '../billStore';
+import useBillStore, { useBillPersonTotals, useBillPersons, type PersonTotal, type PersonTotalItem } from '../billStore';
 import useSessionStore from '../sessionStore';
 import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
+import { getImageBlob } from '../lib/imageStore';
+import type { ReceiptImageRef } from '../schemas/session.schema';
+
+interface PaidBySelectorProps {
+  sessionId: string;
+  billId: string;
+}
+
+// Lets the user mark who fronted this bill, used by the session-wide settlement.
+const PaidBySelector = memo(({ sessionId, billId }: PaidBySelectorProps) => {
+  const people = useBillPersons();
+  const paidByPersonId = useSessionStore((s) => s.getBill(sessionId, billId)?.paidByPersonId ?? null);
+  const setBillPaidBy = useSessionStore((s) => s.setBillPaidBy);
+
+  return (
+    <div className="no-print">
+      <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Who Paid?</h3>
+      <select
+        value={paidByPersonId ?? ''}
+        onChange={(e) => setBillPaidBy(sessionId, billId, e.target.value || null)}
+        className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+        disabled={people.length === 0}
+      >
+        <option value="">Not set</option>
+        {people.map((person) => (
+          <option key={person.id} value={person.id}>
+            {person.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+});
+
+interface ReceiptImagePreviewProps {
+  receiptImage: ReceiptImageRef;
+}
+
+// Displays the resized receipt image captured during scanning (stored in IndexedDB).
+const ReceiptImagePreview = memo(({ receiptImage }: ReceiptImagePreviewProps) => {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let currentUrl: string | null = null;
+    getImageBlob(receiptImage.refKey).then((blob) => {
+      if (blob) {
+        currentUrl = URL.createObjectURL(blob);
+        setObjectUrl(currentUrl);
+      }
+    });
+    return () => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [receiptImage.refKey]);
+
+  if (!objectUrl) return null;
+
+  return (
+    <div className="no-print">
+      <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Receipt</h3>
+      <img src={objectUrl} alt="Scanned receipt" className="max-w-full rounded-md border border-zinc-200 dark:border-zinc-700" />
+    </div>
+  );
+});
 
 interface BillTitleProps {
   title: string;
@@ -141,7 +205,8 @@ const EditButtons = memo(({ onEdit }: EditButtonsProps) => {
 
 // Main BillSummary component
 const BillSummary = () => {
-  const { sessionId } = useParams<{ sessionId: string }>();
+  const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
+  const receiptImage = useSessionStore((s) => (sessionId && billId ? s.getBill(sessionId, billId)?.receiptImage : undefined));
   const navigate = useNavigate();
 
   // Use Zustand store with useShallow to prevent unnecessary re-renders
@@ -258,6 +323,18 @@ const BillSummary = () => {
       </PrintWrapper>
 
       <div className="no-print space-y-6">
+        {sessionId && billId && (
+          <div>
+            <PaidBySelector sessionId={sessionId} billId={billId} />
+          </div>
+        )}
+
+        {receiptImage && (
+          <div>
+            <ReceiptImagePreview receiptImage={receiptImage} />
+          </div>
+        )}
+
         <div>
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Edit</h3>
           <EditButtons onEdit={handleEdit} />
