@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
 import { BillStateSchema, type Item, type Person } from './schemas/bill.schema';
+import { calculatePersonTotals, getDiscountedItemPrice, type PersonTotal, type PersonTotalItem } from './lib/personTotals';
 
 // Define constants for split types
 export const SPLIT_TYPES = {
@@ -21,27 +22,8 @@ export interface Allocation {
   value: number;
 }
 
-export interface PersonTotalItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  splitType: SplitType;
-  allocation: number;
-  share: number;
-  sharedWith: number;
-  discount: number;
-  discountType: 'flat' | 'percentage';
-}
-
-export interface PersonTotal {
-  id: string;
-  name: string;
-  items: PersonTotalItem[];
-  subtotal: number;
-  tax: number;
-  total: number;
-}
+export type { PersonTotal, PersonTotalItem };
+export { getDiscountedItemPrice };
 
 export interface ItemSplitDetails {
   splitType: SplitType;
@@ -55,16 +37,6 @@ interface NewItemInput {
   discount?: number | string | null;
   discountType?: 'flat' | 'percentage';
 }
-
-// Helper to apply item-level discounts
-export const getDiscountedItemPrice = (item: Pick<Item, 'price' | 'discount' | 'discountType'>): number => {
-  const price = parseFloat(String(item.price)) || 0;
-  const discount = parseFloat(String(item.discount)) || 0;
-  if (item.discountType === 'percentage') {
-    return price - (price * discount) / 100;
-  }
-  return price - discount;
-};
 
 interface BillStoreState {
   version: string;
@@ -328,122 +300,7 @@ const useBillStore = create<BillStore>()(
       // Business logic helpers with support for different split types
       getPersonTotals: () => {
         const state = get();
-        const totals: Record<string, PersonTotal> = {};
-
-        // Initialize totals for each person
-        state.people.forEach((person) => {
-          totals[person.id] = {
-            id: person.id,
-            name: person.name,
-            items: [],
-            subtotal: 0,
-            tax: 0,
-            total: 0,
-          };
-        });
-
-        // Calculate each person's share for each item based on split type
-        state.items.forEach((item) => {
-          // Skip items with no consumers
-          if (item.consumedBy.length === 0) return;
-
-          const itemPrice = getDiscountedItemPrice(item);
-          const totalItemPrice = itemPrice * item.quantity;
-
-          // Calculate shares based on split type
-          const shares: Record<string, number> = {};
-
-          switch (item.splitType) {
-            case SPLIT_TYPES.EQUAL:
-              // Equal split - each person gets same amount
-              {
-                const pricePerPerson = totalItemPrice / item.consumedBy.length;
-                item.consumedBy.forEach((allocation) => {
-                  shares[allocation.personId] = pricePerPerson;
-                });
-              }
-              break;
-
-            case SPLIT_TYPES.PERCENTAGE:
-              // Percentage split - calculate based on percentage values
-              {
-                // Calculate total percentage (should sum to 100, but handle other cases)
-                const totalPercentage = item.consumedBy.reduce((sum, allocation) => sum + allocation.value, 0);
-
-                // Calculate share for each person based on their percentage
-                item.consumedBy.forEach((allocation) => {
-                  const normalizedPercentage = allocation.value / totalPercentage;
-                  shares[allocation.personId] = totalItemPrice * normalizedPercentage;
-                });
-              }
-              break;
-
-            case SPLIT_TYPES.FRACTION:
-              // Fractional split - calculate based on fraction values
-              {
-                // Calculate total of all fractions
-                const totalFraction = item.consumedBy.reduce((sum, allocation) => sum + allocation.value, 0);
-
-                // Calculate share for each person based on their fraction
-                item.consumedBy.forEach((allocation) => {
-                  shares[allocation.personId] = totalItemPrice * (allocation.value / totalFraction);
-                });
-              }
-              break;
-
-            default:
-              // Fall back to equal split if type not recognized
-              {
-                const pricePerPerson = totalItemPrice / item.consumedBy.length;
-                item.consumedBy.forEach((allocation) => {
-                  shares[allocation.personId] = pricePerPerson;
-                });
-              }
-          }
-
-          // Add item shares to person totals
-          item.consumedBy.forEach((allocation) => {
-            const personId = allocation.personId;
-            const share = shares[personId];
-
-            if (totals[personId] && share !== undefined) {
-              totals[personId].items.push({
-                id: item.id,
-                name: item.name,
-                price: itemPrice,
-                quantity: item.quantity,
-                splitType: item.splitType,
-                allocation: allocation.value,
-                share: share,
-                sharedWith: item.consumedBy.length,
-                discount: item.discount,
-                discountType: item.discountType,
-              });
-
-              totals[personId].subtotal += share;
-            }
-          });
-        });
-
-        // Calculate tax proportionally
-        if (state.taxAmount > 0) {
-          const totalBeforeTax = Object.values(totals).reduce((sum, person) => sum + person.subtotal, 0);
-
-          if (totalBeforeTax > 0) {
-            Object.values(totals).forEach((person) => {
-              // Proportional tax based on their share of the bill
-              person.tax = (person.subtotal / totalBeforeTax) * (parseFloat(String(state.taxAmount)));
-              person.total = person.subtotal + person.tax;
-            });
-          }
-        } else {
-          // No tax, so total equals subtotal
-          Object.values(totals).forEach((person) => {
-            person.total = person.subtotal;
-          });
-        }
-
-        return Object.values(totals);
+        return calculatePersonTotals(state.people, state.items, state.taxAmount);
       },
 
       getSubtotal: () => {
