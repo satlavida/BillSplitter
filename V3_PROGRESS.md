@@ -24,24 +24,23 @@ Tracks what's done and what's left against the phased plan in `planv3.md`. Updat
 ### Not yet done from Phase 1 scope
 - [ ] Live browser smoke test of the converted app (dev server verified serving correctly via `curl`; interactive browser-tool check hit a transient tooling glitch and wasn't completed — worth a manual pass: all 4 steps, Pass & Split, Scan Receipt, Bill History, Export/Import)
 
-### Phase 2 — Sessions/multi-bill offline model, paid-by/settlement, React Router (in progress)
+### Phase 2 — Sessions/multi-bill offline model, paid-by/settlement, React Router (complete)
 - [x] `sessionStore.ts` + `session.schema.ts` (shared people pool per session, multiple bills, `paidByPersonId`, `receiptImage` ref)
 - [x] `lib/personTotals.ts` extracted from `billStore.getPersonTotals()` (shared by billStore + settlement)
 - [x] `lib/settlement.ts` — net balance + greedy debt-simplification, exhaustively tested incl. zero-sum invariant
-- [x] `lib/imageResize.ts` — resize-to-fit, aspect-preserved, never-upscale, JPEG q0.85 (not yet wired into ScanReceiptButton)
+- [x] `lib/imageResize.ts` — resize-to-fit, aspect-preserved, never-upscale, JPEG q0.85
 - [x] React Router (`react-router-dom`, **HashRouter** — chosen over BrowserRouter since this app deploys to static GitHub Pages with no server-side SPA fallback, so deep links would 404 on refresh otherwise): `/`, `/sessions`, `/session/:sessionId`, `/session/:sessionId/bill/:billId`, `/session/:sessionId/settlement`, `/join/:code` (placeholder), `/settings`
 - [x] `billStore.ts` rescoped to a non-persisted scratch editor (`hydrateFromSession()` + subscription-based commit-back in `BillEditorPage`)
 - [x] Removed the superseded BillHistory UI (`BillHistoryButton`/`Context`/`Modal`, `useBillHistoryModal`, `billHistoryStore.ts`) — `SessionsListPage` replaces it
-- [x] Verified via typecheck/lint/test/build (all green, 104/104 tests) + manual code review of hydration/commit effect ordering
+- [x] Migration script `migrations/toSessionStore.ts`, run once at boot, migrates old `billHistory`/`billSplitter` localStorage data into `sessionStore`, using frozen legacy schemas in `schemas/legacy/`
+- [x] `PaidBySelector` in `BillSummary` reads/writes `sessionStore.setBillPaidBy` directly
+- [x] `lib/imageStore.ts` (IndexedDB via `idb`) + `ScanReceiptButton` wired to resize/store the scanned receipt, `ReceiptImagePreview` in `BillSummary` re-displays it
+- [x] `sessionStore.importSession` distinguishes an old pre-session export from a corrupt one with a clear error message
+- [x] Verified via typecheck/lint/test/build (all green, 120/120 tests) + manual code review of hydration/commit effect ordering
 
-**Commits:** `9ae5801`, `6b36b4d` on `feature/v3Major`
+**Commits:** `9ae5801`, `6b36b4d`, `fe348b1`, `2bfb35a` on `feature/v3Major`
 
-**⚠️ Not yet manually verified in a live browser** — the sandboxed browser tool used in this session can reach external sites but not `localhost` at all (confirmed across dev server, HMR, and production preview build, on multiple ports), so the new routing/hydration flow has only been verified via types, tests, and manual code review, not an actual click-through. **Recommend manually testing before trusting this in production**: root redirect creates/loads a session, session home lists bills and adds new ones, bill editor's 4 steps work and commit back to the session (switch bills, come back, edits persist), settlement view shows correct balances, sessions list create/delete/export/import, and browser back/forward across routes.
-
-- [ ] Migration path from old `billHistory`/`billStore` localStorage shapes into `sessionStore` (next up)
-- [ ] `paidByPersonId` UI control wired into a bill (schema/store support already done)
-- [ ] Receipt image capture wired into `ScanReceiptButton` (resize lib already done)
-- [ ] Export/import JSON version tagging for session-shape data (basic export/import already works via `sessionStore.exportSession`/`importSession`, used by `SessionsListPage`)
+**⚠️ Not yet manually verified in a live browser** — the sandboxed browser tool used in this session can reach external sites but not `localhost` at all (confirmed across dev server, HMR, and production preview build, on multiple ports), so the new routing/hydration flow has only been verified via types, tests, and manual code review, not an actual click-through. **Recommend manually testing before trusting this in production**: root redirect creates/loads a session, session home lists bills and adds new ones, bill editor's 4 steps work and commit back to the session (switch bills, come back, edits persist), settlement view shows correct balances, sessions list create/delete/export/import, paid-by selector, receipt image capture/display, and browser back/forward across routes. Also worth testing the migration path with real pre-v3 exported data if any exists.
 
 ### Phase 3 — Go backend + live collaboration
 - [ ] `/server` Go project scaffold (stdlib router, `modernc.org/sqlite`)
