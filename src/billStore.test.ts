@@ -18,15 +18,15 @@ import useBillStore, {
 import { renderHook, act } from '@testing-library/react';
 
 // Mock localStorage for testing persistence
-const mockLocalStorageData = {};
+const mockLocalStorageData: Record<string, string> = {};
 const mockLocalStorage = {
-  getItem: jest.fn((key) => {
+  getItem: jest.fn((key: string) => {
     return mockLocalStorageData[key] || null;
   }),
-  setItem: jest.fn((key, value) => {
+  setItem: jest.fn((key: string, value: string) => {
     mockLocalStorageData[key] = value;
   }),
-  removeItem: jest.fn((key) => {
+  removeItem: jest.fn((key: string) => {
     delete mockLocalStorageData[key];
   }),
   clear: jest.fn(() => {
@@ -201,8 +201,8 @@ describe('billStore - People Management', () => {
     
     const people = useBillStore.getState().people;
     const itemId = useBillStore.getState().items[0].id;
-    const eveId = people.find(p => p.name === 'Eve').id;
-    const frankId = people.find(p => p.name === 'Frank').id;
+    const eveId = people.find(p => p.name === 'Eve')!.id;
+    const frankId = people.find(p => p.name === 'Frank')!.id;
     
     // Assign item to both people using equal split
     act(() => assignItemEqual(itemId, [eveId, frankId])); // Use assignItemEqual action [cite: 8]
@@ -302,8 +302,8 @@ describe('billStore - Split Type Assignment', () => {
     
     const people = useBillStore.getState().people;
     const itemId = useBillStore.getState().items[0].id;
-    const graceId = people.find(p => p.name === 'Grace').id;
-    const henryId = people.find(p => p.name === 'Henry').id;
+    const graceId = people.find(p => p.name === 'Grace')!.id;
+    const henryId = people.find(p => p.name === 'Henry')!.id;
     
     act(() => assignItemEqual(itemId, [graceId, henryId])); // [cite: 8]
     
@@ -321,8 +321,8 @@ describe('billStore - Split Type Assignment', () => {
     
     const people = useBillStore.getState().people;
     const itemId = useBillStore.getState().items[0].id;
-    const graceId = people.find(p => p.name === 'Grace').id;
-    const henryId = people.find(p => p.name === 'Henry').id;
+    const graceId = people.find(p => p.name === 'Grace')!.id;
+    const henryId = people.find(p => p.name === 'Henry')!.id;
     
     const allocations = [
       { personId: graceId, value: 70 }, // 70% [cite: 20]
@@ -343,8 +343,8 @@ describe('billStore - Split Type Assignment', () => {
     
     const people = useBillStore.getState().people;
     const itemId = useBillStore.getState().items[0].id;
-    const graceId = people.find(p => p.name === 'Grace').id;
-    const henryId = people.find(p => p.name === 'Henry').id;
+    const graceId = people.find(p => p.name === 'Grace')!.id;
+    const henryId = people.find(p => p.name === 'Henry')!.id;
     
     const allocations = [
       { personId: graceId, value: 2 }, // 2 parts [cite: 20]
@@ -451,8 +451,8 @@ describe('billStore - Calculation Functions', () => {
   test('should calculate person totals with EQUAL split', () => {
     const { people, items } = setupScenario();
     const { assignItemEqual, getPersonTotals } = useBillStore.getState();
-    const victorId = people.find(p => p.name === 'Victor').id;
-    const wendyId = people.find(p => p.name === 'Wendy').id;
+    const victorId = people.find(p => p.name === 'Victor')!.id;
+    const wendyId = people.find(p => p.name === 'Wendy')!.id;
 
     // Assign Item A (30) equally between Victor and Wendy
     act(() => assignItemEqual(items[0].id, [victorId, wendyId])); // [cite: 8]
@@ -460,8 +460,8 @@ describe('billStore - Calculation Functions', () => {
     act(() => assignItemEqual(items[1].id, [wendyId])); // [cite: 8]
     
     const personTotals = getPersonTotals(); // [cite: 8]
-    const victorTotal = personTotals.find(p => p.id === victorId);
-    const wendyTotal = personTotals.find(p => p.id === wendyId);
+    const victorTotal = personTotals.find(p => p.id === victorId)!;
+    const wendyTotal = personTotals.find(p => p.id === wendyId)!;
 
     // Victor: Subtotal = 30 / 2 = 15
     // Wendy: Subtotal = (30 / 2) + 100 = 15 + 100 = 115
@@ -490,15 +490,15 @@ describe('billStore - Calculation Functions', () => {
     expect(victorTotal.items[0].share).toBeCloseTo(15); // Victor's share of Item A
 
     expect(wendyTotal.items.length).toBe(2);
-    expect(wendyTotal.items.find(i => i.id === items[0].id).share).toBeCloseTo(15); // Wendy's share of Item A
-    expect(wendyTotal.items.find(i => i.id === items[1].id).share).toBeCloseTo(100); // Wendy's share of Item B
+    expect(wendyTotal.items.find(i => i.id === items[0].id)!.share).toBeCloseTo(15); // Wendy's share of Item A
+    expect(wendyTotal.items.find(i => i.id === items[1].id)!.share).toBeCloseTo(100); // Wendy's share of Item B
   });
 
   test('should calculate person totals with PERCENTAGE split', () => {
     const { people, items } = setupScenario();
     const { assignItemPercentage, getPersonTotals } = useBillStore.getState();
-    const victorId = people.find(p => p.name === 'Victor').id;
-    const wendyId = people.find(p => p.name === 'Wendy').id;
+    const victorId = people.find(p => p.name === 'Victor')!.id;
+    const wendyId = people.find(p => p.name === 'Wendy')!.id;
 
     // Assign Item A (30) by percentage: Victor 70%, Wendy 30%
     act(() => assignItemPercentage(items[0].id, [ // [cite: 8]
@@ -509,8 +509,8 @@ describe('billStore - Calculation Functions', () => {
      act(() => assignItemPercentage(items[1].id, [{ personId: wendyId, value: 100 }])); // [cite: 8]
     
     const personTotals = getPersonTotals(); // [cite: 8]
-    const victorTotal = personTotals.find(p => p.id === victorId);
-    const wendyTotal = personTotals.find(p => p.id === wendyId);
+    const victorTotal = personTotals.find(p => p.id === victorId)!;
+    const wendyTotal = personTotals.find(p => p.id === wendyId)!;
 
     // Victor: Subtotal = 30 * 0.70 = 21
     // Wendy: Subtotal = (30 * 0.30) + (100 * 1.00) = 9 + 100 = 109
@@ -540,15 +540,15 @@ describe('billStore - Calculation Functions', () => {
      expect(victorTotal.items[0].share).toBeCloseTo(21);
 
      expect(wendyTotal.items.length).toBe(2);
-     expect(wendyTotal.items.find(i => i.id === items[0].id).share).toBeCloseTo(9);
-     expect(wendyTotal.items.find(i => i.id === items[1].id).share).toBeCloseTo(100);
+     expect(wendyTotal.items.find(i => i.id === items[0].id)!.share).toBeCloseTo(9);
+     expect(wendyTotal.items.find(i => i.id === items[1].id)!.share).toBeCloseTo(100);
   });
 
   test('should calculate person totals with FRACTIONAL split', () => {
     const { people, items } = setupScenario();
     const { assignItemFraction, getPersonTotals } = useBillStore.getState();
-    const victorId = people.find(p => p.name === 'Victor').id;
-    const wendyId = people.find(p => p.name === 'Wendy').id;
+    const victorId = people.find(p => p.name === 'Victor')!.id;
+    const wendyId = people.find(p => p.name === 'Wendy')!.id;
 
     // Assign Item A (30) fractionally: Victor 2 parts, Wendy 1 part (Total 3 parts)
     act(() => assignItemFraction(items[0].id, [ // [cite: 8]
@@ -559,8 +559,8 @@ describe('billStore - Calculation Functions', () => {
     act(() => assignItemFraction(items[1].id, [{ personId: wendyId, value: 1 }])); // [cite: 8]
 
     const personTotals = getPersonTotals(); // [cite: 8]
-    const victorTotal = personTotals.find(p => p.id === victorId);
-    const wendyTotal = personTotals.find(p => p.id === wendyId);
+    const victorTotal = personTotals.find(p => p.id === victorId)!;
+    const wendyTotal = personTotals.find(p => p.id === wendyId)!;
 
     // Victor: Subtotal = 30 * (2/3) = 20
     // Wendy: Subtotal = (30 * (1/3)) + (100 * (1/1)) = 10 + 100 = 110
@@ -590,8 +590,8 @@ describe('billStore - Calculation Functions', () => {
      expect(victorTotal.items[0].share).toBeCloseTo(20);
 
      expect(wendyTotal.items.length).toBe(2);
-     expect(wendyTotal.items.find(i => i.id === items[0].id).share).toBeCloseTo(10);
-     expect(wendyTotal.items.find(i => i.id === items[1].id).share).toBeCloseTo(100);
+     expect(wendyTotal.items.find(i => i.id === items[0].id)!.share).toBeCloseTo(10);
+     expect(wendyTotal.items.find(i => i.id === items[1].id)!.share).toBeCloseTo(100);
   });
 
   test('should apply item discounts in subtotal and person totals', () => {
@@ -609,7 +609,7 @@ describe('billStore - Calculation Functions', () => {
     });
     expect(getSubtotal()).toBeCloseTo(90);
     const totals = getPersonTotals();
-    const personTotal = totals.find(p => p.id === personId);
+    const personTotal = totals.find(p => p.id === personId)!;
     expect(personTotal.subtotal).toBeCloseTo(90);
   });
 
@@ -626,7 +626,7 @@ describe('billStore - Calculation Functions', () => {
   test('should handle zero tax amount correctly', () => {
     const { people, items } = setupScenario();
     const { setTax, assignItemEqual, getPersonTotals, getGrandTotal } = useBillStore.getState();
-    const victorId = people.find(p => p.name === 'Victor').id;
+    const victorId = people.find(p => p.name === 'Victor')!.id;
 
     // Set tax to 0
     act(() => setTax(0)); // [cite: 10]
@@ -634,7 +634,7 @@ describe('billStore - Calculation Functions', () => {
     act(() => assignItemEqual(items[0].id, [victorId])); // [cite: 8]
 
     const personTotals = getPersonTotals(); // [cite: 8]
-    const victorTotal = personTotals.find(p => p.id === victorId);
+    const victorTotal = personTotals.find(p => p.id === victorId)!;
 
     expect(victorTotal.subtotal).toBeCloseTo(30);
     expect(victorTotal.tax).toBe(0); // Tax should be 0
@@ -659,8 +659,8 @@ describe('billStore - Utility Functions', () => {
     const people = useBillStore.getState().people;
     const items = useBillStore.getState().items;
     const user1Id = people[0].id;
-    const itemXId = items.find(i => i.name === 'Item X').id;
-    const itemYId = items.find(i => i.name === 'Item Y').id;
+    const itemXId = items.find(i => i.name === 'Item X')!.id;
+    const itemYId = items.find(i => i.name === 'Item Y')!.id;
 
     expect(isItemAssigned(itemXId)).toBe(false); // Initially false
     expect(isItemAssigned(itemYId)).toBe(false);
@@ -677,8 +677,8 @@ describe('billStore - Utility Functions', () => {
     const people = useBillStore.getState().people;
     const items = useBillStore.getState().items;
     const user1Id = people[0].id;
-    const itemXId = items.find(i => i.name === 'Item X').id;
-    const itemYId = items.find(i => i.name === 'Item Y').id;
+    const itemXId = items.find(i => i.name === 'Item X')!.id;
+    const itemYId = items.find(i => i.name === 'Item Y')!.id;
 
     expect(areAllItemsAssigned()).toBe(false); // Initially false
 
@@ -696,8 +696,8 @@ describe('billStore - Utility Functions', () => {
     const people = useBillStore.getState().people;
     const items = useBillStore.getState().items;
     const user1Id = people[0].id;
-    const itemXId = items.find(i => i.name === 'Item X').id;
-    const itemYId = items.find(i => i.name === 'Item Y').id;
+    const itemXId = items.find(i => i.name === 'Item X')!.id;
+    const itemYId = items.find(i => i.name === 'Item Y')!.id;
 
     expect(getUnassignedItems().length).toBe(2); // Both initially unassigned
 
@@ -737,7 +737,7 @@ describe('billStore - Utility Functions', () => {
      const people = useBillStore.getState().people;
      const items = useBillStore.getState().items;
      const user1Id = people[0].id;
-     const itemXId = items.find(i => i.name === 'Item X').id;
+     const itemXId = items.find(i => i.name === 'Item X')!.id;
 
      // Assign percentage split
      const allocations = [{ personId: user1Id, value: 100 }];

@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/shallow';
 const DEFAULT_CURRENCY = 'USD';
 
 // Try to detect user's locale currency
-const detectCurrency = () => {
+const detectCurrency = (): string => {
   try {
     return Intl.NumberFormat().resolvedOptions().currency || DEFAULT_CURRENCY;
   } catch (error) {
@@ -15,24 +15,30 @@ const detectCurrency = () => {
   }
 };
 
+interface CurrencyStore {
+  currency: string;
+  formatCurrency: (amount: number | null | undefined) => string;
+  changeCurrency: (newCurrency: string) => void;
+}
+
 // Create the currency store with persistence
-const useCurrencyStore = create(
+const useCurrencyStore = create<CurrencyStore>()(
   persist(
     (set, get) => ({
       currency: detectCurrency(),
-      
+
       // Format a number as currency
       formatCurrency: (amount) => {
         if (amount === null || amount === undefined || isNaN(amount)) {
           return '';
         }
-        
+
         try {
           return new Intl.NumberFormat(navigator.language || 'en-US', {
             style: 'currency',
             currency: get().currency,
             minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            maximumFractionDigits: 2,
           }).format(amount);
         } catch (error) {
           console.error('Currency formatting error:', error);
@@ -40,7 +46,7 @@ const useCurrencyStore = create(
           return `${amount.toFixed(2)}`;
         }
       },
-      
+
       // Allow manual currency selection
       changeCurrency: (newCurrency) => set({ currency: newCurrency }),
     }),
@@ -53,9 +59,7 @@ const useCurrencyStore = create(
 // Utility hook to get formatCurrency with stable reference
 export const useFormatCurrency = () => {
   // This is the correct way to use useShallow with a selector
-  return useCurrencyStore(
-    useShallow(state => state.formatCurrency)
-  );
+  return useCurrencyStore(useShallow((state) => state.formatCurrency));
 };
 
 export default useCurrencyStore;

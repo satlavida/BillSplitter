@@ -14,15 +14,19 @@ export default {
     // Module Name Mapper for handling CSS/static assets (optional but helpful)
     moduleNameMapper: {
       '\\.(css|less|scss|sass)$': 'identity-obj-proxy', // Mocks CSS Modules
-      // Add mappings for aliases if you use them (e.g., in vite.config.js)
-      // '^@/(.*)$': '<rootDir>/src/$1' 
+      // Mirror the path aliases declared in vite.config.js
+      '^src/(.*)$': '<rootDir>/src/$1',
+      '^components/(.*)$': '<rootDir>/src/Components/$1',
+      '^ui/(.*)$': '<rootDir>/src/ui/$1',
     },
-  
+
+    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+
     // Ignore transformations for node_modules except specific ones if needed
     transformIgnorePatterns: [
-      '/node_modules/(?!(your-module-to-transform)/)' 
+      '/node_modules/(?!(your-module-to-transform)/)'
     ],
-  
+
     // Collect coverage information (optional)
     collectCoverage: true,
     coverageDirectory: 'coverage',
