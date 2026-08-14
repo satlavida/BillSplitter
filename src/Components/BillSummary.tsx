@@ -1,5 +1,5 @@
-import { memo, useCallback, useState } from 'react';
-import useBillStore, { useBillPersonTotals } from '../billStore';
+import { memo, useCallback, useState, type ChangeEvent } from 'react';
+import useBillStore, { useBillPersonTotals, type PersonTotal, type PersonTotalItem } from '../billStore';
 import useBillHistoryStore from '../billHistoryStore';
 import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
@@ -7,69 +7,59 @@ import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
 import { useBillHistory } from './BillHistory/BillHistoryContext';
 
+interface BillTitleProps {
+  title: string;
+}
+
 // BillTitle component for displaying the title in summary view
-const BillTitle = memo(({ title }) => {
+const BillTitle = memo(({ title }: BillTitleProps) => {
   if (!title) return null;
-  
+
   return (
     <div className="mb-4 text-center">
-      <h1 className="text-2xl font-bold text-zinc-800 dark:text-white transition-colors">
-        {title}
-      </h1>
+      <h1 className="text-2xl font-bold text-zinc-800 dark:text-white transition-colors">{title}</h1>
     </div>
   );
 });
 
+interface PersonItemRowProps {
+  item: PersonTotalItem;
+  formatCurrency: (amount: number | null | undefined) => string;
+}
+
 // PersonItemRow component for individual item rows
-const PersonItemRow = memo(({ item, formatCurrency }) => {
+const PersonItemRow = memo(({ item, formatCurrency }: PersonItemRowProps) => {
   const hasDiscount = item.discount > 0;
-  const discountText = hasDiscount
-    ? `Discount ${
-        item.discountType === 'percentage'
-          ? `${item.discount}%`
-          : formatCurrency(item.discount)
-      }`
-    : '';
+  const discountText = hasDiscount ? `Discount ${item.discountType === 'percentage' ? `${item.discount}%` : formatCurrency(item.discount)}` : '';
   return (
     <li className="flex justify-between items-start py-2">
       <div>
         <span className="dark:text-white transition-colors">{item.name}</span>
-        {hasDiscount && (
-          <span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400 transition-colors">
-            ({discountText})
-          </span>
-        )}
-        {item.sharedWith > 1 && (
-          <span className="text-sm text-zinc-600 dark:text-zinc-400 block transition-colors">
-            Split by {item.sharedWith}
-          </span>
-        )}
+        {hasDiscount && <span className="ml-1 text-xs text-zinc-600 dark:text-zinc-400 transition-colors">({discountText})</span>}
+        {item.sharedWith > 1 && <span className="text-sm text-zinc-600 dark:text-zinc-400 block transition-colors">Split by {item.sharedWith}</span>}
       </div>
-      <span className="font-medium dark:text-white transition-colors">
-        {formatCurrency(item.share)}
-      </span>
+      <span className="font-medium dark:text-white transition-colors">{formatCurrency(item.share)}</span>
     </li>
   );
 });
 
+interface PersonCardProps {
+  person: PersonTotal;
+  formatCurrency: (amount: number | null | undefined) => string;
+  upiId: string;
+  billTitle: string;
+}
+
 // PersonCard component for each person's summary
-const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
+const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }: PersonCardProps) => {
   const handleShare = async () => {
     const breakdown = person.items
-      .map(item => {
-        const discountText = item.discount > 0
-          ? ` (Discount ${
-              item.discountType === 'percentage'
-                ? `${item.discount}%`
-                : formatCurrency(item.discount)
-            })`
-          : '';
+      .map((item) => {
+        const discountText = item.discount > 0 ? ` (Discount ${item.discountType === 'percentage' ? `${item.discount}%` : formatCurrency(item.discount)})` : '';
         return `${item.name}: ${formatCurrency(item.share)} Split${discountText}`;
       })
       .join('\n');
-    const text = `${person.name} owes ${formatCurrency(person.total)}${
-      upiId ? `; Split can be sent on "${upiId}"` : ''
-    }\nBreakdown:\n${breakdown}`;
+    const text = `${person.name} owes ${formatCurrency(person.total)}${upiId ? `; Split can be sent on "${upiId}"` : ''}\nBreakdown:\n${breakdown}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: billTitle || 'Bill Payment', text });
@@ -85,21 +75,10 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
   return (
     <Card>
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-700">
-        <h3 className="text-lg font-bold text-zinc-800 dark:text-white transition-colors">
-          {person.name}
-        </h3>
+        <h3 className="text-lg font-bold text-zinc-800 dark:text-white transition-colors">{person.name}</h3>
         <div className="flex items-center gap-2">
-          {upiId && (
-            <span className="text-sm text-zinc-800 dark:text-zinc-300 transition-colors">
-              {upiId}
-            </span>
-          )}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={handleShare}
-            className="no-print"
-          >
+          {upiId && <span className="text-sm text-zinc-800 dark:text-zinc-300 transition-colors">{upiId}</span>}
+          <Button size="sm" variant="secondary" onClick={handleShare} className="no-print">
             Share
           </Button>
         </div>
@@ -108,12 +87,8 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
       {person.items.length > 0 ? (
         <>
           <ul className="mb-4 space-y-1 divide-y divide-zinc-100 dark:divide-zinc-700 transition-colors">
-            {person.items.map(item => (
-              <PersonItemRow
-                key={item.id}
-                item={item}
-                formatCurrency={formatCurrency}
-              />
+            {person.items.map((item) => (
+              <PersonItemRow key={item.id} item={item} formatCurrency={formatCurrency} />
             ))}
           </ul>
 
@@ -143,29 +118,21 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }) => {
   );
 });
 
+interface EditButtonsProps {
+  onEdit: (step: number) => void;
+}
+
 // EditButtons component for navigation
-const EditButtons = memo(({ onEdit }) => {
+const EditButtons = memo(({ onEdit }: EditButtonsProps) => {
   return (
     <div className="space-x-4 space-y-4 no-print">
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => onEdit(1)}
-      >
+      <Button variant="secondary" size="sm" onClick={() => onEdit(1)}>
         Edit People
       </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => onEdit(2)}
-      >
+      <Button variant="secondary" size="sm" onClick={() => onEdit(2)}>
         Edit Items
       </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => onEdit(3)}
-      >
+      <Button variant="secondary" size="sm" onClick={() => onEdit(3)}>
         Edit Assignments
       </Button>
     </div>
@@ -176,26 +143,26 @@ const EditButtons = memo(({ onEdit }) => {
 const BillSummary = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
   const { title, taxAmount, goToStep, reset, exportBill } = useBillStore(
-    useShallow(state => ({
+    useShallow((state) => ({
       title: state.title,
       taxAmount: state.taxAmount,
       goToStep: state.goToStep,
       reset: state.reset,
-      exportBill: state.exportBill
+      exportBill: state.exportBill,
     }))
   );
-  
+
   // Get bill history actions
   const { saveBill } = useBillHistoryStore(
-    useShallow(state => ({
-      saveBill: state.saveBill
+    useShallow((state) => ({
+      saveBill: state.saveBill,
     }))
   );
-  
+
   const formatCurrency = useFormatCurrency();
 
   // Current currency
-  const currency = useCurrencyStore(state => state.currency);
+  const currency = useCurrencyStore((state) => state.currency);
 
   // Get bill history modal controls
   const { openModal } = useBillHistory();
@@ -207,64 +174,67 @@ const BillSummary = () => {
 
   // Get person totals using the specialized hook
   const personTotals = useBillPersonTotals();
-  
+
   // Calculate subtotal from person totals
   const subtotal = personTotals.reduce((sum, person) => sum + person.subtotal, 0);
-  
+
   // Calculate grand total from person totals
   const grandTotal = personTotals.reduce((sum, person) => sum + person.total, 0);
-  
-  const handleEdit = useCallback((step) => {
-    goToStep(step);
-  }, [goToStep]);
-  
+
+  const handleEdit = useCallback(
+    (step: number) => {
+      goToStep(step);
+    },
+    [goToStep]
+  );
+
   const handleReset = useCallback(() => {
     const confirm = window.confirm('Are you sure you want to start over? This will save the current bill to history and reset everything.');
     if (confirm) {
       // Save current bill to history
       const billData = useBillStore.getState();
       saveBill(billData);
-      
+
       // Reset current bill state
       reset();
-      //Save new bill state 
+      //Save new bill state
       const newBillData = useBillStore.getState();
       saveBill(newBillData);
     }
   }, [reset, saveBill]);
-  
+
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
-  
+
   const handleExportJson = useCallback(() => {
     const jsonData = exportBill();
     const blob = new Blob([jsonData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     // Create temporary link and trigger download
     const a = document.createElement('a');
     a.href = url;
     a.download = `bill-${title || 'untitled'}-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
-    
+
     // Clean up
     setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 0);
   }, [exportBill, title]);
-  
+
   const handleSaveBill = useCallback(() => {
     // Save current bill to history
     const billData = useBillStore.getState();
     saveBill(billData);
-    
+
     // Show confirmation
     alert('Bill saved to history successfully!');
   }, [saveBill]);
-  
+
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
@@ -275,28 +245,18 @@ const BillSummary = () => {
               <input
                 type="text"
                 value={upiId}
-                onChange={e => setUpiId(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setUpiId(e.target.value)}
                 placeholder="your-upi@bank"
                 className="flex-1 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md"
               />
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setShowUpiInput(false)}
-              >
+              <Button size="sm" variant="secondary" onClick={() => setShowUpiInput(false)}>
                 Hide
               </Button>
             </div>
           ) : (
             <div className="flex items-center gap-2 no-print">
-              {upiId && (
-                <span className="text-zinc-800 dark:text-white">UPI ID: {upiId}</span>
-              )}
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setShowUpiInput(true)}
-              >
+              {upiId && <span className="text-zinc-800 dark:text-white">UPI ID: {upiId}</span>}
+              <Button size="sm" variant="secondary" onClick={() => setShowUpiInput(true)}>
                 {upiId ? 'Edit UPI ID' : 'Add UPI ID'}
               </Button>
             </div>
@@ -309,26 +269,14 @@ const BillSummary = () => {
           {/* Display bill title in printable section */}
           <BillTitle title={title} />
 
-          {personTotals.map(person => (
-            <PersonCard
-              key={person.id}
-              person={person}
-              formatCurrency={formatCurrency}
-              upiId={isInr ? upiId : ''}
-              billTitle={title}
-            />
+          {personTotals.map((person) => (
+            <PersonCard key={person.id} person={person} formatCurrency={formatCurrency} upiId={isInr ? upiId : ''} billTitle={title} />
           ))}
-          
-          <BillTotalsSummary 
-            subtotal={subtotal}
-            taxAmount={parseFloat(taxAmount) || 0}
-            grandTotal={grandTotal}
-            formatCurrency={formatCurrency}
-            className="mb-6"
-          />
+
+          <BillTotalsSummary subtotal={subtotal} taxAmount={parseFloat(String(taxAmount)) || 0} grandTotal={grandTotal} formatCurrency={formatCurrency} className="mb-6" />
         </div>
       </PrintWrapper>
-      
+
       <div className="no-print space-y-6">
         <div>
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Edit</h3>
@@ -340,17 +288,11 @@ const BillSummary = () => {
           <div className="flex flex-wrap gap-2">
             <PrintButton onClick={handlePrint} />
 
-            <Button
-              variant="success"
-              onClick={handleSaveBill}
-            >
+            <Button variant="success" onClick={handleSaveBill}>
               Save Bill
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={handleExportJson}
-            >
+            <Button variant="secondary" onClick={handleExportJson}>
               Export JSON
             </Button>
           </div>
@@ -358,20 +300,14 @@ const BillSummary = () => {
 
         <div>
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">History</h3>
-          <Button
-            variant="secondary"
-            onClick={openModal}
-          >
+          <Button variant="secondary" onClick={openModal}>
             Bill History
           </Button>
         </div>
 
         <div>
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Reset</h3>
-          <Button
-            variant="danger"
-            onClick={handleReset}
-          >
+          <Button variant="danger" onClick={handleReset}>
             Start Over
           </Button>
         </div>

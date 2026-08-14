@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // Hook to detect online/offline status
-const useOnlineStatus = () => {
+const useOnlineStatus = (): boolean => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {

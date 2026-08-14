@@ -1,4 +1,4 @@
-import { useState, useRef, memo, useCallback, useEffect } from 'react';
+import { useState, useRef, memo, useCallback, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import useBillStore, { useBillItems, getDiscountedItemPrice } from '../billStore';
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
@@ -6,51 +6,60 @@ import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
 import BillTotalsSummary from './BillTotalsSummary';
+import type { Item } from '../schemas/bill.schema';
+
+interface NewItemFormState {
+  name: string;
+  price: number | string;
+  quantity: number | string;
+}
+
+interface ItemFormProps {
+  onAddItem: (item: NewItemFormState) => void;
+}
 
 // Item form component with optimized rendering
-const ItemForm = memo(({ onAddItem }) => {
-  const [newItem, setNewItem] = useState({
+const ItemForm = memo(({ onAddItem }: ItemFormProps) => {
+  const [newItem, setNewItem] = useState<NewItemFormState>({
     name: '',
     price: '',
-    quantity: 1
+    quantity: 1,
   });
-  
-  const nameRef = useRef(null);
-  
-  const handleSubmit = (e) => {
+
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (newItem.name.trim() && newItem.price !== '' && !isNaN(Number(newItem.price))) {
       onAddItem({
         name: newItem.name.trim(),
         price: newItem.price,
-        quantity: newItem.quantity || 1
+        quantity: newItem.quantity || 1,
       });
-      
+
       setNewItem({
         name: '',
         price: '',
-        quantity: 1
+        quantity: 1,
       });
-      
+
       // Focus the name input for better UX
       nameRef.current?.focus();
     }
   };
-  
+
   return (
     <form onSubmit={handleSubmit} className="mb-6">
       <div className="grid grid-cols-12 gap-2 mb-4">
         <div className="col-span-5">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
-            Item Name
-          </label>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Item Name</label>
           <input
             ref={nameRef}
             type="text"
             value={newItem.name}
-            onChange={(e) => setNewItem({...newItem, name: e.target.value})}
+            onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
             placeholder="e.g., Pizza"
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -58,18 +67,16 @@ const ItemForm = memo(({ onAddItem }) => {
             required
           />
         </div>
-        
+
         <div className="col-span-4">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
-            Price
-          </label>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Price</label>
           <input
             type="number"
             step="0.01"
             value={newItem.price}
-            onChange={(e) => setNewItem({...newItem, price: e.target.value})}
+            onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
             placeholder="0.00"
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -77,17 +84,15 @@ const ItemForm = memo(({ onAddItem }) => {
             required
           />
         </div>
-        
+
         <div className="col-span-3">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
-            Qty
-          </label>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Qty</label>
           <input
             type="number"
             min="1"
             value={newItem.quantity}
-            onChange={(e) => setNewItem({...newItem, quantity: e.target.value})}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -96,19 +101,23 @@ const ItemForm = memo(({ onAddItem }) => {
           />
         </div>
       </div>
-      
-      <Button 
-        type="submit"
-        className="w-full"
-      >
+
+      <Button type="submit" className="w-full">
         Add Item
       </Button>
     </form>
   );
 });
 
+interface ItemListItemProps {
+  item: Item;
+  onRemove: (id: string) => void;
+  onEdit: (item: Item) => void;
+  formatCurrency: (amount: number | null | undefined) => string;
+}
+
 // Individual item list item
-const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
+const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }: ItemListItemProps) => {
   const handleRemove = useCallback(() => {
     onRemove(item.id);
   }, [item.id, onRemove]);
@@ -118,13 +127,7 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
   }, [item, onEdit]);
 
   const hasDiscount = item.discount > 0;
-  const discountText = hasDiscount
-    ? `Discount ${
-        item.discountType === 'percentage'
-          ? `${item.discount}%`
-          : formatCurrency(item.discount)
-      }`
-    : '';
+  const discountText = hasDiscount ? `Discount ${item.discountType === 'percentage' ? `${item.discount}%` : formatCurrency(item.discount)}` : '';
 
   return (
     <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
@@ -134,11 +137,7 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
           {item.quantity > 1 ? `${item.quantity} × ` : ''}
           {formatCurrency(getDiscountedItemPrice(item))}
         </span>
-        {hasDiscount && (
-          <span className="block text-xs text-zinc-500 dark:text-zinc-400 transition-colors">
-            ({discountText})
-          </span>
-        )}
+        {hasDiscount && <span className="block text-xs text-zinc-500 dark:text-zinc-400 transition-colors">({discountText})</span>}
       </div>
       <div className="flex space-x-2">
         <button
@@ -150,13 +149,17 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
             <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
           </svg>
         </button>
-        <button 
+        <button
           onClick={handleRemove}
           className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:focus-visible:ring-red-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
           aria-label={`Remove ${item.name}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
       </div>
@@ -164,37 +167,41 @@ const ItemListItem = memo(({ item, onRemove, onEdit, formatCurrency }) => {
   );
 });
 
+interface ItemsListProps {
+  items: Item[];
+  onRemove: (id: string) => void;
+  onEdit: (item: Item) => void;
+  formatCurrency: (amount: number | null | undefined) => string;
+}
+
 // Items list component
-const ItemsList = memo(({ items, onRemove, onEdit, formatCurrency }) => {
+const ItemsList = memo(({ items, onRemove, onEdit, formatCurrency }: ItemsListProps) => {
   if (items.length === 0) return null;
-  
+
   return (
     <>
       <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">Items</h3>
       <ul className="mb-6 space-y-2">
-        {items.map(item => (
-          <ItemListItem 
-            key={item.id} 
-            item={item} 
-            onRemove={onRemove}
-            onEdit={onEdit}
-            formatCurrency={formatCurrency}
-          />
+        {items.map((item) => (
+          <ItemListItem key={item.id} item={item} onRemove={onRemove} onEdit={onEdit} formatCurrency={formatCurrency} />
         ))}
       </ul>
     </>
   );
 });
 
+interface TaxInputProps {
+  taxAmount: number | string;
+  onTaxChange: (e: ChangeEvent<HTMLInputElement>) => void;
+}
+
 // Tax input component
-const TaxInput = memo(({ taxAmount, onTaxChange }) => {
-  const taxRef = useRef(null);
-  
+const TaxInput = memo(({ taxAmount, onTaxChange }: TaxInputProps) => {
+  const taxRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="mb-6">
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">
-        Tax Amount
-      </label>
+      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Tax Amount</label>
       <input
         ref={taxRef}
         type="number"
@@ -203,7 +210,7 @@ const TaxInput = memo(({ taxAmount, onTaxChange }) => {
         value={taxAmount}
         onChange={onTaxChange}
         placeholder="0.00"
-        className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+        className="w-full p-2 border border-zinc-300 dark:border-zinc-600
           bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
           rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
           dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -217,9 +224,9 @@ const TaxInput = memo(({ taxAmount, onTaxChange }) => {
 const ItemsInput = () => {
   // Use Zustand store with specialized hooks and useShallow
   const items = useBillItems();
-  
-  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = 
-    useBillStore(useShallow(state => ({
+
+  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = useBillStore(
+    useShallow((state) => ({
       taxAmount: state.taxAmount,
       addItem: state.addItem,
       removeItem: state.removeItem,
@@ -227,45 +234,55 @@ const ItemsInput = () => {
       setTax: state.setTax,
       nextStep: state.nextStep,
       prevStep: state.prevStep,
-      getSubtotal: state.getSubtotal
-    })));
-  
+      getSubtotal: state.getSubtotal,
+    }))
+  );
+
   const formatCurrency = useFormatCurrency();
-  
-  const [localTaxAmount, setLocalTaxAmount] = useState(taxAmount || '');
+
+  const [localTaxAmount, setLocalTaxAmount] = useState<number | string>(taxAmount || '');
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [currentItem, setCurrentItem] = useState(null);
-  
+  const [currentItem, setCurrentItem] = useState<Item | null>(null);
+
   // Sync the local tax amount with the store on first render
   useEffect(() => {
     setLocalTaxAmount(taxAmount || '');
   }, [taxAmount]);
-  
-  const handleAddItem = useCallback((itemData) => {
-    addItem(itemData);
-  }, [addItem]);
-  
-  const handleRemoveItem = useCallback((id) => {
-    removeItem(id);
-  }, [removeItem]);
-  
-  const handleEditItem = useCallback((item) => {
+
+  const handleAddItem = useCallback(
+    (itemData: NewItemFormState) => {
+      addItem(itemData);
+    },
+    [addItem]
+  );
+
+  const handleRemoveItem = useCallback(
+    (id: string) => {
+      removeItem(id);
+    },
+    [removeItem]
+  );
+
+  const handleEditItem = useCallback((item: Item) => {
     setCurrentItem(item);
     setEditModalOpen(true);
   }, []);
-  
-  const handleSaveItem = useCallback((itemId, updatedData) => {
-    updateItem(itemId, updatedData);
-  }, [updateItem]);
-  
-  const handleTaxChange = useCallback((e) => {
+
+  const handleSaveItem = useCallback(
+    (itemId: string, updatedData: Partial<Item>) => {
+      updateItem(itemId, updatedData);
+    },
+    [updateItem]
+  );
+
+  const handleTaxChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setLocalTaxAmount(e.target.value);
   }, []);
-  
+
   const handlePrev = useCallback(() => {
     prevStep();
   }, [prevStep]);
-  
+
   const handleNext = useCallback(() => {
     if (items.length > 0) {
       setTax(localTaxAmount);
@@ -276,65 +293,40 @@ const ItemsInput = () => {
   }, [items.length, localTaxAmount, setTax, nextStep]);
 
   // Get subtotal from the store helper
-  const subtotal = useShallow(getSubtotal)();
-  const tax = parseFloat(localTaxAmount) || 0;
+  const subtotal = getSubtotal();
+  const tax = parseFloat(String(localTaxAmount)) || 0;
   const total = subtotal + tax;
-  
+
   return (
     <div>
       <ScanReceiptButton />
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
-      
+
       <Card>
         <ItemForm onAddItem={handleAddItem} />
       </Card>
-      
-      <ItemsList 
-        items={items} 
-        onRemove={handleRemoveItem}
-        onEdit={handleEditItem}
-        formatCurrency={formatCurrency}
-      />
-      
+
+      <ItemsList items={items} onRemove={handleRemoveItem} onEdit={handleEditItem} formatCurrency={formatCurrency} />
+
       {items.length > 0 && (
         <>
-          <TaxInput 
-            taxAmount={localTaxAmount}
-            onTaxChange={handleTaxChange}
-          />
-          
-          <BillTotalsSummary
-            subtotal={subtotal}
-            taxAmount={tax}
-            grandTotal={total}
-            formatCurrency={formatCurrency}
-            className="mb-6"
-          />
+          <TaxInput taxAmount={localTaxAmount} onTaxChange={handleTaxChange} />
+
+          <BillTotalsSummary subtotal={subtotal} taxAmount={tax} grandTotal={total} formatCurrency={formatCurrency} className="mb-6" />
         </>
       )}
 
       <div className="flex justify-between">
-        <Button
-          variant="secondary"
-          onClick={handlePrev}
-        >
+        <Button variant="secondary" onClick={handlePrev}>
           Back
         </Button>
-        <Button
-          onClick={handleNext}
-          disabled={items.length === 0}
-        >
+        <Button onClick={handleNext} disabled={items.length === 0}>
           Next
         </Button>
       </div>
-      
+
       {/* Edit Item Modal */}
-      <EditItemModal 
-        isOpen={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        item={currentItem}
-        onSave={handleSaveItem}
-      />
+      <EditItemModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} item={currentItem} onSave={handleSaveItem} />
     </div>
   );
 };

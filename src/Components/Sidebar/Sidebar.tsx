@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import SidebarItem from './SidebarItem';
 
 interface SidebarItemData {
-  id: string;
+  id: string | number;
   icon: ReactNode;
   label: ReactNode;
 }
@@ -11,8 +11,8 @@ interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   items: SidebarItemData[];
-  activeItemId: string | null;
-  onItemClick: (itemId: string) => void;
+  activeItemId: string | number | null;
+  onItemClick: (itemId: string | number) => void;
 }
 
 const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: SidebarProps) => {
@@ -47,7 +47,7 @@ const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: Sidebar
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isOpen, onToggle]);
 
-  const handleItemClick = (itemId: string) => {
+  const handleItemClick = (itemId: string | number) => {
     onItemClick(itemId);
     // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) {

@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { BillHistoryStateSchema, type BillHistoryEntry } from './schemas/billHistory.schema';
+import type { BillState } from './schemas/bill.schema';
+
+// The full billStore state (as returned by useBillStore.getState()) is what
+// callers actually pass in; only title/billId are read here, everything
+// else is stored as-is in the history entry's `data` field.
+type BillDataInput = Partial<BillState> & { title?: string; billId?: string | null };
 
 // Current version of bill history store
 export const BILL_HISTORY_VERSION = '1.1.0';
@@ -27,8 +33,8 @@ interface ImportResult {
 }
 
 interface BillHistoryStoreActions {
-  addBill: (billData: Record<string, unknown> & { title?: string }) => void;
-  saveBill: (billData: Record<string, unknown> & { title?: string; billId?: string }) => void;
+  addBill: (billData: BillDataInput) => void;
+  saveBill: (billData: BillDataInput) => void;
   deleteBill: (billId: string) => void;
   setCurrentBill: (billId: string) => void;
   getCurrentBill: () => BillHistoryEntry | undefined;

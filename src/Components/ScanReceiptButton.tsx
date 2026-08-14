@@ -1,13 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type FormEvent, type MouseEvent, type RefObject } from 'react';
 import useBillStore from '../billStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
+import { ReceiptScanResponseSchema, type ReceiptScanResponse } from '../schemas/receiptScan.schema';
 
 const API_URL = import.meta.env.VITE_WORKER_URL;
 
+interface ModeSelectionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectUpload: () => void;
+  onSelectCapture: () => void;
+}
+
 // Mode Selection Modal Component
-const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }) => {
+const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }: ModeSelectionModalProps) => {
   if (!isOpen) return null;
 
   return (
@@ -26,7 +34,7 @@ const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }
             </svg>
           </button>
         </div>
-        
+
         <p className="mb-4 text-zinc-700 dark:text-zinc-300">How would you like to add your receipt?</p>
         <div className="flex flex-col space-y-4">
           <Button onClick={onSelectUpload} className="flex items-center justify-center">
@@ -37,7 +45,11 @@ const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }
           </Button>
           <Button onClick={onSelectCapture} className="flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"
+              />
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
             </svg>
             Take Photo
@@ -48,18 +60,20 @@ const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }
   );
 };
 
+interface ReceiptUploadFormProps {
+  onSubmit: (e: FormEvent) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+  error: string | null;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  onFileInputClick: () => void;
+  useCameraCapture: boolean | undefined;
+}
+
 // Receipt Upload Form Component
-const ReceiptUploadForm = ({ 
-  onSubmit, 
-  onCancel, 
-  isLoading, 
-  error, 
-  fileInputRef, 
-  onFileInputClick,
-  useCameraCapture 
-}) => {
+const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef, onFileInputClick, useCameraCapture }: ReceiptUploadFormProps) => {
   // Only intercept the click if useCameraCapture is undefined
-  const handleFileInputClick = (e) => {
+  const handleFileInputClick = (e: MouseEvent<HTMLInputElement>) => {
     if (useCameraCapture === undefined && onFileInputClick) {
       e.preventDefault();
       onFileInputClick();
@@ -70,29 +84,25 @@ const ReceiptUploadForm = ({
     <form onSubmit={onSubmit}>
       <FileUpload
         ref={fileInputRef}
-        label={useCameraCapture ? "Take photo of receipt" : "Select receipt image"}
+        label={useCameraCapture ? 'Take photo of receipt' : 'Select receipt image'}
         accept="image/*"
-        capture={useCameraCapture ? "environment" : undefined}
+        capture={useCameraCapture ? 'environment' : undefined}
         error={error}
         onClick={handleFileInputClick}
       />
 
       <Alert type="warning">
-        <p>⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis. The data may be used for training AI models.</p>
+        <p>
+          ⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis. The data
+          may be used for training AI models.
+        </p>
       </Alert>
 
       <div className="flex justify-end space-x-2 mt-4">
-        <Button
-          variant="secondary"
-          onClick={onCancel}
-          type="button"
-        >
+        <Button variant="secondary" onClick={onCancel} type="button">
           Cancel
         </Button>
-        <Button
-          type="submit"
-          disabled={isLoading}
-        >
+        <Button type="submit" disabled={isLoading}>
           {isLoading ? (
             <div className="flex items-center">
               <Spinner className="mr-2" />
@@ -111,23 +121,23 @@ const ReceiptUploadForm = ({
 const ScanReceiptButton = () => {
   // Use Zustand store with useShallow to prevent unnecessary re-renders
   const { addItem, setTax } = useBillStore(
-    useShallow(state => ({
+    useShallow((state) => ({
       addItem: state.addItem,
-      setTax: state.setTax
+      setTax: state.setTax,
     }))
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModeSelectionOpen, setIsModeSelectionOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [useCameraCapture, setUseCameraCapture] = useState(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [useCameraCapture, setUseCameraCapture] = useState<boolean | undefined>(undefined);
   const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
 
   const isOnline = useOnlineStatus();
-  
+
   // Single file input ref
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const openModal = () => {
     if (!isOnline) {
@@ -166,7 +176,7 @@ const ScanReceiptButton = () => {
     if (useCameraCapture !== undefined && fileInputRef.current) {
       // Use setTimeout to ensure all state updates and renders have completed
       setTimeout(() => {
-        fileInputRef.current.click();
+        fileInputRef.current?.click();
       }, 100);
     }
   }, [useCameraCapture]);
@@ -181,32 +191,32 @@ const ScanReceiptButton = () => {
     setUseCameraCapture(true);
   };
 
-  const validateImageFile = (file) => {
+  const validateImageFile = (file: File | undefined): string | null => {
     // Check if file exists
     if (!file) return 'Please select an image file';
-    
+
     // Check if it's an image
     if (!file.type.startsWith('image/')) {
       return 'The selected file is not an image. Please select an image file.';
     }
-    
+
     // Check file size (limit to 5MB)
     if (file.size > 5 * 1024 * 1024) {
       return 'Image size exceeds 5MB. Please select a smaller image.';
     }
-    
+
     return null; // No error
   };
 
-  const convertToBase64 = (file) => {
+  const convertToBase64 = (file: File): Promise<{ base64Data: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         // Remove the data:image/xxx;base64, prefix
-        const base64String = reader.result.split(',')[1];
+        const base64String = (reader.result as string).split(',')[1];
         resolve({
           base64Data: base64String,
-          mimeType: file.type
+          mimeType: file.type,
         });
       };
       reader.onerror = (error) => reject(error);
@@ -214,42 +224,31 @@ const ScanReceiptButton = () => {
     });
   };
 
-  const processReceiptItems = (data) => {
-    // Add items to state
-    data.items.forEach(item => {
-      const newItem = {
+  const processReceiptItems = (data: ReceiptScanResponse) => {
+    // Add items to state. Discount is already normalized to
+    // {value, discountType} by ReceiptScanResponseSchema's parse step,
+    // so no dual-format handling is needed here.
+    data.items.forEach((item) => {
+      addItem({
         name: item.name,
-        price: parseFloat(item.price) || 0,
-        quantity: parseInt(item.quantity, 10) || 1
-      };
-
-      // Support optional discount information in two formats:
-      // 1. Structured discount object { value, discountType }
-      // 2. Flat discount fields (discount, discountType)
-      if (item.discount) {
-        if (typeof item.discount === 'object') {
-          newItem.discount = parseFloat(item.discount.value) || 0;
-          newItem.discountType = item.discount.discountType || 'flat';
-        } else {
-          newItem.discount = parseFloat(item.discount) || 0;
-          newItem.discountType = item.discountType || 'flat';
-        }
-      }
-
-      addItem(newItem);
+        price: item.price,
+        quantity: item.quantity,
+        discount: item.discount?.value ?? 0,
+        discountType: item.discount?.discountType ?? 'flat',
+      });
     });
 
     // Set tax amount
-    if (typeof data.tax === 'number' || typeof data.tax === 'string') {
-      setTax(parseFloat(data.tax) || 0);
+    if (data.tax !== undefined) {
+      setTax(data.tax);
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     const file = fileInputRef.current?.files?.[0];
-    
+
     const validationError = validateImageFile(file);
     if (validationError) {
       setError(validationError);
@@ -261,11 +260,11 @@ const ScanReceiptButton = () => {
       setError(null);
 
       // Convert image to base64
-      const imageData = await convertToBase64(file);
-      
+      const imageData = await convertToBase64(file as File);
+
       // Prepare payload
       const payload = {
-        image: imageData
+        image: imageData,
       };
 
       const endpoint = API_URL;
@@ -284,13 +283,11 @@ const ScanReceiptButton = () => {
         throw new Error(`Server responded with status: ${response.status}`);
       }
 
-      const data = await response.json();
-      
-      // Validate the response structure
-      if (!data.items || !Array.isArray(data.items)) {
-        throw new Error('Invalid response format: missing items array');
-      }
-      
+      const rawData = await response.json();
+
+      // Validate and normalize the response structure with Zod
+      const data = ReceiptScanResponseSchema.parse(rawData);
+
       // Process the received data
       processReceiptItems(data);
 
@@ -306,19 +303,11 @@ const ScanReceiptButton = () => {
 
   return (
     <>
-      <Button
-        variant="primary"
-        onClick={openModal}
-        className="mb-4"
-      >
+      <Button variant="primary" onClick={openModal} className="mb-4">
         Scan Receipt
       </Button>
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title="Upload Receipt"
-      >
+      <Modal isOpen={isModalOpen} onClose={closeModal} title="Upload Receipt">
         <ReceiptUploadForm
           onSubmit={handleSubmit}
           onCancel={closeModal}
@@ -337,11 +326,7 @@ const ScanReceiptButton = () => {
         onSelectCapture={handleSelectCapture}
       />
 
-      <Modal
-        isOpen={isOfflineModalOpen}
-        onClose={closeOfflineModal}
-        title="Offline"
-      >
+      <Modal isOpen={isOfflineModalOpen} onClose={closeOfflineModal} title="Offline">
         <Alert type="warning">
           <p>You are offline. Scan Receipt requires an internet connection.</p>
         </Alert>

@@ -4,8 +4,8 @@ interface SidebarItemProps {
   icon: ReactNode;
   label: ReactNode;
   isActive: boolean;
-  onClick: (id: string) => void;
-  id: string;
+  onClick: (id: string | number) => void;
+  id: string | number;
   isOpen: boolean;
 }
 
