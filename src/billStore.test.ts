@@ -852,3 +852,82 @@ describe('billStore - Custom Hooks (Selectors)', () => {
      expect(result.current).toBe(110); // 100 (subtotal) + 10 (tax)
   });
 });
+
+describe('billStore - hydrateFromSession (scratch editor)', () => {
+  test('hydrates people/items/tax/currency/title from a session bill', () => {
+    const people = [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }];
+    const bill = {
+      id: 'bill-1',
+      title: 'Dinner',
+      date: '2026-01-01T00:00:00.000Z',
+      items: [
+        {
+          id: 'i1',
+          name: 'Pizza',
+          price: 20,
+          quantity: 1,
+          discount: 0,
+          discountType: 'flat' as const,
+          consumedBy: [{ personId: 'p1', value: 1 }],
+          splitType: 'equal' as const,
+        },
+      ],
+      taxAmount: 2,
+      currency: 'USD',
+      paidByPersonId: 'p1',
+      receiptImage: null,
+      splitStateVersion: '2.0.0',
+    };
+
+    act(() => {
+      useBillStore.getState().hydrateFromSession(people, bill);
+    });
+
+    const state = useBillStore.getState();
+    expect(state.billId).toBe('bill-1');
+    expect(state.step).toBe(1);
+    expect(state.people).toEqual(people);
+    expect(state.items).toHaveLength(1);
+    expect(state.taxAmount).toBe(2);
+    expect(state.currency).toBe('USD');
+    expect(state.title).toBe('Dinner');
+  });
+
+  test('re-hydrating with a different bill replaces the previous scratch state entirely', () => {
+    const people = [{ id: 'p1', name: 'Alice' }];
+    act(() => {
+      useBillStore.getState().hydrateFromSession(people, {
+        id: 'bill-1',
+        title: 'Bill One',
+        date: '2026-01-01T00:00:00.000Z',
+        items: [],
+        taxAmount: 5,
+        currency: 'INR',
+        paidByPersonId: null,
+        receiptImage: null,
+        splitStateVersion: '2.0.0',
+      });
+      useBillStore.getState().addItem({ name: 'Leftover', price: 1 });
+    });
+    expect(useBillStore.getState().items).toHaveLength(1);
+
+    act(() => {
+      useBillStore.getState().hydrateFromSession(people, {
+        id: 'bill-2',
+        title: 'Bill Two',
+        date: '2026-01-02T00:00:00.000Z',
+        items: [],
+        taxAmount: 0,
+        currency: 'USD',
+        paidByPersonId: null,
+        receiptImage: null,
+        splitStateVersion: '2.0.0',
+      });
+    });
+
+    const state = useBillStore.getState();
+    expect(state.billId).toBe('bill-2');
+    expect(state.title).toBe('Bill Two');
+    expect(state.items).toEqual([]); // Bill One's leftover item must not leak into Bill Two
+  });
+});

@@ -1,77 +1,17 @@
-import { memo, useState, useEffect, type ReactNode } from 'react';
+import { memo, useState, useEffect } from 'react';
+import { HashRouter, Routes, Route, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './ThemeContext';
 import ThemeSwitcher from './Components/ThemeSwitcher';
-import PeopleInput from './Components/PeopleInput';
-import ItemsInput from './Components/ItemsInput';
-import ItemAssignment from './Components/ItemAssignment';
-import BillSummary from './Components/BillSummary';
-import Settings from './Components/Settings';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
-import useBillStore from './billStore';
-import useBillHistoryStore from './billHistoryStore';
-import { useDocumentTitle } from './billStore';
-import { useShallow } from 'zustand/shallow';
-import { BillHistoryProvider, useBillHistory } from './Components/BillHistory/BillHistoryContext';
+import useSessionStore from './sessionStore';
+import Settings from './Components/Settings';
 import ServiceWorkerPrompt from './Components/Prompts/ServiceWorkerPrompt';
+import SessionsListPage from './Pages/SessionsListPage';
+import SessionHomePage from './Pages/SessionHomePage';
+import BillEditorPage from './Pages/BillEditorPage';
+import SessionSettlementPage from './Pages/SessionSettlementPage';
+import JoinPage from './Pages/JoinPage';
 import './App.css';
-
-// StepIndicator component
-const StepIndicator = memo(() => {
-  // Using useShallow to prevent unnecessary re-renders when returning an object
-  const { step, goToStep } = useBillStore(
-    useShallow((state) => ({
-      step: state.step,
-      goToStep: state.goToStep,
-    }))
-  );
-
-  const steps = [
-    { number: 1, title: 'People' },
-    { number: 2, title: 'Items' },
-    { number: 3, title: 'Assign' },
-    { number: 4, title: 'Summary' },
-  ];
-
-  // Handler for when a step is clicked
-  const handleStepClick = (stepNumber: number) => {
-    goToStep(stepNumber);
-  };
-
-  return (
-    <div className="mb-8 no-print">
-      <div className="flex items-center justify-between">
-        {steps.map((stepItem) => (
-          <div
-            key={stepItem.number}
-            className={`flex flex-col items-center cursor-pointer transition-opacity hover:opacity-80`}
-            onClick={() => handleStepClick(stepItem.number)}
-            role="button"
-            aria-label={`Go to step ${stepItem.number}: ${stepItem.title}`}
-            tabIndex={0}
-          >
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                step >= stepItem.number ? 'bg-blue-600 text-white dark:bg-blue-500' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
-              }`}
-            >
-              {stepItem.number}
-            </div>
-            <span className="text-xs mt-1 dark:text-zinc-300">{stepItem.title}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="relative flex items-center justify-between mt-1">
-        <div className="absolute left-0 right-0 h-1 bg-zinc-200 dark:bg-zinc-700">
-          <div
-            className="h-1 bg-blue-600 dark:bg-blue-500 transition-all duration-300 ease-in-out"
-            style={{ width: `${((step - 1) * 100) / 3}%` }}
-          ></div>
-        </div>
-      </div>
-    </div>
-  );
-});
 
 interface HeaderProps {
   toggleSidebar: () => void;
@@ -91,27 +31,13 @@ const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
   );
 });
 
-interface SidebarItemDef {
-  id: number | string;
-  label: string;
-  icon: ReactNode;
-}
-
-// App content component
-const AppContent = () => {
-  // This is fine as-is since it's only selecting a primitive value
-  const { step, goToStep } = useBillStore(
-    useShallow((state) => ({
-      step: state.step,
-      goToStep: state.goToStep,
-    }))
-  );
-
-  // Sidebar state
+// Top-level app shell: sidebar + header, with routed page content in the middle
+const AppShell = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeItemId, setActiveItemId] = useState<number | string>(step);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeItemId = location.pathname.startsWith('/settings') ? 'settings' : location.pathname.startsWith('/sessions') ? 'sessions' : null;
 
-  // Use local storage to remember sidebar state
   useEffect(() => {
     const savedSidebarState = localStorage.getItem('sidebarOpen');
     if (savedSidebarState !== null) {
@@ -119,35 +45,16 @@ const AppContent = () => {
     }
   }, []);
 
-  // Save sidebar state to local storage
   useEffect(() => {
     localStorage.setItem('sidebarOpen', JSON.stringify(isSidebarOpen));
   }, [isSidebarOpen]);
 
-  // Keep active sidebar item in sync with step changes
-  useEffect(() => {
-    setActiveItemId(step);
-  }, [step]);
-
-  // Toggle sidebar
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-  const { openModal } = useBillHistory();
-
-  // Sidebar items
-  const sidebarItems: SidebarItemDef[] = [
+  const sidebarItems = [
     {
-      id: 1,
-      label: 'Add People',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-    },
-    {
-      id: 2,
-      label: 'Add Items',
+      id: 'sessions',
+      label: 'Sessions',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
@@ -155,29 +62,6 @@ const AppContent = () => {
             strokeLinejoin="round"
             strokeWidth={2}
             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 3,
-      label: 'Assign Items',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-        </svg>
-      ),
-    },
-    {
-      id: 4,
-      label: 'Summary',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
           />
         </svg>
       ),
@@ -197,87 +81,23 @@ const AppContent = () => {
         </svg>
       ),
     },
-    {
-      id: 'history',
-      label: 'Bill History',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
   ];
 
-  // Handle sidebar item click
-  const handleSidebarItemClick = (itemId: number | string) => {
-    if (!isNaN(Number(itemId))) {
-      const numericId = Number(itemId);
-      goToStep(numericId);
-      setActiveItemId(numericId);
-    } else if (itemId === 'history') {
-      openModal();
-    } else if (itemId === 'settings') {
-      setActiveItemId('settings');
-    }
-  };
-
-  // Set document title based on bill title
-  useDocumentTitle();
-  // Check if we need to load the current bill from history
-  const currentBill = useBillHistoryStore((state) => state.getCurrentBill());
-  const { importBill, billId, people, items } = useBillStore(
-    useShallow((state) => ({
-      importBill: state.importBill,
-      billId: state.billId,
-      people: state.people,
-      items: state.items,
-    }))
-  );
-
-  const hasBillData = billId || people.length > 0 || items.length > 0;
-
-  // Load current bill from history only if we don't already have bill data
-  useEffect(() => {
-    if (currentBill && !hasBillData) {
-      importBill(currentBill.data);
-    }
-  }, [currentBill, importBill, hasBillData]);
-
-  // Render the appropriate step
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return <PeopleInput />;
-      case 2:
-        return <ItemsInput />;
-      case 3:
-        return <ItemAssignment />;
-      case 4:
-        return <BillSummary />;
-      default:
-        return <PeopleInput />;
-    }
-  };
-
-  const renderContent = () => {
-    if (activeItemId === 'settings') {
-      return <Settings />;
-    }
-    return renderStep();
+  const handleSidebarItemClick = (itemId: string | number) => {
+    if (itemId === 'sessions') navigate('/sessions');
+    else if (itemId === 'settings') navigate('/settings');
+    if (window.innerWidth < 768) setIsSidebarOpen(false);
   };
 
   return (
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 transition-colors duration-200">
-      {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onToggle={toggleSidebar} items={sidebarItems} activeItemId={activeItemId} onItemClick={handleSidebarItemClick} />
 
-      {/* Main content */}
       <div className={`min-h-screen transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'ml-0 md:ml-16'}`}>
         <div className="py-8 px-4">
           <div className="max-w-lg mx-auto bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg ring-1 ring-zinc-200/50 dark:ring-zinc-700/50 transition-colors duration-200">
             <Header toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
-            {typeof activeItemId === 'number' && <StepIndicator />}
-            {renderContent()}
+            <Outlet />
           </div>
         </div>
       </div>
@@ -285,14 +105,49 @@ const AppContent = () => {
   );
 };
 
+// Redirects "/" to the current (or first, or newly-created) session's home
+const RootRedirect = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const state = useSessionStore.getState();
+    const current = state.getCurrentSession() || state.sessions[0];
+    if (current) {
+      navigate(`/session/${current.id}`, { replace: true });
+    } else {
+      const created = state.createSession();
+      navigate(`/session/${created.id}`, { replace: true });
+    }
+  }, [navigate]);
+
+  return null;
+};
+
 // Main App component
 const App = () => {
   return (
     <ThemeProvider>
-      <BillHistoryProvider>
-        <AppContent />
-        <ServiceWorkerPrompt />
-      </BillHistoryProvider>
+      {/*
+        HashRouter, not BrowserRouter: this app deploys to static GitHub
+        Pages (see vite.config.js's relative `base`) with no server-side
+        SPA fallback configured, so a BrowserRouter deep-link (e.g. sharing
+        /session/:id/bill/:id) would 404 on a fresh load. Hash-based routes
+        work with zero server config and need no basename.
+      */}
+      <HashRouter>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/sessions" element={<SessionsListPage />} />
+            <Route path="/session/:sessionId" element={<SessionHomePage />} />
+            <Route path="/session/:sessionId/bill/:billId" element={<BillEditorPage />} />
+            <Route path="/session/:sessionId/settlement" element={<SessionSettlementPage />} />
+            <Route path="/join/:code" element={<JoinPage />} />
+            <Route path="/settings" element={<Settings />} />
+          </Route>
+        </Routes>
+      </HashRouter>
+      <ServiceWorkerPrompt />
     </ThemeProvider>
   );
 };

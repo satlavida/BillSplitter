@@ -47,6 +47,9 @@ interface SessionStoreActions {
   addPerson: (sessionId: string, name: string) => Person | undefined;
   removePerson: (sessionId: string, personId: string) => void;
   updatePerson: (sessionId: string, personId: string, name: string) => void;
+  // Bulk replace of the shared people pool, used by the bill-editor scratch
+  // store (billStore) to commit its locally-edited people list back.
+  setSessionPeople: (sessionId: string, people: Person[]) => void;
 
   exportSession: (sessionId: string) => string | null;
   importSession: (jsonString: string) => ImportResult;
@@ -211,6 +214,11 @@ const useSessionStore = create<SessionStore>()(
               people: s.people.map((p) => (p.id === personId ? { ...p, name } : p)),
             });
           }),
+        })),
+
+      setSessionPeople: (sessionId, people) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, people }) : s)),
         })),
 
       exportSession: (sessionId) => {

@@ -1,11 +1,11 @@
 import { memo, useCallback, useState, type ChangeEvent } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import useBillStore, { useBillPersonTotals, type PersonTotal, type PersonTotalItem } from '../billStore';
-import useBillHistoryStore from '../billHistoryStore';
+import useSessionStore from '../sessionStore';
 import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
-import { useBillHistory } from './BillHistory/BillHistoryContext';
 
 interface BillTitleProps {
   title: string;
@@ -141,31 +141,25 @@ const EditButtons = memo(({ onEdit }: EditButtonsProps) => {
 
 // Main BillSummary component
 const BillSummary = () => {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
+
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { title, taxAmount, goToStep, reset, exportBill } = useBillStore(
+  const { title, taxAmount, goToStep, exportBill } = useBillStore(
     useShallow((state) => ({
       title: state.title,
       taxAmount: state.taxAmount,
       goToStep: state.goToStep,
-      reset: state.reset,
       exportBill: state.exportBill,
     }))
   );
 
-  // Get bill history actions
-  const { saveBill } = useBillHistoryStore(
-    useShallow((state) => ({
-      saveBill: state.saveBill,
-    }))
-  );
+  const addBill = useSessionStore((state) => state.addBill);
 
   const formatCurrency = useFormatCurrency();
 
   // Current currency
   const currency = useCurrencyStore((state) => state.currency);
-
-  // Get bill history modal controls
-  const { openModal } = useBillHistory();
 
   // User provided UPI ID
   const [upiId, setUpiId] = useState('');
@@ -188,20 +182,15 @@ const BillSummary = () => {
     [goToStep]
   );
 
-  const handleReset = useCallback(() => {
-    const confirm = window.confirm('Are you sure you want to start over? This will save the current bill to history and reset everything.');
-    if (confirm) {
-      // Save current bill to history
-      const billData = useBillStore.getState();
-      saveBill(billData);
+  const handleAddAnotherBill = useCallback(() => {
+    if (!sessionId) return;
+    const bill = addBill(sessionId);
+    if (bill) navigate(`/session/${sessionId}/bill/${bill.id}`);
+  }, [sessionId, addBill, navigate]);
 
-      // Reset current bill state
-      reset();
-      //Save new bill state
-      const newBillData = useBillStore.getState();
-      saveBill(newBillData);
-    }
-  }, [reset, saveBill]);
+  const handleBackToSession = useCallback(() => {
+    if (sessionId) navigate(`/session/${sessionId}`);
+  }, [sessionId, navigate]);
 
   const handlePrint = useCallback(() => {
     window.print();
@@ -225,15 +214,6 @@ const BillSummary = () => {
       URL.revokeObjectURL(url);
     }, 0);
   }, [exportBill, title]);
-
-  const handleSaveBill = useCallback(() => {
-    // Save current bill to history
-    const billData = useBillStore.getState();
-    saveBill(billData);
-
-    // Show confirmation
-    alert('Bill saved to history successfully!');
-  }, [saveBill]);
 
   return (
     <div>
@@ -288,10 +268,6 @@ const BillSummary = () => {
           <div className="flex flex-wrap gap-2">
             <PrintButton onClick={handlePrint} />
 
-            <Button variant="success" onClick={handleSaveBill}>
-              Save Bill
-            </Button>
-
             <Button variant="secondary" onClick={handleExportJson}>
               Export JSON
             </Button>
@@ -299,17 +275,15 @@ const BillSummary = () => {
         </div>
 
         <div>
-          <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">History</h3>
-          <Button variant="secondary" onClick={openModal}>
-            Bill History
-          </Button>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Reset</h3>
-          <Button variant="danger" onClick={handleReset}>
-            Start Over
-          </Button>
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Session</h3>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={handleBackToSession}>
+              Back to Session
+            </Button>
+            <Button variant="success" onClick={handleAddAnotherBill}>
+              Add Another Bill
+            </Button>
+          </div>
         </div>
       </div>
     </div>

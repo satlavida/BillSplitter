@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
 import { BillStateSchema, type Item, type Person } from './schemas/bill.schema';
 import { calculatePersonTotals, getDiscountedItemPrice, type PersonTotal, type PersonTotalItem } from './lib/personTotals';
+import type { Bill } from './schemas/session.schema';
 
 // Define constants for split types
 export const SPLIT_TYPES = {
@@ -79,6 +79,7 @@ interface BillStoreActions {
 
   exportBill: () => string;
   importBill: (data: Partial<BillStoreState>) => void;
+  hydrateFromSession: (people: Person[], bill: Bill) => void;
 
   getPersonTotals: () => PersonTotal[];
   getSubtotal: () => number;
@@ -105,10 +106,12 @@ const initialState: BillStoreState = {
   title: '',
 };
 
-// Create the Zustand store with persistence
-const useBillStore = create<BillStore>()(
-  persist(
-    (set, get) => ({
+// Create the Zustand store. NOT independently persisted - this is a thin
+// scratch editor for whichever bill is currently open, hydrated from
+// sessionStore (the actual source of truth) via hydrateFromSession() on
+// route entry, and committed back to sessionStore by the bill-editor page
+// subscribing to this store's changes. See BillEditorPage.
+const useBillStore = create<BillStore>()((set, get) => ({
       // State
       ...initialState,
 
@@ -381,26 +384,28 @@ const useBillStore = create<BillStore>()(
 
         return allocations;
       },
-    }),
-    {
-      name: 'billSplitter', // Name for localStorage persistence
-      // Validate/normalize persisted data (including legacy string-shaped
-      // consumedBy entries) on hydration; fall back to defaults if corrupt.
-      merge: (persistedState, currentState) => {
-        if (persistedState === undefined) {
-          // Nothing in localStorage yet (fresh install) - not an error.
-          return currentState;
-        }
-        const result = BillStateSchema.safeParse(persistedState);
+
+      // Hydrate this scratch editor from a session's shared people pool and
+      // a specific bill's fields. Called by BillEditorPage on route entry.
+      hydrateFromSession: (people, bill) => {
+        const result = BillStateSchema.safeParse({
+          version: BILL_STORE_VERSION,
+          billId: bill.id,
+          step: 1,
+          people,
+          items: bill.items,
+          taxAmount: bill.taxAmount,
+          currency: bill.currency,
+          title: bill.title,
+        });
         if (!result.success) {
-          console.error('Failed to parse persisted billStore state, falling back to defaults:', result.error);
-          return currentState;
+          console.error('Failed to hydrate billStore from session bill, falling back to defaults:', result.error);
+          set({ ...initialState, billId: bill.id });
+          return;
         }
-        return { ...currentState, ...result.data };
+        set(result.data);
       },
-    }
-  )
-);
+    }));
 
 // Custom selectors using useShallow to prevent infinite loops
 export const useBillPersons = () => useBillStore(useShallow((state) => state.people));
