@@ -1,84 +1,82 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import usePassAndSplitStore from './stores/passAndSplitStore';
 import useBillStore from '../../billStore';
 import useFormatCurrency from '../../currencyStore';
 import ItemCard from './ItemCard';
+import type { Item } from '../../schemas/bill.schema';
 
 // Constants
 const SWIPE_THRESHOLD = 100; // Minimum px to trigger dismiss
 
 const ItemSwipeStack = () => {
   const formatCurrency = useFormatCurrency().formatCurrency;
-  
+
   // Get relevant data from stores
-  const itemQueue = usePassAndSplitStore(state => state.itemQueue);
-  const assignCurrentItem = usePassAndSplitStore(state => state.assignCurrentItem);
-  const skipCurrentItem = usePassAndSplitStore(state => state.skipCurrentItem);
-  const items = useBillStore(state => state.items);
-  
+  const itemQueue = usePassAndSplitStore((state) => state.itemQueue);
+  const assignCurrentItem = usePassAndSplitStore((state) => state.assignCurrentItem);
+  const skipCurrentItem = usePassAndSplitStore((state) => state.skipCurrentItem);
+  const items = useBillStore((state) => state.items);
+
   // Local state for card management
-  const [activeCards, setActiveCards] = useState([]);
+  const [activeCards, setActiveCards] = useState<Item[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
-  
+
   // Update active cards when item queue changes
   useEffect(() => {
     // Get full item details for the queue
     const itemDetails = itemQueue
-      .map(itemId => items.find(item => item.id === itemId))
-      .filter(Boolean)
+      .map((itemId) => items.find((item) => item.id === itemId))
+      .filter((item): item is Item => Boolean(item))
       .slice(0, 3); // Only show top 3 for performance
-      
+
     setActiveCards(itemDetails);
   }, [itemQueue, items]);
-  
+
   // Handle swipe actions
   const handleSwipeRight = () => {
     if (isAnimating || activeCards.length === 0) return;
-    
+
     setIsAnimating(true);
     setTimeout(() => {
       assignCurrentItem();
       setIsAnimating(false);
     }, 300); // Match animation duration
   };
-  
+
   const handleSwipeLeft = () => {
     if (isAnimating || activeCards.length === 0) return;
-    
+
     setIsAnimating(true);
     setTimeout(() => {
       skipCurrentItem();
       setIsAnimating(false);
     }, 300); // Match animation duration
   };
-  
+
   // Manual button handlers
   const handleYesClick = () => {
     if (!isAnimating) handleSwipeRight();
   };
-  
+
   const handleNoClick = () => {
     if (!isAnimating) handleSwipeLeft();
   };
-  
+
   // Empty state when no items left
   if (activeCards.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-4 text-center">
         <div className={`p-6 rounded-full mb-4 dark:bg-gray-700 bg-gray-200`}>
           <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <h3 className="text-xl font-bold mb-2">All Done!</h3>
-        <p className={`mb-4 dark:text-gray-300 text-gray-600`}>
-          You've gone through all your items.
-        </p>
+        <p className={`mb-4 dark:text-gray-300 text-gray-600`}>You've gone through all your items.</p>
       </div>
     );
   }
-  
+
   return (
     <div className="h-full flex flex-col">
       {/* Card stack area */}
@@ -97,10 +95,12 @@ const ItemSwipeStack = () => {
             />
           ))}
         </div>
-        
+
         {/* Instructions */}
-        <div className={`mt-5 bottom-1 left-0 right-0 flex justify-center space-x-16 text-xs
-                        dark:text-gray-400 text-gray-500}`}>
+        <div
+          className={`mt-5 bottom-1 left-0 right-0 flex justify-center space-x-16 text-xs
+                        dark:text-gray-400 text-gray-500}`}
+        >
           <div className="flex flex-col items-center">
             <span>←</span>
             <span>Skip</span>
@@ -111,14 +111,14 @@ const ItemSwipeStack = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Card count indicator */}
       <div className="text-center py-2">
         <span className={`text-sm dark:text-gray-400 text-gray-500`}>
           {itemQueue.length} item{itemQueue.length !== 1 ? 's' : ''} remaining
         </span>
       </div>
-      
+
       {/* Button controls */}
       <div className="flex justify-center space-x-6 p-4">
         <button
@@ -133,7 +133,7 @@ const ItemSwipeStack = () => {
         >
           ✕
         </button>
-        
+
         <button
           onClick={handleYesClick}
           disabled={isAnimating}

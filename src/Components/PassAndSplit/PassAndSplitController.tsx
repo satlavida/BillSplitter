@@ -1,4 +1,3 @@
-import React from 'react';
 import usePassAndSplitStore, { STAGES } from './stores/passAndSplitStore';
 import PersonSelection from './PersonSelection';
 import ItemSwipeStack from './ItemSwipeStack';
@@ -7,25 +6,25 @@ import ParticipantTracker from './ParticipantTracker';
 import useBillStore from '../../billStore';
 
 const PassAndSplitController = () => {
-  const stage = usePassAndSplitStore(state => state.stage);
-  const currentPersonId = usePassAndSplitStore(state => state.currentPersonId);
-  const people = useBillStore(state => state.people);
-  
+  const stage = usePassAndSplitStore((state) => state.stage);
+  const currentPersonId = usePassAndSplitStore((state) => state.currentPersonId);
+  const people = useBillStore((state) => state.people);
+
   // Find current person object
-  const currentPerson = people.find(p => p.id === currentPersonId);
-  
+  const currentPerson = people.find((p) => p.id === currentPersonId);
+
   // Render appropriate screen based on current stage
   const renderCurrentStage = () => {
     switch (stage) {
       case STAGES.PERSON_SELECTION:
         return <PersonSelection />;
-        
+
       case STAGES.ITEM_SWIPING:
         return <ItemSwipeStack />;
-        
+
       case STAGES.COMPLETION:
         return <CompletionScreen />;
-        
+
       default:
         return <PersonSelection />;
     }
@@ -48,22 +47,17 @@ const PassAndSplitController = () => {
         ) : (
           <div className="flex justify-between items-center">
             <h3 className="font-medium">
-              {stage === STAGES.PERSON_SELECTION ? 'Select Person' : 
-               stage === STAGES.COMPLETION ? 'Completed' : 'Select Items'}
+              {stage === STAGES.PERSON_SELECTION ? 'Select Person' : stage === STAGES.COMPLETION ? 'Completed' : 'Select Items'}
             </h3>
-            
+
             {/* Only show participant tracker in selection stage */}
-            {stage === STAGES.PERSON_SELECTION && (
-              <ParticipantTracker />
-            )}
+            {stage === STAGES.PERSON_SELECTION && <ParticipantTracker />}
           </div>
         )}
       </div>
-      
+
       {/* Main content area */}
-      <div className="flex-grow">
-        {renderCurrentStage()}
-      </div>
+      <div className="flex-grow">{renderCurrentStage()}</div>
     </div>
   );
 };

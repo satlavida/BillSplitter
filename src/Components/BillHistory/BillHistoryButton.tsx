@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import { memo, useState } from 'react';
 import { Button } from '../../ui/components';
 import BillHistoryModal from './BillHistoryModal';
 

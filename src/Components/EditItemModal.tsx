@@ -1,15 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { Modal, Button } from '../ui/components';
+import type { Item } from '../schemas/bill.schema';
 
-const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
-  const [formData, setFormData] = useState({
+interface EditItemFormData {
+  name: string;
+  price: number | string;
+  quantity: number | string;
+  discount: number | string;
+  discountType: 'flat' | 'percentage';
+}
+
+interface EditItemModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  item: Item | null;
+  onSave: (
+    itemId: string,
+    data: {
+      name: string;
+      price: number;
+      quantity: number;
+      discount: number;
+      discountType: 'flat' | 'percentage';
+    }
+  ) => void;
+}
+
+const EditItemModal = ({ isOpen, onClose, item, onSave }: EditItemModalProps) => {
+  const [formData, setFormData] = useState<EditItemFormData>({
     name: '',
     price: '',
     quantity: 1,
     discount: 0,
-    discountType: 'flat'
+    discountType: 'flat',
   });
-  const nameInputRef = useRef(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize form data when modal opens or item changes
   useEffect(() => {
@@ -19,9 +44,9 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
         price: item.price,
         quantity: item.quantity,
         discount: item.discount || 0,
-        discountType: item.discountType || 'flat'
+        discountType: item.discountType || 'flat',
       });
-      
+
       // Focus the name input when the modal opens
       setTimeout(() => {
         nameInputRef.current?.focus();
@@ -29,23 +54,23 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
     }
   }, [isOpen, item]);
 
-  const handleChange = (e) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (formData.name.trim() && formData.price !== '' && !isNaN(Number(formData.price))) {
+    if (item && formData.name.trim() && formData.price !== '' && !isNaN(Number(formData.price))) {
       onSave(item.id, {
         name: formData.name.trim(),
-        price: parseFloat(formData.price),
-        quantity: parseInt(formData.quantity) || 1,
-        discount: parseFloat(formData.discount) || 0,
-        discountType: formData.discountType
+        price: parseFloat(String(formData.price)),
+        quantity: parseInt(String(formData.quantity)) || 1,
+        discount: parseFloat(String(formData.discount)) || 0,
+        discountType: formData.discountType,
       });
       onClose();
     }
@@ -65,7 +90,7 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
             type="text"
             value={formData.name}
             onChange={handleChange}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -86,7 +111,7 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
             step="0.01"
             value={formData.price}
             onChange={handleChange}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -134,7 +159,7 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
             min="1"
             value={formData.quantity}
             onChange={handleChange}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -144,16 +169,10 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }) => {
         </div>
 
         <div className="flex justify-end space-x-2">
-          <Button 
-            variant="secondary" 
-            onClick={onClose}
-            type="button"
-          >
+          <Button variant="secondary" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button type="submit">
-            Save
-          </Button>
+          <Button type="submit">Save</Button>
         </div>
       </form>
     </Modal>

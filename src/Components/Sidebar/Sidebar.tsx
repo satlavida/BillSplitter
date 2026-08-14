@@ -1,65 +1,65 @@
-import React, { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import SidebarItem from './SidebarItem';
 
-const Sidebar = ({ 
-  isOpen, 
-  onToggle, 
-  items, 
-  activeItemId,
-  onItemClick
-}) => {
+interface SidebarItemData {
+  id: string;
+  icon: ReactNode;
+  label: ReactNode;
+}
+
+interface SidebarProps {
+  isOpen: boolean;
+  onToggle: () => void;
+  items: SidebarItemData[];
+  activeItemId: string | null;
+  onItemClick: (itemId: string) => void;
+}
+
+const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: SidebarProps) => {
   // Handle Escape key to close sidebar
   useEffect(() => {
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onToggle();
       }
     };
-    
+
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onToggle]);
-  
+
   // Handle clicking outside to close sidebar on mobile
   useEffect(() => {
-    const handleOutsideClick = (e) => {
+    const handleOutsideClick = (e: MouseEvent) => {
       // Only apply this behavior on mobile
       if (window.innerWidth < 768 && isOpen) {
         // Check if click is outside sidebar and not on the hamburger button
         const sidebar = document.getElementById('sidebar');
         const hamburgerBtn = document.getElementById('hamburger-btn');
-        
-        if (sidebar && 
-            !sidebar.contains(e.target) && 
-            hamburgerBtn && 
-            !hamburgerBtn.contains(e.target)) {
+
+        if (sidebar && !sidebar.contains(e.target as Node) && hamburgerBtn && !hamburgerBtn.contains(e.target as Node)) {
           onToggle();
         }
       }
     };
-    
+
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [isOpen, onToggle]);
-  
-  const handleItemClick = (itemId) => {
+
+  const handleItemClick = (itemId: string) => {
     onItemClick(itemId);
     // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) {
       onToggle();
     }
   };
-  
+
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity duration-300"
-          aria-hidden="true"
-        />
-      )}
-      
+      {isOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity duration-300" aria-hidden="true" />}
+
       {/* Sidebar */}
       <aside
         id="sidebar"
@@ -82,12 +82,12 @@ const Sidebar = ({
               </svg>
             </button>
           </div>
-          
+
           <nav className="flex-1">
             <div className={`text-xs text-zinc-500 mb-2 ${isOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}>
               Navigation
             </div>
-            
+
             {items.map((item) => (
               <SidebarItem
                 key={item.id}
@@ -100,7 +100,7 @@ const Sidebar = ({
               />
             ))}
           </nav>
-          
+
           <div className={`mt-auto text-center transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
             <p className="text-xs text-zinc-500">Version 1.1.0</p>
           </div>

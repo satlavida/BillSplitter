@@ -1,9 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Modal, Button } from '../ui/components';
+import type { Person } from '../schemas/bill.schema';
 
-const EditPersonModal = ({ isOpen, onClose, person, onSave }) => {
+interface EditPersonModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  person: Person | null;
+  onSave: (personId: string, name: string) => void;
+}
+
+const EditPersonModal = ({ isOpen, onClose, person, onSave }: EditPersonModalProps) => {
   const [name, setName] = useState('');
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Initialize name when modal opens
   useEffect(() => {
@@ -16,9 +24,9 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }) => {
     }
   }, [isOpen, person]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
+    if (name.trim() && person) {
       onSave(person.id, name.trim());
       onClose();
     }
@@ -37,7 +45,7 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }) => {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
               bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
               rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
               dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
@@ -46,16 +54,10 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }) => {
           />
         </div>
         <div className="flex justify-end space-x-2">
-          <Button 
-            variant="secondary" 
-            onClick={onClose}
-            type="button"
-          >
+          <Button variant="secondary" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button type="submit">
-            Save
-          </Button>
+          <Button type="submit">Save</Button>
         </div>
       </form>
     </Modal>

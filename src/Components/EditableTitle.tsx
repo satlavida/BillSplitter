@@ -1,9 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent, type KeyboardEvent } from 'react';
 
-const EditableTitle = ({ title, onSave, placeholder }) => {
+interface EditableTitleProps {
+  title: string;
+  onSave: (title: string) => void;
+  placeholder?: string;
+}
+
+const EditableTitle = ({ title, onSave, placeholder }: EditableTitleProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(title || '');
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when entering edit mode
   useEffect(() => {
@@ -30,11 +36,11 @@ const EditableTitle = ({ title, onSave, placeholder }) => {
     setIsEditing(false);
   };
 
-  const handleChange = (e) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setValue(e.target.value);
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (value.trim()) {
         onSave(value);
@@ -73,7 +79,7 @@ const EditableTitle = ({ title, onSave, placeholder }) => {
       <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
         This bill is for:
       </label>
-      
+
       <div className="relative">
         {isEditing ? (
           <div className="flex items-center">
@@ -84,15 +90,15 @@ const EditableTitle = ({ title, onSave, placeholder }) => {
               onChange={handleChange}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
-              placeholder={placeholder || "e.g., Pizza Hut 2025-03-20"}
-              className="w-full p-2 border-b-2 border-dashed border-blue-500 
+              placeholder={placeholder || 'e.g., Pizza Hut 2025-03-20'}
+              className="w-full p-2 border-b-2 border-dashed border-blue-500
                 bg-transparent text-lg font-medium text-zinc-800 dark:text-white
                 focus:outline-none focus:border-blue-600"
               autoComplete="off"
             />
             <button
               onClick={handleSaveClick}
-              className="ml-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 
+              className="ml-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700
                 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
                 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
@@ -110,7 +116,7 @@ const EditableTitle = ({ title, onSave, placeholder }) => {
               title
             ) : (
               <span className="text-zinc-400 dark:text-zinc-500">
-                {placeholder || "Click to add title (e.g., Pizza Hut 2025-03-20)"}
+                {placeholder || 'Click to add title (e.g., Pizza Hut 2025-03-20)'}
               </span>
             )}
           </div>

@@ -1,4 +1,3 @@
-import React from 'react';
 import usePassAndSplitStore from './stores/passAndSplitStore';
 import useBillStore from '../../billStore';
 
