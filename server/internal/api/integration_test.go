@@ -64,6 +64,22 @@ func getJSON(t *testing.T, srv *httptest.Server, path string) *http.Response {
 	return resp
 }
 
+func getJSONWithHeaders(t *testing.T, srv *httptest.Server, path string, headers map[string]string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, srv.URL+path, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get %s: %v", path, err)
+	}
+	return resp
+}
+
 func decodeBody[T any](t *testing.T, resp *http.Response) T {
 	t.Helper()
 	defer resp.Body.Close()
@@ -116,10 +132,26 @@ func TestFullJoinApproveClaimFlow(t *testing.T) {
 		t.Fatalf("expected 403 for wrong creator token, got %d", badApprove.StatusCode)
 	}
 
+	// Listing joiners without a creator token is rejected.
+	unauthedList := getJSON(t, srv, "/api/sessions/"+created.Code+"/joiners")
+	if unauthedList.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for joiners list without creator token, got %d", unauthedList.StatusCode)
+	}
+
 	// Creator approves the joiner.
 	approveResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/joiners/"+joiner.ID+"/approve", nil, creatorHeaders)
 	if approveResp.StatusCode != http.StatusOK {
 		t.Fatalf("approve joiner: expected 200, got %d", approveResp.StatusCode)
+	}
+
+	// Creator lists joiners and sees the now-approved joiner.
+	listResp := getJSONWithHeaders(t, srv, "/api/sessions/"+created.Code+"/joiners", creatorHeaders)
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("list joiners: expected 200, got %d", listResp.StatusCode)
+	}
+	joiners := decodeBody[[]models.Joiner](t, listResp)
+	if len(joiners) != 1 || joiners[0].Status != models.JoinerApproved {
+		t.Fatalf("expected 1 approved joiner, got %+v", joiners)
 	}
 
 	// Creator adds a bill and an item.

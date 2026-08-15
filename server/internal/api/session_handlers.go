@@ -131,6 +131,23 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, joiner)
 }
 
+// ListJoiners handles GET /api/sessions/{code}/joiners (creator-only) — lets
+// the creator-side live view show pending/approved/disapproved joiners.
+func (a *API) ListJoiners(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+
+	joiners, err := a.store.ListJoiners(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load joiners")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, joiners)
+}
+
 // ApproveJoiner handles POST /api/sessions/{code}/joiners/{id}/approve (creator-only).
 func (a *API) ApproveJoiner(w http.ResponseWriter, r *http.Request) {
 	a.setJoinerStatus(w, r, models.JoinerApproved, "joiner.approved")

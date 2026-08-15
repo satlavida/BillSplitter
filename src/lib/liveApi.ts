@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   CreateLiveSessionResponseSchema,
   LiveSessionSchema,
@@ -60,6 +61,9 @@ export const getLiveSession = (code: string): Promise<LiveSession> => request(`/
 
 export const joinLiveSession = (code: string, name: string, existingPersonId?: string | null): Promise<LiveJoiner> =>
   request(`/api/sessions/${code}/join`, { method: 'POST', body: JSON.stringify({ name, existingPersonId }) }, LiveJoinerSchema);
+
+export const listJoiners = (code: string, creatorToken: string): Promise<LiveJoiner[]> =>
+  request(`/api/sessions/${code}/joiners`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveJoinerSchema));
 
 export const approveJoiner = (code: string, joinerId: string, creatorToken: string): Promise<void> =>
   request(

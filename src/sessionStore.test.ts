@@ -168,3 +168,97 @@ describe('sessionStore - export/import', () => {
     expect(result.error).toMatch(/old bill-history export/i);
   });
 });
+
+describe('sessionStore - mergeLiveSnapshot', () => {
+  test('adds new people and bills from the server without touching unrelated local state', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    useSessionStore.getState().mergeLiveSnapshot(session.id, {
+      id: session.id,
+      title: 'Trip',
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      joinMode: 'open_link',
+      claimMode: 'free_select',
+      isSettled: false,
+      settledAt: null,
+      people: [{ id: 'p1', name: 'Alice' }],
+      bills: [
+        {
+          id: 'b1',
+          title: 'Dinner',
+          date: '2026-01-01T00:00:00.000Z',
+          items: [
+            {
+              id: 'i1',
+              name: 'Pizza',
+              price: 20,
+              quantity: 1,
+              discount: 0,
+              discountType: 'flat',
+              splitType: 'equal',
+              consumedBy: [{ personId: 'p1', value: 1 }],
+            },
+          ],
+          taxAmount: 2,
+          currency: 'USD',
+          paidByPersonId: 'p1',
+        },
+      ],
+    });
+
+    const updated = useSessionStore.getState().getSession(session.id);
+    expect(updated?.people).toEqual([{ id: 'p1', name: 'Alice' }]);
+    expect(updated?.bills).toHaveLength(1);
+    expect(updated?.bills[0]).toMatchObject({
+      id: 'b1',
+      title: 'Dinner',
+      taxAmount: 2,
+      currency: 'USD',
+      paidByPersonId: 'p1',
+      receiptImage: null,
+    });
+    expect(updated?.bills[0].items[0]).toMatchObject({ id: 'i1', name: 'Pizza', consumedBy: [{ personId: 'p1', value: 1 }] });
+  });
+
+  test('upserts existing entities by id and preserves local-only fields (receiptImage) and unrelated local people', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const localOnly = useSessionStore.getState().addPerson(session.id, 'LocalOnly')!;
+    const bill = useSessionStore.getState().addBill(session.id, {
+      title: 'Original title',
+      receiptImage: { refKey: 'local-ref', width: 100, height: 100 },
+    })!;
+
+    useSessionStore.getState().mergeLiveSnapshot(session.id, {
+      id: session.id,
+      title: 'Trip',
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      joinMode: 'open_link',
+      claimMode: 'free_select',
+      isSettled: false,
+      settledAt: null,
+      people: [{ id: 'p1', name: 'Bob' }],
+      bills: [
+        {
+          id: bill.id,
+          title: 'Renamed by server',
+          date: bill.date,
+          items: [],
+          taxAmount: 9,
+          currency: 'EUR',
+          paidByPersonId: null,
+        },
+      ],
+    });
+
+    const updated = useSessionStore.getState().getSession(session.id);
+    // Local person not present in the remote snapshot is not deleted.
+    expect(updated?.people.map((p) => p.id)).toEqual(expect.arrayContaining([localOnly.id, 'p1']));
+    // Existing bill is updated in place (same id, server fields win)...
+    expect(updated?.bills).toHaveLength(1);
+    expect(updated?.bills[0].title).toBe('Renamed by server');
+    expect(updated?.bills[0].taxAmount).toBe(9);
+    // ...but local-only fields the server doesn't know about survive.
+    expect(updated?.bills[0].receiptImage).toEqual({ refKey: 'local-ref', width: 100, height: 100 });
+  });
+});

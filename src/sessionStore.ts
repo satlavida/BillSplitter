@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { generateId } from './lib/generateId';
 import { SessionStoreStateSchema, SessionSchema, SESSION_STORE_VERSION, type Session, type Bill } from './schemas/session.schema';
-import type { Item, Person } from './schemas/bill.schema';
+import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schema';
+import type { LiveSession } from './schemas/live.schema';
 
 interface SessionStoreState {
   version: string;
@@ -57,6 +58,12 @@ interface SessionStoreActions {
   // Marks a session as live once the creator's "Go Live" call to the server
   // succeeds — see src/lib/liveApi.ts's createLiveSession.
   markSessionLive: (sessionId: string, liveCode: string, liveCreatorToken: string) => void;
+
+  // Merges a snapshot fetched from the Go live server (getLiveSession) into
+  // this session by entity id, per planv3.md 3.10. Upserts people/bills/items
+  // rather than replacing the arrays wholesale, so any of the creator's own
+  // in-flight local edits to entities the server hasn't seen yet survive.
+  mergeLiveSnapshot: (sessionId: string, liveSession: LiveSession) => void;
 }
 
 type SessionStore = SessionStoreState & SessionStoreActions;
@@ -69,6 +76,55 @@ const initialState: SessionStoreState = {
 };
 
 const touchSession = (session: Session): Session => ({ ...session, updatedAt: new Date().toISOString() });
+
+function upsertById<T extends { id: string }>(local: T[], remote: T[]): T[] {
+  const localById = new Map(local.map((entry) => [entry.id, entry]));
+  for (const entry of remote) {
+    localById.set(entry.id, { ...localById.get(entry.id), ...entry });
+  }
+  return Array.from(localById.values());
+}
+
+function mergeLiveBill(local: Bill | undefined, remote: LiveSession['bills'][number]): Bill {
+  const items: Item[] = upsertById<Item>(
+    local?.items ?? [],
+    remote.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      discount: item.discount,
+      discountType: item.discountType as DiscountType,
+      splitType: item.splitType as SplitType,
+      consumedBy: item.consumedBy,
+    }))
+  );
+
+  return {
+    id: remote.id,
+    title: remote.title,
+    date: remote.date,
+    items,
+    taxAmount: remote.taxAmount,
+    currency: remote.currency,
+    paidByPersonId: remote.paidByPersonId,
+    receiptImage: local?.receiptImage ?? null,
+    splitStateVersion: local?.splitStateVersion ?? SESSION_STORE_VERSION,
+  };
+}
+
+function mergeLiveSessionInto(session: Session, liveSession: LiveSession): Session {
+  const billsById = new Map(session.bills.map((b) => [b.id, b]));
+  for (const remoteBill of liveSession.bills) {
+    billsById.set(remoteBill.id, mergeLiveBill(billsById.get(remoteBill.id), remoteBill));
+  }
+
+  return touchSession({
+    ...session,
+    people: upsertById<Person>(session.people, liveSession.people),
+    bills: Array.from(billsById.values()),
+  });
+}
 
 const useSessionStore = create<SessionStore>()(
   persist(
@@ -230,6 +286,11 @@ const useSessionStore = create<SessionStore>()(
       markSessionLive: (sessionId, liveCode, liveCreatorToken) =>
         set((state) => ({
           sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, isLive: true, liveCode, liveCreatorToken }) : s)),
+        })),
+
+      mergeLiveSnapshot: (sessionId, liveSession) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? mergeLiveSessionInto(s, liveSession) : s)),
         })),
 
       exportSession: (sessionId) => {

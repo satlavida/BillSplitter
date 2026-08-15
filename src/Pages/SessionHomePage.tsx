@@ -5,6 +5,7 @@ import useSessionStore from '../sessionStore';
 import { Button, Card } from '../ui/components';
 import EditableTitle from '../Components/EditableTitle';
 import GoLiveSection from '../Components/GoLiveSection';
+import LiveSessionPanel from '../Components/LiveSessionPanel';
 
 const SessionHomePage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -81,6 +82,11 @@ const SessionHomePage = () => {
       </div>
 
       <GoLiveSection session={session} />
+      {session.isLive && (
+        <div className="mt-4">
+          <LiveSessionPanel session={session} />
+        </div>
+      )}
     </div>
   );
 };
