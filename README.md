@@ -97,6 +97,26 @@ Bill Splitter is an intuitive React application that simplifies the process of s
 3. Use the edit buttons to make changes if needed
 4. Click "Start Over" to begin a new bill
 
+## Live Collaboration (optional)
+
+BillSplitter works fully offline with no backend at all — the sections
+above cover that. There's also an optional Go server (`server/`) behind the
+"Go Live" button on a session, which lets other people join with a code or
+link, claim items in real time, and see a shared settlement, backed by
+SQLite:
+
+```bash
+cd server
+go run ./cmd/server
+```
+
+The frontend's live features (`Go Live`, `/join/:code`) talk to
+`http://localhost:8080` by default; no other setup is needed for local
+development. See [`server/DEPLOYMENT.md`](server/DEPLOYMENT.md) for running
+it for real users (systemd, Docker, reverse proxy/TLS, environment
+variables). See [`V3_PROGRESS.md`](V3_PROGRESS.md) for the full feature
+list and what's still in progress.
+
 ## Deployment
 
 To deploy to GitHub Pages, run:

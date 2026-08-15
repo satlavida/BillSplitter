@@ -148,12 +148,14 @@ The first Phase 3 pass only tested the frontend's "server unreachable" error pat
 - [x] **`TestSettledSessionRejectsFurtherMutations` (new)**: settles a session, then asserts join still succeeds (201) while add/update bill, add/update item, and claim all 409.
 - [x] Verified: **28/28 Playwright tests** (unchanged — no new e2e test added, existing `live-settle.spec.ts` re-verified against the new enforcement); `go build`/`gofmt`/`go vet`/`go test ./...` clean (1 new Go test); `npm run typecheck`/`lint`/`test` (127/127)/`build` all clean.
 
-## Pending — remaining Phase 3 DEV work
-Everything below is explicitly deferred, not silently skipped. Roughly in the order it'd make sense to pick back up:
+### Phase 3 continued — Deployment docs + README mention (complete)
+- [x] **`server/DEPLOYMENT.md` (new)**: environment variable reference (table, with special attention on `ALLOWED_ORIGINS`/`ADMIN_TOKEN` — both empty-by-default and safe-by-default, i.e. an unset `ADMIN_TOKEN` disables the admin panel rather than leaving it open), a systemd unit example, a Docker multi-stage build (CGO disabled — `modernc.org/sqlite` is pure Go, no libc/musl needed), an nginx reverse-proxy example with the SSE-specific `proxy_buffering off`/long `proxy_read_timeout` callout (the SSE stream would stall/hang without it), the `/healthz` liveness endpoint, and a note on the fixed 48h retention window (`CLEANUP_INTERVAL_MINUTES` only controls how often the sweep *runs*, not the retention window itself).
+- [x] **Root `README.md`**: new "Live Collaboration (optional)" section — makes clear the offline app needs no backend at all, `server/` is opt-in, points at `server/DEPLOYMENT.md` for real deployment and `V3_PROGRESS.md` for the full feature/pending list.
+- [x] Verified: **28/28 Playwright tests** (unchanged — docs-only, no code touched); `go build`/`gofmt`/`go vet`/`go test ./...` clean; `npm run typecheck`/`lint`/`test` (127/127)/`build` all clean.
 
-- [ ] **Deployment/hosting story for `/server`.** Runs today via `go run ./cmd/server` with local defaults (`config.go`). No documented production deployment path (systemd unit, Docker image, reverse-proxy/TLS termination in front of the plain-HTTP `net/http` server, env var reference for `ALLOWED_ORIGINS`/`ADMIN_TOKEN` in a real deploy).
-- [ ] **`billsplitter` root README / docs mention of `/server`.** The Go backend isn't referenced anywhere outside this progress log and `planv3.md` — worth a short section once the frontend wiring above is further along, so it isn't discovered only by reading source.
+This closes out every item on the Phase 3 DEV pending list as of this pass. Nothing further is queued; next work should come from explicit direction (a new feature, a bug report, or scope from `planv3.md` not yet covered here).
 
 ## Reference
 - Full phased plan: `planv3.md` (repo root)
+- Live server deployment: `server/DEPLOYMENT.md`
 - Branch: `feature/v3Major`
