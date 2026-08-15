@@ -5,13 +5,17 @@ import {
   LiveJoinerSchema,
   LiveSettlementSchema,
   ClaimItemResponseSchema,
+  LiveBillSchema,
+  LiveItemSchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
   type LiveSettlement,
   type ClaimItemResponse,
+  type LiveBill,
+  type LiveItem,
 } from '../schemas/live.schema';
-import type { Person } from '../schemas/bill.schema';
+import type { Person, Item } from '../schemas/bill.schema';
 
 // Base URL of the Go live-collaboration server (server/cmd/server). Follows
 // the same import.meta.env pattern as ScanReceiptButton's VITE_WORKER_URL,
@@ -60,6 +64,18 @@ export const createLiveSession = (
   );
 
 export const getLiveSession = (code: string): Promise<LiveSession> => request(`/api/sessions/${code}`, { method: 'GET' }, LiveSessionSchema);
+
+// Pushes a locally-created bill/item up to a live session, keeping the same
+// id on both sides (server accepts a client-supplied id) so sessionStore's
+// entity-id merge updates it in place instead of duplicating it once the
+// next live snapshot comes back.
+export const addLiveBill = (
+  code: string,
+  bill: { id: string; title: string; currency: string; taxAmount: number }
+): Promise<LiveBill> => request(`/api/sessions/${code}/bills`, { method: 'POST', body: JSON.stringify(bill) }, LiveBillSchema);
+
+export const addLiveItem = (code: string, billId: string, item: Pick<Item, 'id' | 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>): Promise<LiveItem> =>
+  request(`/api/sessions/${code}/bills/${billId}/items`, { method: 'POST', body: JSON.stringify(item) }, LiveItemSchema);
 
 export const joinLiveSession = (code: string, name: string, existingPersonId?: string | null): Promise<LiveJoiner> =>
   request(`/api/sessions/${code}/join`, { method: 'POST', body: JSON.stringify({ name, existingPersonId }) }, LiveJoinerSchema);

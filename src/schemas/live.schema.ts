@@ -33,6 +33,8 @@ export const LiveItemSchema = z.object({
   consumedBy: z.array(LiveAllocationSchema).default([]),
 });
 
+export type LiveItem = z.infer<typeof LiveItemSchema>;
+
 export const LiveBillSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -42,6 +44,7 @@ export const LiveBillSchema = z.object({
   currency: z.string(),
   paidByPersonId: z.string().nullable(),
 });
+export type LiveBill = z.infer<typeof LiveBillSchema>;
 
 export const LiveSessionSchema = z.object({
   id: z.string(),

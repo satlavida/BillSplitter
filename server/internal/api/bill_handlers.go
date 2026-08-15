@@ -11,6 +11,12 @@ import (
 )
 
 type addBillRequest struct {
+	// ID lets a caller that already has a client-side id for this bill (the
+	// offline-first frontend, syncing a locally-created bill up to a live
+	// session) keep the same id on both sides — required for sessionStore's
+	// entity-id merge to update the bill in place rather than duplicate it.
+	// Left empty, one is generated server-side as before.
+	ID        string  `json:"id"`
 	Title     string  `json:"title"`
 	Currency  string  `json:"currency"`
 	TaxAmount float64 `json:"taxAmount"`
@@ -28,10 +34,14 @@ func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := newID()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create bill")
-		return
+	id := req.ID
+	if id == "" {
+		generated, err := newID()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create bill")
+			return
+		}
+		id = generated
 	}
 
 	currency := req.Currency
@@ -62,6 +72,8 @@ func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 }
 
 type addItemRequest struct {
+	// ID: see addBillRequest.ID — same client-id passthrough, same reason.
+	ID           string  `json:"id"`
 	Name         string  `json:"name"`
 	Price        float64 `json:"price"`
 	Quantity     int     `json:"quantity"`
@@ -81,10 +93,14 @@ func (a *API) AddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := newID()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create item")
-		return
+	id := req.ID
+	if id == "" {
+		generated, err := newID()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create item")
+			return
+		}
+		id = generated
 	}
 
 	quantity := req.Quantity

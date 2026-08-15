@@ -258,6 +258,32 @@ func TestNewNameJoinerGetsAPersonIdAndCanClaim(t *testing.T) {
 	}
 }
 
+// TestAddBillAndItemAcceptClientSuppliedID verifies a caller can pass its
+// own id for a bill/item and have the server use it instead of generating
+// one — required for the offline-first frontend to push a locally-created
+// bill/item to a live session and have sessionStore's entity-id merge
+// update it in place rather than create a duplicate.
+func TestAddBillAndItemAcceptClientSuppliedID(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	createResp := postJSON(t, srv, "/api/sessions", map[string]any{
+		"title": "Trip", "joinMode": "open_link", "claimMode": "free_select",
+	}, nil)
+	created := decodeBody[createSessionResponse](t, createResp)
+
+	billResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills", map[string]any{"id": "local-bill-1", "title": "Dinner", "currency": "USD"}, nil)
+	bill := decodeBody[models.Bill](t, billResp)
+	if bill.ID != "local-bill-1" {
+		t.Fatalf("expected the client-supplied bill id to be used, got %q", bill.ID)
+	}
+
+	itemResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items", map[string]any{"id": "local-item-1", "name": "Pizza", "price": 20.0}, nil)
+	item := decodeBody[models.Item](t, itemResp)
+	if item.ID != "local-item-1" {
+		t.Fatalf("expected the client-supplied item id to be used, got %q", item.ID)
+	}
+}
+
 // TestConcurrentFreeSelectClaimsDontLoseEitherClaim verifies the
 // free_select insert-only claim path is safe under concurrent claims from
 // two different people on the same item (planv3.md 3.11 acceptance item).

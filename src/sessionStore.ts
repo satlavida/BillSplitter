@@ -5,6 +5,18 @@ import { SessionStoreStateSchema, SessionSchema, SESSION_STORE_VERSION, type Ses
 import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schema';
 import type { LiveSession } from './schemas/live.schema';
 
+// Dynamically imported (rather than a static import) so this module never
+// pulls in liveApi.ts's `import.meta.env` reference at parse time — Jest's
+// Babel/CJS transform can't handle that syntax at all, even in code paths
+// that never execute (see liveSync.ts's baseUrl-as-parameter workaround for
+// the same underlying issue). A dynamic import here is only ever resolved
+// when actually pushing to a live session, which no unit test does.
+const pushNewBillLive = (liveCode: string, bill: Pick<Bill, 'id' | 'title' | 'currency' | 'taxAmount'>) =>
+  import('./lib/liveApi').then(({ addLiveBill }) => addLiveBill(liveCode, bill));
+
+const pushNewItemLive = (liveCode: string, billId: string, item: Item) =>
+  import('./lib/liveApi').then(({ addLiveItem }) => addLiveItem(liveCode, billId, item));
+
 interface SessionStoreState {
   version: string;
   sessions: Session[];
@@ -177,19 +189,31 @@ const useSessionStore = create<SessionStore>()(
       addBill: (sessionId, billData) => {
         const newBill = newBillDefaults(billData);
         let created = false;
+        let liveCode: string | null = null;
 
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== sessionId) return s;
             created = true;
+            liveCode = s.isLive ? s.liveCode : null;
             return touchSession({ ...s, bills: [...s.bills, newBill], currentBillId: newBill.id });
           }),
         }));
 
+        // Best-effort push to the live server (offline-first: a failed push
+        // here doesn't block or roll back the local bill, it just means
+        // joiners won't see it until the next successful sync).
+        if (created && liveCode) {
+          pushNewBillLive(liveCode, { id: newBill.id, title: newBill.title, currency: newBill.currency, taxAmount: newBill.taxAmount }).catch(() => {});
+        }
+
         return created ? newBill : undefined;
       },
 
-      updateBill: (sessionId, billId, data) =>
+      updateBill: (sessionId, billId, data) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+        const previousItems = session?.bills.find((b) => b.id === billId)?.items;
+
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== sessionId) return s;
@@ -198,7 +222,20 @@ const useSessionStore = create<SessionStore>()(
               bills: s.bills.map((b) => (b.id === billId ? { ...b, ...data } : b)),
             });
           }),
-        })),
+        }));
+
+        // Push newly-added items (ids not present before this update) up
+        // to the live server, best-effort — matches addBill's push above.
+        // Edits to already-pushed items (price/split/etc.) aren't synced
+        // further here; see V3_PROGRESS.md's pending list.
+        if (session?.isLive && session.liveCode && data.items && previousItems) {
+          const previousIds = new Set(previousItems.map((i) => i.id));
+          for (const item of data.items) {
+            if (previousIds.has(item.id)) continue;
+            pushNewItemLive(session.liveCode, billId, item).catch(() => {});
+          }
+        }
+      },
 
       deleteBill: (sessionId, billId) =>
         set((state) => ({
