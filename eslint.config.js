@@ -48,6 +48,10 @@ export default [
       ...tseslint.configs.recommended.rules,
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]' }],
+      // no-undef doesn't understand ambient lib.dom.d.ts types (e.g.
+      // RequestInit) and TypeScript itself already catches truly undefined
+      // identifiers — redundant and noisy on .ts/.tsx files.
+      'no-undef': 'off',
     },
   },
   {

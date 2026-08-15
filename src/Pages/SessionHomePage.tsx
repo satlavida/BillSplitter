@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
 import { Button, Card } from '../ui/components';
 import EditableTitle from '../Components/EditableTitle';
+import GoLiveSection from '../Components/GoLiveSection';
 
 const SessionHomePage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -73,14 +74,13 @@ const SessionHomePage = () => {
         </ul>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mb-4">
         <Button variant="secondary" onClick={() => navigate(`/session/${sessionId}/settlement`)}>
           View Settlement
         </Button>
-        <Button variant="secondary" disabled title="Coming in a future update">
-          Go Live
-        </Button>
       </div>
+
+      <GoLiveSection session={session} />
     </div>
   );
 };

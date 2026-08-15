@@ -21,9 +21,14 @@ test.describe('Root redirect and shell', () => {
     await expect(page).toHaveURL(/#\/sessions$/);
   });
 
-  test('/join/:code shows the live-collaboration placeholder', async ({ page }) => {
+  test('/join/:code surfaces an error when the live server is unreachable', async ({ page }) => {
+    // No Go live-collaboration server runs alongside these e2e tests (that
+    // stack is exercised separately by the Go test suite under /server), so
+    // this is the realistic path: the frontend's join flow tries to load
+    // the session by code, the fetch fails, and it must fail visibly rather
+    // than hang or crash.
     await page.goto('/#/join/ABCDE');
-    await expect(page.getByRole('heading', { name: 'Join Session ABCDE' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "Couldn't reach the live server" })).toBeVisible();
     await page.getByRole('link', { name: 'Go home' }).click();
     await expect(page).toHaveURL(/#\/session\/[^/]+$/);
   });

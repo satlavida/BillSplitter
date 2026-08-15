@@ -32,3 +32,9 @@ dist-ssr
 /test-results
 /blob-report
 /playwright/.cache
+
+# Go server
+/server/data
+/server/bin
+/server/*.db
+/server/*.db-*

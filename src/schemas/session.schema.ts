@@ -32,6 +32,12 @@ export const SessionSchema = z.object({
   bills: z.array(BillSchema).default([]),
   currentBillId: z.string().nullable().default(null),
   isLive: z.boolean().default(false),
+  // Set once "Go Live" succeeds. liveCreatorToken is required as
+  // X-Creator-Token on the server's creator-only endpoints (approve/settle) —
+  // it lives in this session's own localStorage, never sent anywhere except
+  // back to the live server that issued it.
+  liveCode: z.string().nullable().default(null),
+  liveCreatorToken: z.string().nullable().default(null),
 });
 export type Session = z.infer<typeof SessionSchema>;
 

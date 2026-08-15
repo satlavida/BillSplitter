@@ -53,6 +53,10 @@ interface SessionStoreActions {
 
   exportSession: (sessionId: string) => string | null;
   importSession: (jsonString: string) => ImportResult;
+
+  // Marks a session as live once the creator's "Go Live" call to the server
+  // succeeds — see src/lib/liveApi.ts's createLiveSession.
+  markSessionLive: (sessionId: string, liveCode: string, liveCreatorToken: string) => void;
 }
 
 type SessionStore = SessionStoreState & SessionStoreActions;
@@ -82,6 +86,8 @@ const useSessionStore = create<SessionStore>()(
           bills: [],
           currentBillId: null,
           isLive: false,
+          liveCode: null,
+          liveCreatorToken: null,
         };
 
         set((state) => ({
@@ -219,6 +225,11 @@ const useSessionStore = create<SessionStore>()(
       setSessionPeople: (sessionId, people) =>
         set((state) => ({
           sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, people }) : s)),
+        })),
+
+      markSessionLive: (sessionId, liveCode, liveCreatorToken) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, isLive: true, liveCode, liveCreatorToken }) : s)),
         })),
 
       exportSession: (sessionId) => {
