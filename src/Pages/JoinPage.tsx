@@ -200,6 +200,12 @@ const JoinPage = () => {
         <h2 className="text-xl font-semibold mb-1 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">You're in! Tap an item to claim it.</p>
 
+        {session.isSettled && (
+          <Alert type="info" className="mb-4">
+            The host has settled this session — items are read-only now.
+          </Alert>
+        )}
+
         {claimError && <Alert type="error" className="mb-4">{claimError}</Alert>}
 
         {session.bills.length === 0 && <p className="text-zinc-500 dark:text-zinc-400">No bills yet.</p>}
@@ -238,7 +244,7 @@ const JoinPage = () => {
                       <Button
                         size="sm"
                         variant={claimedByMe ? 'secondary' : 'primary'}
-                        disabled={claimedByMe || isPending || claimingItemId === item.id || !myPersonId}
+                        disabled={claimedByMe || isPending || claimingItemId === item.id || !myPersonId || session.isSettled}
                         onClick={() => handleClaim(bill.id, item.id)}
                       >
                         {claimedByMe ? 'Claimed' : isPending ? 'Pending' : claimingItemId === item.id ? 'Claiming…' : 'Claim'}

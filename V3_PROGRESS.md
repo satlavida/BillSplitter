@@ -135,10 +135,17 @@ The first Phase 3 pass only tested the frontend's "server unreachable" error pat
 - [x] **e2e/live-receipt-image.spec.ts (new)**: uploads an image directly against the live server's API (seeding, same pattern as other bill/item e2e tests — this test targets the server round-trip + `JoinPage` rendering, not `sessionStore`'s push path, which would require driving the real OCR worker or a test-only store hook) and asserts a joiner's page renders it with the right `src`, confirmed via server logs showing the browser's own `GET /api/images/{refKey}` request.
 - [x] Verified: **27/27 Playwright tests** (up from 26); `go build`/`gofmt`/`go vet`/`go test ./...` clean (1 new Go test); `npm run typecheck`/`lint`/`test` (127/127)/`build` all clean.
 
+### Phase 3 continued — Settle flow in the UI (complete)
+- [x] **`LiveSessionPanel.tsx`**: new "Settle Up" card above the Joiners card. Two-step confirm (matches `GoLiveSection`'s expand/collapse pattern rather than a browser `confirm()` dialog) — "Settle Up" → "Confirm Settle" / "Cancel". On success, calls the already-existing `getLiveSettlement` and shows the resulting transactions ("X owes Y amount"), or "Everyone's settled up" when there are none.
+- [x] **`JoinPage.tsx`**: joiners see a "session has been settled — items are read-only now" banner once `session.isSettled`, and Claim buttons are disabled. This is a **UI-only** read-only state — `SettleSession` doesn't reject claim requests server-side, so a direct API call could still claim an item post-settlement; enforcing that server-side wasn't in scope for this pass (settle's only documented server effect is starting the 48h purge clock, not freezing writes).
+- [x] **`liveApi.ts`/`live.schema.ts`**: no new client functions needed — `settleLiveSession`/`getLiveSettlement`/`LiveSettlementSchema` already existed from earlier Phase 3 work, just weren't reachable from any UI.
+- [x] **e2e/live-settle.spec.ts (new)**: creator seeds a bill/item, has one person claim it, settles the session, and sees the resulting transaction; a joiner who opens the link afterward sees the read-only banner and a disabled Claim button.
+- [x] Verified: **28/28 Playwright tests** (up from 27); `go build`/`gofmt`/`go vet`/`go test ./...` clean (no server changes this pass); `npm run typecheck`/`lint`/`test` (127/127)/`build` all clean.
+
 ## Pending — remaining Phase 3 DEV work
 Everything below is explicitly deferred, not silently skipped. Roughly in the order it'd make sense to pick back up:
 
-- [ ] **Settle flow in the UI.** `POST /api/sessions/{code}/settle` (creator-only, starts the 48h purge clock) has no button/confirmation anywhere in the app.
+- [ ] **Server-side enforcement that a settled session rejects further claims/joins/edits.** The new Settle Up UI disables the Claim button client-side, but `ClaimItem`/`Join`/`AddItem`/etc. don't check `is_settled` at all — a direct API call bypasses the read-only state entirely.
 - [ ] **Deployment/hosting story for `/server`.** Runs today via `go run ./cmd/server` with local defaults (`config.go`). No documented production deployment path (systemd unit, Docker image, reverse-proxy/TLS termination in front of the plain-HTTP `net/http` server, env var reference for `ALLOWED_ORIGINS`/`ADMIN_TOKEN` in a real deploy).
 - [ ] **`billsplitter` root README / docs mention of `/server`.** The Go backend isn't referenced anywhere outside this progress log and `planv3.md` — worth a short section once the frontend wiring above is further along, so it isn't discovered only by reading source.
 
