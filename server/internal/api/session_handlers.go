@@ -89,6 +89,9 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return
 	}
+	// Joining a settled session is still allowed — "settled" means the
+	// bill/item/claim state is read-only, not that the session becomes
+	// inaccessible to a late viewer who wants to see the final result.
 
 	var req joinRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -233,6 +236,29 @@ func (a *API) requireCreator(w http.ResponseWriter, r *http.Request) bool {
 
 	if token != sess.CreatorToken {
 		writeError(w, http.StatusForbidden, "invalid creator token")
+		return false
+	}
+	return true
+}
+
+// requireNotSettled aborts with 409 if the session has already been
+// settled — once settled, bill/item/claim/join state is meant to be
+// read-only (see LiveSessionPanel.tsx's Settle Up UI and JoinPage.tsx's
+// read-only banner, which this backs server-side). Returns false if the
+// session wasn't found, couldn't be loaded, or was settled; the caller
+// should return immediately in all of those cases.
+func (a *API) requireNotSettled(w http.ResponseWriter, r *http.Request, code string) bool {
+	sess, err := a.store.GetSession(code)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session")
+		return false
+	}
+	if sess.IsSettled {
+		writeError(w, http.StatusConflict, "session has been settled")
 		return false
 	}
 	return true

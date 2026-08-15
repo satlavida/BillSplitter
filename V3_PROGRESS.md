@@ -142,10 +142,15 @@ The first Phase 3 pass only tested the frontend's "server unreachable" error pat
 - [x] **e2e/live-settle.spec.ts (new)**: creator seeds a bill/item, has one person claim it, settles the session, and sees the resulting transaction; a joiner who opens the link afterward sees the read-only banner and a disabled Claim button.
 - [x] Verified: **28/28 Playwright tests** (up from 27); `go build`/`gofmt`/`go vet`/`go test ./...` clean (no server changes this pass); `npm run typecheck`/`lint`/`test` (127/127)/`build` all clean.
 
+### Phase 3 continued — Server-side enforcement of settled-session read-only state (complete)
+- [x] **New `requireNotSettled` helper** (`session_handlers.go`, next to `requireCreator`) — 409s if the session is already settled. Wired into `AddBill`, `UpdateBill`, `AddItem`, `UpdateItem`, `ClaimItem`, `ApproveClaim`, closing the gap the previous pass's UI-only disablement left open (a direct API call could previously still mutate a "settled" session).
+- [x] **Deliberately did NOT block `Join`** — caught by my own new e2e test failing: blocking joins on a settled session means a late viewer can never open the link to see the final read-only state at all, which contradicts "settled = read-only" (read-only implies still viewable). Settled sessions stay joinable; only bill/item/claim mutations are rejected.
+- [x] **`TestSettledSessionRejectsFurtherMutations` (new)**: settles a session, then asserts join still succeeds (201) while add/update bill, add/update item, and claim all 409.
+- [x] Verified: **28/28 Playwright tests** (unchanged — no new e2e test added, existing `live-settle.spec.ts` re-verified against the new enforcement); `go build`/`gofmt`/`go vet`/`go test ./...` clean (1 new Go test); `npm run typecheck`/`lint`/`test` (127/127)/`build` all clean.
+
 ## Pending — remaining Phase 3 DEV work
 Everything below is explicitly deferred, not silently skipped. Roughly in the order it'd make sense to pick back up:
 
-- [ ] **Server-side enforcement that a settled session rejects further claims/joins/edits.** The new Settle Up UI disables the Claim button client-side, but `ClaimItem`/`Join`/`AddItem`/etc. don't check `is_settled` at all — a direct API call bypasses the read-only state entirely.
 - [ ] **Deployment/hosting story for `/server`.** Runs today via `go run ./cmd/server` with local defaults (`config.go`). No documented production deployment path (systemd unit, Docker image, reverse-proxy/TLS termination in front of the plain-HTTP `net/http` server, env var reference for `ALLOWED_ORIGINS`/`ADMIN_TOKEN` in a real deploy).
 - [ ] **`billsplitter` root README / docs mention of `/server`.** The Go backend isn't referenced anywhere outside this progress log and `planv3.md` — worth a short section once the frontend wiring above is further along, so it isn't discovered only by reading source.
 

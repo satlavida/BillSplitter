@@ -314,6 +314,55 @@ func TestAddBillAndItemAcceptClientSuppliedID(t *testing.T) {
 // untouched — an item edit (price, split type, etc.) must never be able to
 // clobber a joiner's claim, since claims are driven only by the claim
 // endpoints.
+// TestSettledSessionRejectsFurtherMutations verifies a settled session's
+// bill/item/claim/join endpoints all reject with 409 rather than silently
+// accepting writes — the "read-only" state LiveSessionPanel.tsx's Settle Up
+// UI and JoinPage.tsx's read-only banner promise the user is enforced here,
+// not just cosmetically in the frontend.
+func TestSettledSessionRejectsFurtherMutations(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	alice := models.Person{ID: "alice", Name: "Alice"}
+	createResp := postJSON(t, srv, "/api/sessions", map[string]any{
+		"title": "Trip", "people": []models.Person{alice}, "joinMode": "open_link", "claimMode": "free_select",
+	}, nil)
+	created := decodeBody[createSessionResponse](t, createResp)
+	creatorHeaders := map[string]string{"X-Creator-Token": created.CreatorToken}
+
+	billResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills", map[string]any{"title": "Dinner", "currency": "USD"}, nil)
+	bill := decodeBody[models.Bill](t, billResp)
+	itemResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items", map[string]any{"name": "Pizza", "price": 20.0}, nil)
+	item := decodeBody[models.Item](t, itemResp)
+
+	settleResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/settle", nil, creatorHeaders)
+	if settleResp.StatusCode != http.StatusOK {
+		t.Fatalf("settle: expected 200, got %d", settleResp.StatusCode)
+	}
+
+	// Joining a settled session is still allowed — "settled" means
+	// read-only bill/item/claim state, not an inaccessible session.
+	joinResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/join", map[string]any{"name": "Bob"}, nil)
+	if joinResp.StatusCode != http.StatusCreated {
+		t.Errorf("join on a settled session: expected 201 (still allowed), got %d", joinResp.StatusCode)
+	}
+
+	cases := []struct {
+		name string
+		resp *http.Response
+	}{
+		{"add bill", postJSON(t, srv, "/api/sessions/"+created.Code+"/bills", map[string]any{"title": "x", "currency": "USD"}, nil)},
+		{"update bill", patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID, map[string]any{"title": "x", "currency": "USD"}, nil)},
+		{"add item", postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items", map[string]any{"name": "x", "price": 1.0}, nil)},
+		{"update item", patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/"+item.ID, map[string]any{"name": "x", "price": 1.0}, nil)},
+		{"claim item", postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/"+item.ID+"/claims", map[string]any{"personId": "alice"}, nil)},
+	}
+	for _, c := range cases {
+		if c.resp.StatusCode != http.StatusConflict {
+			t.Errorf("%s on a settled session: expected 409, got %d", c.name, c.resp.StatusCode)
+		}
+	}
+}
+
 func TestUpdateBillAndItemSyncFieldsWithoutTouchingClaims(t *testing.T) {
 	srv, _ := newTestServer(t)
 

@@ -27,6 +27,9 @@ type addBillRequest struct {
 // recognized session).
 func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
 
 	var req addBillRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -84,6 +87,9 @@ type updateBillRequest struct {
 func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	billID := r.PathValue("billId")
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
 
 	var req updateBillRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -118,6 +124,9 @@ type addItemRequest struct {
 func (a *API) AddItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	billID := r.PathValue("billId")
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
 
 	var req addItemRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -186,6 +195,9 @@ type updateItemRequest struct {
 func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	itemID := r.PathValue("itemId")
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
 
 	var req updateItemRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -240,6 +252,10 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return
 	}
+	if sess.IsSettled {
+		writeError(w, http.StatusConflict, "session has been settled")
+		return
+	}
 
 	var req claimItemRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -286,6 +302,9 @@ func (a *API) ApproveClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	code := r.PathValue("code")
 	claimID := r.PathValue("id")
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
 
 	if err := a.store.ApproveClaim(code, claimID); errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "claim not found")
