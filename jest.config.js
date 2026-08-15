@@ -22,6 +22,9 @@ export default {
 
     moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
 
+    // Playwright specs live under e2e/ and run via `npm run e2e`, not Jest.
+    testPathIgnorePatterns: ['/node_modules/', '<rootDir>/e2e/'],
+
     // Ignore transformations for node_modules except specific ones if needed
     transformIgnorePatterns: [
       '/node_modules/(?!(your-module-to-transform)/)'

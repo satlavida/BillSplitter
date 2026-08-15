@@ -40,7 +40,23 @@ Tracks what's done and what's left against the phased plan in `planv3.md`. Updat
 
 **Commits:** `9ae5801`, `6b36b4d`, `fe348b1`, `2bfb35a` on `feature/v3Major`
 
-**⚠️ Not yet manually verified in a live browser** — the sandboxed browser tool used in this session can reach external sites but not `localhost` at all (confirmed across dev server, HMR, and production preview build, on multiple ports), so the new routing/hydration flow has only been verified via types, tests, and manual code review, not an actual click-through. **Recommend manually testing before trusting this in production**: root redirect creates/loads a session, session home lists bills and adds new ones, bill editor's 4 steps work and commit back to the session (switch bills, come back, edits persist), settlement view shows correct balances, sessions list create/delete/export/import, paid-by selector, receipt image capture/display, and browser back/forward across routes. Also worth testing the migration path with real pre-v3 exported data if any exists.
+**⚠️ Not yet manually verified in a live browser** — the sandboxed browser tool used in this session can reach external sites but not `localhost` at all (confirmed across dev server, HMR, and production preview build, on multiple ports), so the new routing/hydration flow was originally verified only via types, tests, and manual code review, not an actual click-through. **Superseded by real browser coverage — see Phase Test below.**
+
+### Phase Test — Playwright end-to-end coverage of Phase 1 + 2 (complete)
+Closes the manual-browser-verification gap left open above: a real Chromium browser now drives the app end-to-end instead of relying on code review alone.
+- [x] `@playwright/test` added as a dev dependency, Chromium browser installed (`npx playwright install chromium`)
+- [x] `playwright.config.ts` — boots the Vite dev server on port 5173 (`webServer`), runs against Chromium, HTML+list reporters, trace on first retry
+- [x] `npm run e2e` / `npm run e2e:ui` scripts added; `jest.config.js` given `testPathIgnorePatterns` for `e2e/` so Jest doesn't also try to collect Playwright specs (they use an incompatible `test`/`expect` from `@playwright/test`)
+- [x] `eslint.config.js` — added a `globals.node` override scoped to `e2e/**` and `playwright.config.ts` (`Buffer`, `process`) so lint stays clean without loosening the browser-code ruleset
+- [x] 15 specs across 4 files, all green against Chromium:
+  - `e2e/navigation.spec.ts` — root redirect creates/loads a session and lands on session home (not directly in the editor — a fresh session starts with 0 bills), sidebar Sessions/Settings navigation, unknown session/bill ids redirect to `/sessions`, `/join/:code` placeholder, browser back/forward across routes
+  - `e2e/bill-editor-flow.spec.ts` — full 4-step flow (people → items → assignment → summary) with a real computed total assertion, bill edits committing back to `sessionStore` and surviving a bill switch (shared people pool visible on a second bill), paid-by selection persisting across a full page reload (confirms it's read from `sessionStore`, not local `billStore` state, since a reload always re-hydrates the editor at step 1)
+  - `e2e/sessions-list.spec.ts` — create/delete, export→delete→import round-trip (via real file download/upload), malformed-JSON import error, well-formed-but-wrong-shape import error, old pre-session-export import error message
+  - `e2e/settlement.spec.ts` — net balance + "who pays whom" transaction text for a paid bill, "settled up" / "no people yet" empty states
+- [x] **Found and documented a real (pre-existing, not introduced by v3) bug while writing these tests**: `currencyStore.ts`'s `detectCurrency()` calls `Intl.NumberFormat().resolvedOptions().currency` — but `resolvedOptions()` only has a `currency` field when `style: 'currency'` is passed, so this always evaluates to `undefined` and silently falls back to the `USD` default regardless of the user's actual locale. Left unfixed (out of scope for this pass); tests assert against the real `$`-formatted output rather than the intended locale-detected currency. Worth a follow-up fix.
+- [x] Verified via `npm run typecheck`, `npm run lint` (still only the 2 pre-existing `ModalPortal` issues), `npm test` (120/120 Jest tests unaffected), `npm run build`, and `npx playwright test` (15/15)
+
+**Still not covered by this pass** (acceptable gaps, not blockers): receipt image capture/display (needs a real camera/file-upload + OCR backend call), the `Go Live` button (disabled placeholder), and the migration script's real-world path from actual pre-v3 exported data (covered only by unit tests against synthetic fixtures).
 
 ### Phase 3 — Go backend + live collaboration
 - [ ] `/server` Go project scaffold (stdlib router, `modernc.org/sqlite`)
