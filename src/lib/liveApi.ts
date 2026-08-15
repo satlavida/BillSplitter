@@ -117,6 +117,22 @@ export const disapproveJoiner = (code: string, joinerId: string, creatorToken: s
     { parse: () => undefined }
   );
 
+// Not built on request() — a multipart upload must let the browser set its
+// own Content-Type (with the multipart boundary); request() always forces
+// 'Content-Type: application/json'.
+export const uploadLiveImage = async (code: string, billId: string, blob: Blob, width: number, height: number): Promise<{ refKey: string }> => {
+  const form = new FormData();
+  form.append('image', blob, 'receipt.jpg');
+  form.append('width', String(width));
+  form.append('height', String(height));
+
+  const res = await fetch(`${LIVE_SERVER_URL}/api/sessions/${code}/bills/${billId}/images`, { method: 'POST', body: form });
+  if (!res.ok) {
+    throw new LiveApiError(`Request failed (${res.status})`, res.status);
+  }
+  return z.object({ refKey: z.string() }).parse(await res.json());
+};
+
 export const claimItem = (code: string, billId: string, itemId: string, personId: string, value?: number): Promise<ClaimItemResponse> =>
   request(
     `/api/sessions/${code}/bills/${billId}/items/${itemId}/claims`,

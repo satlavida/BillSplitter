@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -364,6 +365,71 @@ func TestUpdateBillAndItemSyncFieldsWithoutTouchingClaims(t *testing.T) {
 	notFoundItem := patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/does-not-exist", map[string]any{"name": "x", "price": 1.0}, nil)
 	if notFoundItem.StatusCode != http.StatusNotFound {
 		t.Fatalf("update nonexistent item: expected 404, got %d", notFoundItem.StatusCode)
+	}
+}
+
+// TestUploadImageIsVisibleOnTheBillInGetSession verifies an uploaded
+// receipt image's refKey/width/height round-trip onto the bill returned by
+// GET /api/sessions/{code} — without this, joiners have no way to discover
+// a bill's image refKey at all, since UploadImage's response only goes to
+// whoever made the upload request.
+func TestUploadImageIsVisibleOnTheBillInGetSession(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	createResp := postJSON(t, srv, "/api/sessions", map[string]any{
+		"title": "Trip", "joinMode": "open_link", "claimMode": "free_select",
+	}, nil)
+	created := decodeBody[createSessionResponse](t, createResp)
+
+	billResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills", map[string]any{"title": "Dinner", "currency": "USD"}, nil)
+	bill := decodeBody[models.Bill](t, billResp)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("width", "120")
+	_ = mw.WriteField("height", "200")
+	fw, err := mw.CreateFormFile("image", "receipt.jpg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fw.Write([]byte("fake-jpeg-bytes")); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/sessions/"+created.Code+"/bills/"+bill.ID+"/images", &buf)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	uploadResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do upload request: %v", err)
+	}
+	if uploadResp.StatusCode != http.StatusCreated {
+		t.Fatalf("upload image: expected 201, got %d", uploadResp.StatusCode)
+	}
+	uploaded := decodeBody[map[string]string](t, uploadResp)
+	refKey := uploaded["refKey"]
+	if refKey == "" {
+		t.Fatal("expected a non-empty refKey in the upload response")
+	}
+
+	sessResp := getJSON(t, srv, "/api/sessions/"+created.Code)
+	sess := decodeBody[models.Session](t, sessResp)
+	got := sess.Bills[0]
+	if got.ImageRefKey == nil || *got.ImageRefKey != refKey {
+		t.Fatalf("expected bill.imageRefKey to be %q, got %+v", refKey, got.ImageRefKey)
+	}
+	if got.ImageWidth == nil || *got.ImageWidth != 120 || got.ImageHeight == nil || *got.ImageHeight != 200 {
+		t.Fatalf("expected bill image dimensions 120x200, got width=%v height=%v", got.ImageWidth, got.ImageHeight)
+	}
+
+	imgResp := getJSON(t, srv, "/api/images/"+refKey)
+	if imgResp.StatusCode != http.StatusOK {
+		t.Fatalf("get image: expected 200, got %d", imgResp.StatusCode)
 	}
 }
 

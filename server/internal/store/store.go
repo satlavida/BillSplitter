@@ -175,9 +175,18 @@ func (s *Store) listPeople(sessionID string) ([]models.Person, error) {
 	return people, rows.Err()
 }
 
+// listBills also resolves each bill's most-recently-uploaded receipt image
+// (if any) via a correlated subquery — a bill can have more than one images
+// row if a receipt was re-scanned, and only the latest one is relevant.
 func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 	rows, err := s.db.Query(
-		`SELECT id, title, date, tax_amount, currency, paid_by_person_id FROM bills WHERE session_id = ?`, sessionID,
+		`SELECT b.id, b.title, b.date, b.tax_amount, b.currency, b.paid_by_person_id,
+		        i.ref_key, i.width, i.height
+		 FROM bills b
+		 LEFT JOIN images i ON i.ref_key = (
+		   SELECT ref_key FROM images WHERE bill_id = b.id ORDER BY rowid DESC LIMIT 1
+		 )
+		 WHERE b.session_id = ?`, sessionID,
 	)
 	if err != nil {
 		return nil, err
@@ -188,12 +197,20 @@ func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 	var ids []string
 	for rows.Next() {
 		var b models.Bill
-		var paidBy sql.NullString
-		if err := rows.Scan(&b.ID, &b.Title, &b.Date, &b.TaxAmount, &b.Currency, &paidBy); err != nil {
+		var paidBy, imageRefKey sql.NullString
+		var imageWidth, imageHeight sql.NullInt64
+		if err := rows.Scan(&b.ID, &b.Title, &b.Date, &b.TaxAmount, &b.Currency, &paidBy, &imageRefKey, &imageWidth, &imageHeight); err != nil {
 			return nil, err
 		}
 		if paidBy.Valid {
 			b.PaidByPersonID = &paidBy.String
+		}
+		if imageRefKey.Valid {
+			b.ImageRefKey = &imageRefKey.String
+			width := int(imageWidth.Int64)
+			height := int(imageHeight.Int64)
+			b.ImageWidth = &width
+			b.ImageHeight = &height
 		}
 		bills = append(bills, b)
 		ids = append(ids, b.ID)

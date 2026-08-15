@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"billsplitter/server/internal/models"
 	"billsplitter/server/internal/sse"
@@ -52,7 +53,10 @@ func (a *API) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta := models.ImageMeta{RefKey: refKey, BillID: billID, FilePath: filePath}
+	width, _ := strconv.Atoi(r.FormValue("width"))
+	height, _ := strconv.Atoi(r.FormValue("height"))
+
+	meta := models.ImageMeta{RefKey: refKey, BillID: billID, FilePath: filePath, Width: width, Height: height}
 	if err := a.store.SaveImageMeta(code, meta); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to store image")
 		return

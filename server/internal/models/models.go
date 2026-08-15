@@ -36,6 +36,12 @@ type Bill struct {
 	TaxAmount      float64 `json:"taxAmount"`
 	Currency       string  `json:"currency"`
 	PaidByPersonID *string `json:"paidByPersonId"`
+	// The bill's most-recently-uploaded receipt image, if any (see
+	// api.UploadImage / store.listBills). Nil when no image has been
+	// uploaded for this bill.
+	ImageRefKey *string `json:"imageRefKey"`
+	ImageWidth  *int    `json:"imageWidth"`
+	ImageHeight *int    `json:"imageHeight"`
 }
 
 // JoinMode controls how POST /join is handled for a session.

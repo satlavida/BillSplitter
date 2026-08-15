@@ -202,6 +202,9 @@ describe('sessionStore - mergeLiveSnapshot', () => {
           taxAmount: 2,
           currency: 'USD',
           paidByPersonId: 'p1',
+          imageRefKey: null,
+          imageWidth: null,
+          imageHeight: null,
         },
       ],
     });
@@ -247,6 +250,9 @@ describe('sessionStore - mergeLiveSnapshot', () => {
           taxAmount: 9,
           currency: 'EUR',
           paidByPersonId: null,
+          imageRefKey: null,
+          imageWidth: null,
+          imageHeight: null,
         },
       ],
     });

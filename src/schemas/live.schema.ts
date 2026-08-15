@@ -43,6 +43,12 @@ export const LiveBillSchema = z.object({
   taxAmount: z.number(),
   currency: z.string(),
   paidByPersonId: z.string().nullable(),
+  // The bill's most-recently-uploaded receipt image, if any — distinct
+  // from the client-only Bill.receiptImage in session.schema.ts, whose
+  // refKey addresses this browser's own IndexedDB, not the live server.
+  imageRefKey: z.string().nullable().default(null),
+  imageWidth: z.number().nullable().default(null),
+  imageHeight: z.number().nullable().default(null),
 });
 export type LiveBill = z.infer<typeof LiveBillSchema>;
 

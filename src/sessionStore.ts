@@ -4,6 +4,7 @@ import { generateId } from './lib/generateId';
 import { SessionStoreStateSchema, SessionSchema, SESSION_STORE_VERSION, type Session, type Bill } from './schemas/session.schema';
 import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schema';
 import type { LiveSession } from './schemas/live.schema';
+import { getImageBlob } from './lib/imageStore';
 
 // Dynamically imported (rather than a static import) so this module never
 // pulls in liveApi.ts's `import.meta.env` reference at parse time — Jest's
@@ -22,6 +23,18 @@ const pushBillFieldsLive = (liveCode: string, billId: string, bill: Pick<Bill, '
 
 const pushItemFieldsLive = (liveCode: string, billId: string, item: Item) =>
   import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item));
+
+// Uploads the bill's newly-set receipt image (local IndexedDB blob, keyed
+// by the *local* refKey) to the live server, which returns its own refKey —
+// distinct namespaces, joined only via LiveBillSchema's imageRefKey once the
+// next snapshot comes back. imageStore.ts has no import.meta.env reference,
+// so it's safe to import statically (unlike liveApi.ts above).
+const pushReceiptImageLive = async (liveCode: string, billId: string, receiptImage: { refKey: string; width: number; height: number }) => {
+  const blob = await getImageBlob(receiptImage.refKey);
+  if (!blob) return;
+  const { uploadLiveImage } = await import('./lib/liveApi');
+  await uploadLiveImage(liveCode, billId, blob, receiptImage.width, receiptImage.height);
+};
 
 const BILL_FIELD_KEYS = ['title', 'currency', 'taxAmount', 'paidByPersonId'] as const;
 const ITEM_FIELD_KEYS = ['name', 'price', 'quantity', 'discount', 'discountType', 'splitType'] as const;
@@ -270,6 +283,10 @@ const useSessionStore = create<SessionStore>()(
             taxAmount: updatedBill.taxAmount,
             paidByPersonId: updatedBill.paidByPersonId,
           }).catch(() => {});
+        }
+
+        if (data.receiptImage && data.receiptImage.refKey !== previousBill.receiptImage?.refKey) {
+          pushReceiptImageLive(liveCode, billId, data.receiptImage).catch(() => {});
         }
       },
 
