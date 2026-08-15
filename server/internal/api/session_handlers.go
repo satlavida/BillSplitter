@@ -116,7 +116,20 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	joiner, err := a.store.CreateJoiner(code, joinerID, name, req.ExistingPersonID, sess.JoinMode)
+	// A joiner who picks "someone new" rather than an existing person needs
+	// a Person row created for them so they have a personId to claim items
+	// with once admitted.
+	var newPersonID *string
+	if req.ExistingPersonID == nil {
+		id, err := newID()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create joiner")
+			return
+		}
+		newPersonID = &id
+	}
+
+	joiner, err := a.store.CreateJoiner(code, joinerID, name, req.ExistingPersonID, newPersonID, sess.JoinMode)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create joiner")
 		return
@@ -146,6 +159,26 @@ func (a *API) ListJoiners(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, joiners)
+}
+
+// GetJoiner handles GET /api/sessions/{code}/joiners/{id} — public (no
+// creator token), so a still-pending joiner's own client can poll for their
+// admission status without exposing the full joiner list to non-creators.
+func (a *API) GetJoiner(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	joinerID := r.PathValue("id")
+
+	joiner, err := a.store.GetJoiner(code, joinerID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "joiner not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load joiner")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, joiner)
 }
 
 // ApproveJoiner handles POST /api/sessions/{code}/joiners/{id}/approve (creator-only).

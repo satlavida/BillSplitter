@@ -20,6 +20,7 @@ func (a *API) Router() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/sessions/{code}/join", a.Join)
 	mux.HandleFunc("GET /api/sessions/{code}/joiners", a.ListJoiners)
+	mux.HandleFunc("GET /api/sessions/{code}/joiners/{id}", a.GetJoiner)
 	mux.HandleFunc("POST /api/sessions/{code}/joiners/{id}/approve", a.ApproveJoiner)
 	mux.HandleFunc("POST /api/sessions/{code}/joiners/{id}/disapprove", a.DisapproveJoiner)
 

@@ -4,10 +4,12 @@ import {
   LiveSessionSchema,
   LiveJoinerSchema,
   LiveSettlementSchema,
+  ClaimItemResponseSchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
   type LiveSettlement,
+  type ClaimItemResponse,
 } from '../schemas/live.schema';
 import type { Person } from '../schemas/bill.schema';
 
@@ -62,6 +64,8 @@ export const getLiveSession = (code: string): Promise<LiveSession> => request(`/
 export const joinLiveSession = (code: string, name: string, existingPersonId?: string | null): Promise<LiveJoiner> =>
   request(`/api/sessions/${code}/join`, { method: 'POST', body: JSON.stringify({ name, existingPersonId }) }, LiveJoinerSchema);
 
+export const getJoiner = (code: string, joinerId: string): Promise<LiveJoiner> => request(`/api/sessions/${code}/joiners/${joinerId}`, { method: 'GET' }, LiveJoinerSchema);
+
 export const listJoiners = (code: string, creatorToken: string): Promise<LiveJoiner[]> =>
   request(`/api/sessions/${code}/joiners`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveJoinerSchema));
 
@@ -77,6 +81,13 @@ export const disapproveJoiner = (code: string, joinerId: string, creatorToken: s
     `/api/sessions/${code}/joiners/${joinerId}/disapprove`,
     { method: 'POST', headers: { 'X-Creator-Token': creatorToken } },
     { parse: () => undefined }
+  );
+
+export const claimItem = (code: string, billId: string, itemId: string, personId: string, value?: number): Promise<ClaimItemResponse> =>
+  request(
+    `/api/sessions/${code}/bills/${billId}/items/${itemId}/claims`,
+    { method: 'POST', body: JSON.stringify({ personId, value }) },
+    ClaimItemResponseSchema
   );
 
 export const settleLiveSession = (code: string, creatorToken: string): Promise<void> =>

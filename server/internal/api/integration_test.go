@@ -132,6 +132,17 @@ func TestFullJoinApproveClaimFlow(t *testing.T) {
 		t.Fatalf("expected 403 for wrong creator token, got %d", badApprove.StatusCode)
 	}
 
+	// A joiner can poll their own status without a creator token (used by
+	// the frontend to detect approval while still pending).
+	selfLookup := getJSON(t, srv, "/api/sessions/"+created.Code+"/joiners/"+joiner.ID)
+	if selfLookup.StatusCode != http.StatusOK {
+		t.Fatalf("get own joiner: expected 200, got %d", selfLookup.StatusCode)
+	}
+	selfJoiner := decodeBody[models.Joiner](t, selfLookup)
+	if selfJoiner.Status != models.JoinerPending {
+		t.Fatalf("expected pending status from self-lookup, got %s", selfJoiner.Status)
+	}
+
 	// Listing joiners without a creator token is rejected.
 	unauthedList := getJSON(t, srv, "/api/sessions/"+created.Code+"/joiners")
 	if unauthedList.StatusCode != http.StatusUnauthorized {
@@ -200,6 +211,50 @@ func TestFullJoinApproveClaimFlow(t *testing.T) {
 	settlementResp := getJSON(t, srv, "/api/sessions/"+created.Code+"/settlement")
 	if settlementResp.StatusCode != http.StatusOK {
 		t.Fatalf("settlement: expected 200, got %d", settlementResp.StatusCode)
+	}
+}
+
+// TestNewNameJoinerGetsAPersonIdAndCanClaim verifies a joiner who picks
+// "someone new" (no existingPersonId) is given a real Person row and can
+// claim items as themselves — without this, a new-name joiner would have no
+// personId at all and ClaimItem would have nothing valid to send.
+func TestNewNameJoinerGetsAPersonIdAndCanClaim(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	createResp := postJSON(t, srv, "/api/sessions", map[string]any{
+		"title": "Trip", "joinMode": "open_link", "claimMode": "free_select",
+	}, nil)
+	created := decodeBody[createSessionResponse](t, createResp)
+
+	joinResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/join", map[string]any{"name": "Carol"}, nil)
+	if joinResp.StatusCode != http.StatusCreated {
+		t.Fatalf("join: expected 201, got %d", joinResp.StatusCode)
+	}
+	joiner := decodeBody[models.Joiner](t, joinResp)
+	if joiner.PersonID == nil || *joiner.PersonID == "" {
+		t.Fatalf("expected a new-name joiner to be assigned a personId, got %+v", joiner)
+	}
+
+	sessResp := getJSON(t, srv, "/api/sessions/"+created.Code)
+	sess := decodeBody[models.Session](t, sessResp)
+	found := false
+	for _, p := range sess.People {
+		if p.ID == *joiner.PersonID && p.Name == "Carol" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected Carol to appear in the session's people, got %+v", sess.People)
+	}
+
+	billResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills", map[string]any{"title": "Snacks", "currency": "USD"}, nil)
+	bill := decodeBody[models.Bill](t, billResp)
+	itemResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items", map[string]any{"name": "Chips", "price": 5.0, "quantity": 1}, nil)
+	item := decodeBody[models.Item](t, itemResp)
+
+	claimResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/"+item.ID+"/claims", map[string]any{"personId": *joiner.PersonID}, nil)
+	if claimResp.StatusCode != http.StatusOK {
+		t.Fatalf("claim item: expected 200 (free_select), got %d", claimResp.StatusCode)
 	}
 }
 

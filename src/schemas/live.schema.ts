@@ -67,6 +67,25 @@ export const LiveJoinerSchema = z.object({
 });
 export type LiveJoiner = z.infer<typeof LiveJoinerSchema>;
 
+// POST .../items/{itemId}/claims responds one of two shapes depending on
+// the session's claim_mode: free_select auto-approves and returns just
+// {status: "approved"}; claims_require_approval returns the created pending
+// claim (models.ItemClaim — its ItemID field is `json:"-"`, so it's not on
+// the wire here). The plain-status alternative is checked first and is
+// .strict() so it only matches the exact free_select shape; the richer
+// shape (which a non-strict object would otherwise also match, silently
+// dropping id/personId/value) is the fallback.
+export const ClaimItemResponseSchema = z.union([
+  z.object({ status: z.string() }).strict(),
+  z.object({
+    id: z.string(),
+    personId: z.string(),
+    value: z.number(),
+    status: z.enum(['pending', 'approved']),
+  }),
+]);
+export type ClaimItemResponse = z.infer<typeof ClaimItemResponseSchema>;
+
 export const LiveSettlementSchema = z.object({
   balances: z.array(z.object({ personId: z.string(), amount: z.number() })).default([]),
   transactions: z.array(z.object({ from: z.string(), to: z.string(), amount: z.number() })).default([]),

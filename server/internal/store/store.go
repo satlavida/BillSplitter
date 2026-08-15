@@ -374,8 +374,11 @@ func (s *Store) ApproveClaim(sessionID, claimID string) error {
 
 // CreateJoiner registers a join request. In open_link mode it is
 // auto-approved; in approval_code mode it starts pending with a 2-digit
-// approval code shown to the joiner.
-func (s *Store) CreateJoiner(sessionID, id, name string, personID *string, joinMode models.JoinMode) (*models.Joiner, error) {
+// approval code shown to the joiner. When newPersonID is non-nil (the joiner
+// picked "someone new" rather than an existing person), a Person row is
+// created for them in the same transaction — without this, a new-name
+// joiner would have no personId and so no way to claim items later.
+func (s *Store) CreateJoiner(sessionID, id, name string, existingPersonID *string, newPersonID *string, joinMode models.JoinMode) (*models.Joiner, error) {
 	status := models.JoinerPending
 	approvalCode := ""
 	if joinMode == models.JoinModeOpenLink {
@@ -388,12 +391,32 @@ func (s *Store) CreateJoiner(sessionID, id, name string, personID *string, joinM
 		approvalCode = code
 	}
 
+	personID := existingPersonID
+	if personID == nil {
+		personID = newPersonID
+	}
+
 	ts := now()
-	_, err := s.db.Exec(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if newPersonID != nil {
+		if _, err := tx.Exec(`INSERT INTO people (id, session_id, name) VALUES (?, ?, ?)`, *newPersonID, sessionID, name); err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := tx.Exec(
 		`INSERT INTO joiners (id, session_id, name, person_id, status, approval_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, sessionID, name, personID, status, approvalCode, ts,
-	)
-	if err != nil {
+	); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	if err := s.touchSession(sessionID); err != nil {
@@ -413,6 +436,28 @@ func (s *Store) SetJoinerStatus(sessionID, joinerID string, status models.Joiner
 		return ErrNotFound
 	}
 	return s.touchSession(sessionID)
+}
+
+// GetJoiner looks up a single joiner by id, so a joiner who is still
+// pending can poll their own admission status (approval requires the
+// creator's token, but checking your own status doesn't).
+func (s *Store) GetJoiner(sessionID, joinerID string) (*models.Joiner, error) {
+	var j models.Joiner
+	var personID sql.NullString
+	err := s.db.QueryRow(
+		`SELECT id, name, person_id, status, approval_code, created_at FROM joiners WHERE id = ? AND session_id = ?`,
+		joinerID, sessionID,
+	).Scan(&j.ID, &j.Name, &personID, &j.Status, &j.ApprovalCode, &j.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if personID.Valid {
+		j.PersonID = &personID.String
+	}
+	return &j, nil
 }
 
 func (s *Store) ListJoiners(sessionID string) ([]models.Joiner, error) {
