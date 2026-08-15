@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getLiveSession, joinLiveSession, getJoiner, claimItem, LiveApiError, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync } from '../lib/liveSync';
+import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId } from '../lib/joinerStorage';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
 import { Button, Card, Alert } from '../ui/components';
 
@@ -49,6 +50,34 @@ const JoinPage = () => {
     };
   }, [code]);
 
+  // Restore this browser's place in the session on load/refresh, if we've
+  // joined before (see joinerStorage.ts).
+  useEffect(() => {
+    if (!code) return;
+    const storedId = getStoredJoinerId(code);
+    if (!storedId) return;
+    let cancelled = false;
+
+    getJoiner(code, storedId)
+      .then((restored) => {
+        if (cancelled) return;
+        if (restored.status === 'disapproved') {
+          clearStoredJoinerId(code);
+          return;
+        }
+        setJoiner(restored);
+      })
+      .catch(() => {
+        // Stored joiner no longer exists (session purged, etc.) — clear so
+        // this doesn't keep failing on every future visit.
+        clearStoredJoinerId(code);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
   // While pending, poll for the creator's approve/disapprove decision —
   // there's no push channel a not-yet-admitted joiner can subscribe to, so
   // this is a plain interval rather than connectLiveSync.
@@ -58,6 +87,7 @@ const JoinPage = () => {
     const interval = setInterval(() => {
       getJoiner(code, joinerId)
         .then((updated) => {
+          if (updated.status === 'disapproved') clearStoredJoinerId(code);
           if (updated.status !== 'pending') setJoiner(updated);
         })
         .catch(() => {
@@ -130,6 +160,16 @@ const JoinPage = () => {
         <p className="text-zinc-800 dark:text-white transition-colors">
           Tell the host your code: <span className="font-mono font-semibold text-lg">{joiner.approvalCode}</span>
         </p>
+      </div>
+    );
+  }
+
+  if (joiner && joiner.status === 'disapproved') {
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
+        <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">The host didn't approve your request to join.</p>
+        <Button onClick={() => setJoiner(null)}>Try again</Button>
       </div>
     );
   }
@@ -216,6 +256,7 @@ const JoinPage = () => {
     setError(null);
     try {
       const result = await joinLiveSession(code, name.trim(), selectedPersonId || null);
+      setStoredJoinerId(code, result.id);
       setJoiner(result);
     } catch (err) {
       setError(err instanceof LiveApiError ? err.message : 'Failed to join');
