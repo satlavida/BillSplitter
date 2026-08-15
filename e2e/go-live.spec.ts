@@ -1,11 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-// No Go live-collaboration server runs alongside these e2e tests (see
-// navigation.spec.ts's join-flow test for the same reasoning) — this
-// exercises the "Go Live" button's own error path when that fetch fails,
-// without needing a real server.
+// These run against the real Go backend (server/), started alongside the
+// Vite dev server via playwright.config.ts's webServer array.
 test.describe('Go Live', () => {
-  test('surfaces an error when the live server is unreachable', async ({ page }) => {
+  test('starting a live session shows a real code and join link', async ({ page }) => {
     await page.goto('/');
     await page.waitForURL(/#\/session\/[^/]+$/);
 
@@ -13,7 +11,11 @@ test.describe('Go Live', () => {
     await expect(page.getByRole('heading', { name: 'Go Live' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Start Live Session' }).click();
-    await expect(page.getByText(/Could not reach the live server/i)).toBeVisible();
+
+    await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible();
+    const code = await page.locator('span.font-mono.font-semibold').first().innerText();
+    expect(code).toMatch(/^[A-Z0-9]{5}$/);
+    await expect(page.getByText(new RegExp(`join/${code}`))).toBeVisible();
   });
 
   test('Cancel collapses the form back to the button', async ({ page }) => {

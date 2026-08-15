@@ -12,6 +12,13 @@ import (
 // allowed origins. Requests with no Origin header (e.g. curl, server-to-server)
 // are allowed through — this guards browser cross-origin access, not general
 // network access.
+//
+// It also answers CORS: the frontend's fetch() calls (liveApi.ts) send a
+// JSON body, which makes the browser send a preflight OPTIONS request first.
+// Without Access-Control-* response headers and OPTIONS handling here, the
+// browser blocks the real request client-side even when this middleware
+// would have allowed it — server-side origin gating alone isn't enough for
+// browser callers.
 func Allowlist(allowedOrigins []string, next http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
 	for _, o := range allowedOrigins {
@@ -25,17 +32,23 @@ func Allowlist(allowedOrigins []string, next http.Handler) http.Handler {
 			return
 		}
 
-		if isLocalhost(origin) {
-			next.ServeHTTP(w, r)
+		_, explicitlyAllowed := allowed[origin]
+		if !isLocalhost(origin) && !explicitlyAllowed {
+			http.Error(w, "origin not allowed", http.StatusForbidden)
 			return
 		}
 
-		if _, ok := allowed[origin]; ok {
-			next.ServeHTTP(w, r)
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Creator-Token, X-Admin-Token")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		http.Error(w, "origin not allowed", http.StatusForbidden)
+		next.ServeHTTP(w, r)
 	})
 }
 

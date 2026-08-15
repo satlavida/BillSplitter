@@ -56,3 +56,50 @@ func TestAllowlist_UnconfiguredOriginRejected(t *testing.T) {
 		t.Fatalf("expected 403, got %d", rec.Code)
 	}
 }
+
+func TestAllowlist_AllowedRequestGetsCORSHeaders(t *testing.T) {
+	h := Allowlist(nil, okHandler())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("expected Access-Control-Allow-Origin to echo the origin, got %q", got)
+	}
+	if rec.Header().Get("Access-Control-Allow-Headers") == "" {
+		t.Fatal("expected Access-Control-Allow-Headers to be set")
+	}
+}
+
+func TestAllowlist_PreflightFromAllowedOriginGetsNoContent(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true })
+	h := Allowlist(nil, next)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/sessions", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if called {
+		t.Fatal("preflight should not reach the wrapped handler")
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("expected Access-Control-Allow-Origin on preflight response, got %q", got)
+	}
+}
+
+func TestAllowlist_PreflightFromDisallowedOriginRejected(t *testing.T) {
+	h := Allowlist([]string{"https://example.com"}, okHandler())
+	req := httptest.NewRequest(http.MethodOptions, "/api/sessions", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
