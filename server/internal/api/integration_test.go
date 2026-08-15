@@ -64,6 +64,29 @@ func getJSON(t *testing.T, srv *httptest.Server, path string) *http.Response {
 	return resp
 }
 
+func patchJSON(t *testing.T, srv *httptest.Server, path string, body any, headers map[string]string) *http.Response {
+	t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			t.Fatalf("encode body: %v", err)
+		}
+	}
+	req, err := http.NewRequest(http.MethodPatch, srv.URL+path, &buf)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	return resp
+}
+
 func getJSONWithHeaders(t *testing.T, srv *httptest.Server, path string, headers map[string]string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, srv.URL+path, nil)
@@ -281,6 +304,66 @@ func TestAddBillAndItemAcceptClientSuppliedID(t *testing.T) {
 	item := decodeBody[models.Item](t, itemResp)
 	if item.ID != "local-item-1" {
 		t.Fatalf("expected the client-supplied item id to be used, got %q", item.ID)
+	}
+}
+
+// TestUpdateBillAndItemSyncFieldsWithoutTouchingClaims verifies PATCH
+// bill/item updates a locally-edited bill/item's own fields on the server,
+// while leaving any existing claim/allocation on that item completely
+// untouched — an item edit (price, split type, etc.) must never be able to
+// clobber a joiner's claim, since claims are driven only by the claim
+// endpoints.
+func TestUpdateBillAndItemSyncFieldsWithoutTouchingClaims(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	alice := models.Person{ID: "alice", Name: "Alice"}
+	createResp := postJSON(t, srv, "/api/sessions", map[string]any{
+		"title": "Trip", "people": []models.Person{alice}, "joinMode": "open_link", "claimMode": "free_select",
+	}, nil)
+	created := decodeBody[createSessionResponse](t, createResp)
+
+	billResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills", map[string]any{"title": "Dinner", "currency": "USD", "taxAmount": 1.0}, nil)
+	bill := decodeBody[models.Bill](t, billResp)
+
+	itemResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items", map[string]any{"name": "Pizza", "price": 20.0, "quantity": 1}, nil)
+	item := decodeBody[models.Item](t, itemResp)
+
+	claimResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/"+item.ID+"/claims", map[string]any{"personId": "alice"}, nil)
+	if claimResp.StatusCode != http.StatusOK {
+		t.Fatalf("claim item: expected 200, got %d", claimResp.StatusCode)
+	}
+
+	updateBillResp := patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID, map[string]any{"title": "Renamed Dinner", "currency": "EUR", "taxAmount": 2.5}, nil)
+	if updateBillResp.StatusCode != http.StatusOK {
+		t.Fatalf("update bill: expected 200, got %d", updateBillResp.StatusCode)
+	}
+
+	updateItemResp := patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/"+item.ID, map[string]any{"name": "Pizza (large)", "price": 25.0, "quantity": 1}, nil)
+	if updateItemResp.StatusCode != http.StatusOK {
+		t.Fatalf("update item: expected 200, got %d", updateItemResp.StatusCode)
+	}
+
+	sessResp := getJSON(t, srv, "/api/sessions/"+created.Code)
+	sess := decodeBody[models.Session](t, sessResp)
+	if sess.Bills[0].Title != "Renamed Dinner" || sess.Bills[0].Currency != "EUR" || sess.Bills[0].TaxAmount != 2.5 {
+		t.Fatalf("expected bill fields to be updated, got %+v", sess.Bills[0])
+	}
+	updatedItem := sess.Bills[0].Items[0]
+	if updatedItem.Name != "Pizza (large)" || updatedItem.Price != 25.0 {
+		t.Fatalf("expected item fields to be updated, got %+v", updatedItem)
+	}
+	if len(updatedItem.ConsumedBy) != 1 || updatedItem.ConsumedBy[0].PersonID != "alice" {
+		t.Fatalf("expected the existing claim to survive the item update untouched, got %+v", updatedItem.ConsumedBy)
+	}
+
+	// Updating a bill/item that doesn't exist 404s.
+	notFoundBill := patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/does-not-exist", map[string]any{"title": "x", "currency": "USD"}, nil)
+	if notFoundBill.StatusCode != http.StatusNotFound {
+		t.Fatalf("update nonexistent bill: expected 404, got %d", notFoundBill.StatusCode)
+	}
+	notFoundItem := patchJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/does-not-exist", map[string]any{"name": "x", "price": 1.0}, nil)
+	if notFoundItem.StatusCode != http.StatusNotFound {
+		t.Fatalf("update nonexistent item: expected 404, got %d", notFoundItem.StatusCode)
 	}
 }
 

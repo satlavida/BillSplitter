@@ -288,6 +288,23 @@ func (s *Store) SetBillPaidBy(sessionID, billID string, personID *string) error 
 	return s.touchSession(sessionID)
 }
 
+// UpdateBill overwrites a bill's own fields (title/currency/tax/payer) —
+// used to sync a locally-edited bill up to a live session. Never touches
+// items; see UpdateItem.
+func (s *Store) UpdateBill(sessionID, billID, title, currency string, taxAmount float64, paidByPersonID *string) error {
+	res, err := s.db.Exec(
+		`UPDATE bills SET title = ?, currency = ?, tax_amount = ?, paid_by_person_id = ? WHERE id = ? AND session_id = ?`,
+		title, currency, taxAmount, paidByPersonID, billID, sessionID,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
 // AddItem inserts a new item (with no allocations yet) into a bill.
 func (s *Store) AddItem(sessionID, billID string, item models.Item) error {
 	_, err := s.db.Exec(
@@ -296,6 +313,25 @@ func (s *Store) AddItem(sessionID, billID string, item models.Item) error {
 	)
 	if err != nil {
 		return err
+	}
+	return s.touchSession(sessionID)
+}
+
+// UpdateItem overwrites an item's own fields — used to sync a locally-edited
+// item (price, quantity, discount, split type) up to a live session. Never
+// touches consumedBy/allocations: those stay server-authoritative, driven
+// only by the claim endpoints (ClaimItemFreeSelect/CreatePendingClaim/
+// ApproveClaim), so a stale local edit can never clobber a joiner's claim.
+func (s *Store) UpdateItem(sessionID, itemID, name string, price float64, quantity int, discount float64, discountType, splitType string) error {
+	res, err := s.db.Exec(
+		`UPDATE items SET name = ?, price = ?, quantity = ?, discount = ?, discount_type = ?, split_type = ? WHERE id = ?`,
+		name, price, quantity, discount, discountType, splitType, itemID,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 	return s.touchSession(sessionID)
 }

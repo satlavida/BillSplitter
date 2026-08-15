@@ -71,6 +71,38 @@ func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, bill)
 }
 
+type updateBillRequest struct {
+	Title          string  `json:"title"`
+	Currency       string  `json:"currency"`
+	TaxAmount      float64 `json:"taxAmount"`
+	PaidByPersonID *string `json:"paidByPersonId"`
+}
+
+// UpdateBill handles PATCH /api/sessions/{code}/bills/{billId} — syncs a
+// locally-edited bill's own fields up to a live session. Never touches
+// items (see UpdateItem) or claims — this is purely bill-row fields.
+func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	billID := r.PathValue("billId")
+
+	var req updateBillRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := a.store.UpdateBill(code, billID, req.Title, req.Currency, req.TaxAmount, req.PaidByPersonID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "bill not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update bill")
+		return
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "bill.updated", ID: billID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
 type addItemRequest struct {
 	// ID: see addBillRequest.ID — same client-id passthrough, same reason.
 	ID           string  `json:"id"`
@@ -136,6 +168,54 @@ func (a *API) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: id})
 	writeJSON(w, http.StatusCreated, item)
+}
+
+type updateItemRequest struct {
+	Name         string  `json:"name"`
+	Price        float64 `json:"price"`
+	Quantity     int     `json:"quantity"`
+	Discount     float64 `json:"discount"`
+	DiscountType string  `json:"discountType"`
+	SplitType    string  `json:"splitType"`
+}
+
+// UpdateItem handles PATCH /api/sessions/{code}/bills/{billId}/items/{itemId}
+// — syncs a locally-edited item's own fields up to a live session. Never
+// touches consumedBy/allocations, which stay server-authoritative via the
+// claim endpoints — an item update can't clobber a joiner's claim.
+func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	itemID := r.PathValue("itemId")
+
+	var req updateItemRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	quantity := req.Quantity
+	if quantity <= 0 {
+		quantity = 1
+	}
+	discountType := req.DiscountType
+	if discountType == "" {
+		discountType = "flat"
+	}
+	splitType := req.SplitType
+	if splitType == "" {
+		splitType = "equal"
+	}
+
+	if err := a.store.UpdateItem(code, itemID, req.Name, req.Price, quantity, req.Discount, discountType, splitType); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "item not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update item")
+		return
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
 type claimItemRequest struct {

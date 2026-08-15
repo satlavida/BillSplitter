@@ -77,6 +77,24 @@ export const addLiveBill = (
 export const addLiveItem = (code: string, billId: string, item: Pick<Item, 'id' | 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>): Promise<LiveItem> =>
   request(`/api/sessions/${code}/bills/${billId}/items`, { method: 'POST', body: JSON.stringify(item) }, LiveItemSchema);
 
+// Syncs edits to an already-pushed bill/item's own fields. Deliberately
+// never sends consumedBy/allocations — those stay server-authoritative,
+// driven only by the claim endpoints, so an edit here can't clobber a
+// joiner's claim.
+export const updateLiveBill = (
+  code: string,
+  billId: string,
+  bill: { title: string; currency: string; taxAmount: number; paidByPersonId: string | null }
+): Promise<void> => request(`/api/sessions/${code}/bills/${billId}`, { method: 'PATCH', body: JSON.stringify(bill) }, { parse: () => undefined });
+
+export const updateLiveItem = (
+  code: string,
+  billId: string,
+  itemId: string,
+  item: Pick<Item, 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>
+): Promise<void> =>
+  request(`/api/sessions/${code}/bills/${billId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(item) }, { parse: () => undefined });
+
 export const joinLiveSession = (code: string, name: string, existingPersonId?: string | null): Promise<LiveJoiner> =>
   request(`/api/sessions/${code}/join`, { method: 'POST', body: JSON.stringify({ name, existingPersonId }) }, LiveJoinerSchema);
 

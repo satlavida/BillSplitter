@@ -17,6 +17,23 @@ const pushNewBillLive = (liveCode: string, bill: Pick<Bill, 'id' | 'title' | 'cu
 const pushNewItemLive = (liveCode: string, billId: string, item: Item) =>
   import('./lib/liveApi').then(({ addLiveItem }) => addLiveItem(liveCode, billId, item));
 
+const pushBillFieldsLive = (liveCode: string, billId: string, bill: Pick<Bill, 'title' | 'currency' | 'taxAmount' | 'paidByPersonId'>) =>
+  import('./lib/liveApi').then(({ updateLiveBill }) => updateLiveBill(liveCode, billId, bill));
+
+const pushItemFieldsLive = (liveCode: string, billId: string, item: Item) =>
+  import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item));
+
+const BILL_FIELD_KEYS = ['title', 'currency', 'taxAmount', 'paidByPersonId'] as const;
+const ITEM_FIELD_KEYS = ['name', 'price', 'quantity', 'discount', 'discountType', 'splitType'] as const;
+
+function billFieldsChanged(a: Bill, b: Bill): boolean {
+  return BILL_FIELD_KEYS.some((key) => a[key] !== b[key]);
+}
+
+function itemFieldsChanged(a: Item, b: Item): boolean {
+  return ITEM_FIELD_KEYS.some((key) => a[key] !== b[key]);
+}
+
 interface SessionStoreState {
   version: string;
   sessions: Session[];
@@ -212,7 +229,8 @@ const useSessionStore = create<SessionStore>()(
 
       updateBill: (sessionId, billId, data) => {
         const session = get().sessions.find((s) => s.id === sessionId);
-        const previousItems = session?.bills.find((b) => b.id === billId)?.items;
+        const previousBill = session?.bills.find((b) => b.id === billId);
+        const previousItems = previousBill?.items;
 
         set((state) => ({
           sessions: state.sessions.map((s) => {
@@ -224,16 +242,34 @@ const useSessionStore = create<SessionStore>()(
           }),
         }));
 
-        // Push newly-added items (ids not present before this update) up
-        // to the live server, best-effort — matches addBill's push above.
-        // Edits to already-pushed items (price/split/etc.) aren't synced
-        // further here; see V3_PROGRESS.md's pending list.
-        if (session?.isLive && session.liveCode && data.items && previousItems) {
-          const previousIds = new Set(previousItems.map((i) => i.id));
+        // Best-effort push to the live server: new items get created,
+        // already-known items with changed fields get updated, and changed
+        // bill-level fields get updated. consumedBy/allocations are never
+        // part of this — those stay server-authoritative via the claim
+        // endpoints (see liveApi.ts's updateLiveItem).
+        if (!session?.isLive || !session.liveCode || !previousBill) return;
+        const liveCode = session.liveCode;
+
+        if (data.items && previousItems) {
+          const previousById = new Map(previousItems.map((i) => [i.id, i]));
           for (const item of data.items) {
-            if (previousIds.has(item.id)) continue;
-            pushNewItemLive(session.liveCode, billId, item).catch(() => {});
+            const previous = previousById.get(item.id);
+            if (!previous) {
+              pushNewItemLive(liveCode, billId, item).catch(() => {});
+            } else if (itemFieldsChanged(previous, item)) {
+              pushItemFieldsLive(liveCode, billId, item).catch(() => {});
+            }
           }
+        }
+
+        const updatedBill: Bill = { ...previousBill, ...data };
+        if (billFieldsChanged(previousBill, updatedBill)) {
+          pushBillFieldsLive(liveCode, billId, {
+            title: updatedBill.title,
+            currency: updatedBill.currency,
+            taxAmount: updatedBill.taxAmount,
+            paidByPersonId: updatedBill.paidByPersonId,
+          }).catch(() => {});
         }
       },
 
