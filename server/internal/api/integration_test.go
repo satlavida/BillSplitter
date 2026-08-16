@@ -26,7 +26,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *sql.DB) {
 
 	st := store.New(database)
 	hub := sse.NewHub()
-	a := New(st, hub, t.TempDir(), "test-admin-token")
+	a := New(st, hub, t.TempDir(), "test-admin-token", "", "google/gemini-3.1-flash-lite")
 
 	srv := httptest.NewServer(a.Router())
 	t.Cleanup(srv.Close)

@@ -11,22 +11,26 @@ import (
 )
 
 type Config struct {
-	Port           string
-	DBPath         string
-	ImageDir       string
-	AllowedOrigins []string
-	AdminToken     string
-	CleanupEvery   int // minutes
+	Port             string
+	DBPath           string
+	ImageDir         string
+	AllowedOrigins   []string
+	AdminToken       string
+	CleanupEvery     int // minutes
+	OpenRouterAPIKey string
+	OpenRouterModel  string
 }
 
 func Load() Config {
 	return Config{
-		Port:           getEnv("PORT", "8080"),
-		DBPath:         getEnv("DB_PATH", "./data/billsplitter.db"),
-		ImageDir:       getEnv("IMAGE_DIR", "./data/images"),
-		AllowedOrigins: splitCSV(getEnv("ALLOWED_ORIGINS", "")),
-		AdminToken:     getEnv("ADMIN_TOKEN", ""),
-		CleanupEvery:   getEnvInt("CLEANUP_INTERVAL_MINUTES", 30),
+		Port:             getEnv("PORT", "8080"),
+		DBPath:           getEnv("DB_PATH", "./data/billsplitter.db"),
+		ImageDir:         getEnv("IMAGE_DIR", "./data/images"),
+		AllowedOrigins:   splitCSV(getEnv("ALLOWED_ORIGINS", "")),
+		AdminToken:       getEnv("ADMIN_TOKEN", ""),
+		CleanupEvery:     getEnvInt("CLEANUP_INTERVAL_MINUTES", 30),
+		OpenRouterAPIKey: getEnv("OPENROUTER_API_KEY", ""),
+		OpenRouterModel:  getEnv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite"),
 	}
 }
 

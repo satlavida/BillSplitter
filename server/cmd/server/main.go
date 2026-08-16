@@ -31,7 +31,7 @@ func main() {
 
 	st := store.New(database)
 	hub := sse.NewHub()
-	a := api.New(st, hub, cfg.ImageDir, cfg.AdminToken)
+	a := api.New(st, hub, cfg.ImageDir, cfg.AdminToken, cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
 
 	stopCleanup := make(chan struct{})
 	go appcleanup.Run(st, time.Duration(cfg.CleanupEvery)*time.Minute, stopCleanup)

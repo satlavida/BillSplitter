@@ -11,7 +11,7 @@ var adminSessionsTemplate = template.Must(template.New("admin_sessions").Parse(`
 <head><title>BillSplitter Admin — Sessions</title></head>
 <body>
 <h1>Sessions</h1>
-<p><a href="/admin/stats">Stats</a></p>
+<p><a href="/admin/stats">Stats</a> | <a href="/admin/bill-processor">Bill Scanner</a></p>
 <table border="1" cellpadding="6">
 <tr><th>Code</th><th>Title</th><th>Created</th><th>Last Access</th><th>Settled</th><th></th></tr>
 {{range .Sessions}}
@@ -38,13 +38,48 @@ var adminStatsTemplate = template.Must(template.New("admin_stats").Parse(`<!doct
 <head><title>BillSplitter Admin — Stats</title></head>
 <body>
 <h1>Stats</h1>
-<p><a href="/admin">Sessions</a></p>
+<p><a href="/admin">Sessions</a> | <a href="/admin/bill-processor">Bill Scanner</a></p>
 <ul>
 <li>Sessions: {{.SessionCount}}</li>
 <li>Bills: {{.BillCount}}</li>
 <li>Avg bills/session: {{printf "%.2f" .AvgBillsPerSession}}</li>
 <li>Images: {{.ImageCount}}</li>
 </ul>
+</body>
+</html>`))
+
+var adminScanTemplate = template.Must(template.New("admin_scan").Parse(`<!doctype html>
+<html>
+<head><title>BillSplitter Admin — Bill Scanner</title></head>
+<body>
+<h1>Bill Scanner</h1>
+<p><a href="/admin">Sessions</a> | <a href="/admin/stats">Stats</a></p>
+<h2>Last 30 days</h2>
+<ul>
+<li>Requests: {{.Last30Days.RequestCount}}</li>
+<li>Prompt tokens: {{.Last30Days.PromptTokens}}</li>
+<li>Completion tokens: {{.Last30Days.CompletionTokens}}</li>
+<li>Total tokens: {{.Last30Days.TotalTokens}}</li>
+</ul>
+<h2>All-time</h2>
+<ul>
+<li>Successful: {{.SuccessCount}}</li>
+<li>Failed: {{.FailureCount}}</li>
+</ul>
+<h2>Recent requests</h2>
+<table border="1" cellpadding="6">
+<tr><th>Requested At</th><th>Model</th><th>Success</th><th>Prompt</th><th>Completion</th><th>Total</th></tr>
+{{range .RecentRequests}}
+<tr>
+<td>{{.RequestedAt}}</td>
+<td>{{.Model}}</td>
+<td>{{if .Success}}yes{{else}}no{{end}}</td>
+<td>{{.PromptTokens}}</td>
+<td>{{.CompletionTokens}}</td>
+<td>{{.TotalTokens}}</td>
+</tr>
+{{end}}
+</table>
 </body>
 </html>`))
 
@@ -91,6 +126,18 @@ func (a *API) AdminStatsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = adminStatsTemplate.Execute(w, stats)
+}
+
+func (a *API) AdminScanPage(w http.ResponseWriter, r *http.Request) {
+	if !a.requireAdminToken(w, r) {
+		return
+	}
+	summary, err := a.store.ScanAnalyticsSummary()
+	if err != nil {
+		http.Error(w, "failed to load scan analytics", http.StatusInternalServerError)
+		return
+	}
+	_ = adminScanTemplate.Execute(w, summary)
 }
 
 func (a *API) AdminPurgeSession(w http.ResponseWriter, r *http.Request) {

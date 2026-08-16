@@ -11,14 +11,23 @@ import (
 )
 
 type API struct {
-	store      *store.Store
-	hub        *sse.Hub
-	imageDir   string
-	adminToken string
+	store            *store.Store
+	hub              *sse.Hub
+	imageDir         string
+	adminToken       string
+	openRouterAPIKey string
+	openRouterModel  string
 }
 
-func New(st *store.Store, hub *sse.Hub, imageDir, adminToken string) *API {
-	return &API{store: st, hub: hub, imageDir: imageDir, adminToken: adminToken}
+func New(st *store.Store, hub *sse.Hub, imageDir, adminToken, openRouterAPIKey, openRouterModel string) *API {
+	return &API{
+		store:            st,
+		hub:              hub,
+		imageDir:         imageDir,
+		adminToken:       adminToken,
+		openRouterAPIKey: openRouterAPIKey,
+		openRouterModel:  openRouterModel,
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
