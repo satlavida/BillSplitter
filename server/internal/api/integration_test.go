@@ -118,15 +118,14 @@ func decodeBody[T any](t *testing.T, resp *http.Response) T {
 // claims_require_approval) -> joiner requests to join -> creator approves
 // -> creator adds a bill/item -> joiner claims the item (pending) ->
 // creator approves the claim -> settlement reflects it.
-func TestFullJoinApproveClaimFlow(t *testing.T) {
+func TestFullJoinDirectEditFlow(t *testing.T) {
 	srv, _ := newTestServer(t)
 
 	alice := models.Person{ID: "alice", Name: "Alice"}
 	createResp := postJSON(t, srv, "/api/sessions", map[string]any{
-		"title":     "Trip",
-		"people":    []models.Person{alice},
-		"joinMode":  "approval_code",
-		"claimMode": "claims_require_approval",
+		"title":    "Trip",
+		"people":   []models.Person{alice},
+		"joinMode": "approval_code",
 	}, nil)
 	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("create session: expected 201, got %d", createResp.StatusCode)
@@ -202,34 +201,19 @@ func TestFullJoinApproveClaimFlow(t *testing.T) {
 	}
 	item := decodeBody[models.Item](t, itemResp)
 
-	// Joiner claims the item -> pending, since claim_mode is claims_require_approval.
+	// Joiner claims the item — takes effect immediately, no approval queue
+	// (req 6: the claims-approval workflow is gone; a claim either applies
+	// right away or is rejected outright by requireEditPermission).
 	claimResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/bills/"+bill.ID+"/items/"+item.ID+"/claims", map[string]any{"personId": "alice", "value": 1.0}, nil)
-	if claimResp.StatusCode != http.StatusCreated {
-		t.Fatalf("claim item: expected 201 (pending), got %d", claimResp.StatusCode)
-	}
-	claim := decodeBody[models.ItemClaim](t, claimResp)
-	if claim.Status != models.ClaimPending {
-		t.Fatalf("expected pending claim, got %s", claim.Status)
+	if claimResp.StatusCode != http.StatusOK {
+		t.Fatalf("claim item: expected 200, got %d", claimResp.StatusCode)
 	}
 
-	// Fetching the session shouldn't show the allocation yet (still pending).
-	sessResp := getJSON(t, srv, "/api/sessions/"+created.Code)
-	sessBefore := decodeBody[models.Session](t, sessResp)
-	if len(sessBefore.Bills[0].Items[0].ConsumedBy) != 0 {
-		t.Fatalf("expected no allocations before claim approval, got %+v", sessBefore.Bills[0].Items[0].ConsumedBy)
-	}
-
-	// Creator approves the claim.
-	approveClaimResp := postJSON(t, srv, "/api/sessions/"+created.Code+"/claims/"+claim.ID+"/approve", nil, creatorHeaders)
-	if approveClaimResp.StatusCode != http.StatusOK {
-		t.Fatalf("approve claim: expected 200, got %d", approveClaimResp.StatusCode)
-	}
-
-	// Now the allocation should be visible.
+	// The allocation is visible immediately.
 	sessAfterResp := getJSON(t, srv, "/api/sessions/"+created.Code)
 	sessAfter := decodeBody[models.Session](t, sessAfterResp)
 	if len(sessAfter.Bills[0].Items[0].ConsumedBy) != 1 {
-		t.Fatalf("expected 1 allocation after claim approval, got %+v", sessAfter.Bills[0].Items[0].ConsumedBy)
+		t.Fatalf("expected 1 allocation immediately after claim, got %+v", sessAfter.Bills[0].Items[0].ConsumedBy)
 	}
 
 	settlementResp := getJSON(t, srv, "/api/sessions/"+created.Code+"/settlement")

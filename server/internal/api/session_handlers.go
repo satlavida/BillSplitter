@@ -323,6 +323,32 @@ func (a *API) requireJoiner(w http.ResponseWriter, r *http.Request, code, person
 	return true
 }
 
+// requireEditPermission blocks a joiner-originated mutation (identified by
+// the presence of X-Joiner-Token — the creator's own token-free edits are
+// always allowed) when the session's permission_mode is read_only. Replaces
+// the old claims-approval workflow: instead of a joiner's change going into
+// a pending queue for the creator to approve, it's either allowed outright
+// (permission_mode edit) or rejected outright (read_only) — see req 6.
+func (a *API) requireEditPermission(w http.ResponseWriter, r *http.Request, code string) bool {
+	if r.Header.Get("X-Joiner-Token") == "" {
+		return true
+	}
+	sess, err := a.store.GetSession(code)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session")
+		return false
+	}
+	if sess.PermissionMode == models.PermissionModeReadOnly {
+		writeError(w, http.StatusForbidden, "this session is read-only for joiners")
+		return false
+	}
+	return true
+}
+
 // requireNotSettled aborts with 409 if the session has already been
 // settled — once settled, bill/item/claim/join state is meant to be
 // read-only (see LiveSessionPanel.tsx's Settle Up UI and JoinPage.tsx's

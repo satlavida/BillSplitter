@@ -14,13 +14,21 @@ func TestOpen_AppliesMigrationsAndEnablesForeignKeys(t *testing.T) {
 	}
 	defer database.Close()
 
-	tables := []string{"sessions", "people", "bills", "items", "item_allocations", "joiners", "item_claims", "images"}
+	tables := []string{"sessions", "people", "bills", "items", "item_allocations", "joiners", "images"}
 	for _, table := range tables {
 		var name string
 		err := database.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
 		if err != nil {
 			t.Fatalf("table %s not found: %v", table, err)
 		}
+	}
+
+	// item_claims is dropped by migration 0006 (req 6: claims-approval
+	// workflow removed).
+	var droppedTableName string
+	err = database.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='item_claims'").Scan(&droppedTableName)
+	if err == nil {
+		t.Fatal("expected item_claims to have been dropped")
 	}
 
 	var fkEnabled int

@@ -112,21 +112,6 @@ type Joiner struct {
 	TokenRevealed bool   `json:"-"`
 }
 
-type ClaimStatus string
-
-const (
-	ClaimPending  ClaimStatus = "pending"
-	ClaimApproved ClaimStatus = "approved"
-)
-
-type ItemClaim struct {
-	ID       string      `json:"id"`
-	ItemID   string      `json:"itemId"`
-	PersonID string      `json:"personId"`
-	Value    float64     `json:"value"`
-	Status   ClaimStatus `json:"status"`
-}
-
 // ItemActivity is a durable log entry recording a single claim or unclaim
 // action, snapshotting the item/person names at write time so the log stays
 // legible even if either is later removed (see migrations/0003).

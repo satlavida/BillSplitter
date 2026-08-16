@@ -30,6 +30,9 @@ func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 	if !a.requireNotSettled(w, r, code) {
 		return
 	}
+	if !a.requireEditPermission(w, r, code) {
+		return
+	}
 
 	var req addBillRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -90,6 +93,9 @@ func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
 	if !a.requireNotSettled(w, r, code) {
 		return
 	}
+	if !a.requireEditPermission(w, r, code) {
+		return
+	}
 
 	var req updateBillRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -125,6 +131,9 @@ func (a *API) AddItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	billID := r.PathValue("billId")
 	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+	if !a.requireEditPermission(w, r, code) {
 		return
 	}
 
@@ -196,6 +205,9 @@ func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	itemID := r.PathValue("itemId")
 	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+	if !a.requireEditPermission(w, r, code) {
 		return
 	}
 
@@ -278,10 +290,12 @@ func currentAllocationValue(sess *models.Session, itemID, personID string) float
 	return 0
 }
 
-// ClaimItem handles POST /api/sessions/{code}/bills/{billId}/items/{itemId}/claims.
-// free_select writes an item_allocations row directly (auto-approved,
-// insert-only so concurrent claims never conflict); claims_require_approval
-// writes a pending item_claims row, SSE-pushed to the creator.
+// ClaimItem handles POST /api/sessions/{code}/bills/{billId}/items/{itemId}/claims
+// — a person directly selects/updates their share of an item (writes an
+// item_allocations row, insert-only so concurrent claims for different
+// people never conflict). There is no approval queue: a joiner's selection
+// takes effect immediately, gated only by requireEditPermission (read_only
+// sessions reject it outright) — see req 6.
 //
 // If the caller sends X-Joiner-Token, it must authenticate them as the
 // personId being claimed for (self-claim enforcement). If the header is
@@ -306,6 +320,9 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "session has been settled")
 		return
 	}
+	if !a.requireEditPermission(w, r, code) {
+		return
+	}
 
 	var req claimItemRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -328,32 +345,13 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 	personName := findPersonName(sess, req.PersonID)
 	delta := value - currentAllocationValue(sess, itemID, req.PersonID)
 
-	if sess.ClaimMode == models.ClaimModeFreeSelect {
-		if err := a.store.ClaimItemFreeSelect(code, itemID, req.PersonID, value); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to claim item")
-			return
-		}
-		a.recordClaimActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value)
-		a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
-		writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
-		return
-	}
-
-	claimID, err := newID()
-	if err != nil {
+	if err := a.store.ClaimItemFreeSelect(code, itemID, req.PersonID, value); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to claim item")
 		return
 	}
-	claim := models.ItemClaim{ID: claimID, ItemID: itemID, PersonID: req.PersonID, Value: value, Status: models.ClaimPending}
-	if err := a.store.CreatePendingClaim(code, claim); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to claim item")
-		return
-	}
-	// Logged at submission (the joiner's own action), not at the creator's
-	// later approval — see bill_handlers.go's ClaimItem doc comment.
 	a.recordClaimActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value)
-	a.hub.Broadcast(code, sse.Event{Kind: "claim.pending", ID: claimID})
-	writeJSON(w, http.StatusCreated, claim)
+	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
 
 // recordClaimActivity logs a claim/unclaim and broadcasts it; logging
@@ -373,10 +371,7 @@ func (a *API) recordClaimActivity(code, itemID, itemName, personID, personName, 
 
 // UnclaimItem handles DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}/claims/{personId}.
 // Always requires X-Joiner-Token — no creator-editing flow needs to unclaim
-// on someone else's behalf server-side today. Removes both an approved
-// allocation (free_select, or an already-approved claims_require_approval
-// claim) and any still-pending claim for this (item, person), so a joiner
-// can retract either kind with one action.
+// on someone else's behalf server-side today.
 func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	itemID := r.PathValue("itemId")
@@ -386,6 +381,9 @@ func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+	if !a.requireEditPermission(w, r, code) {
 		return
 	}
 
@@ -402,120 +400,10 @@ func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to unclaim item")
 		return
 	}
-	if err := a.store.CancelPendingClaim(code, itemID, personID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to unclaim item")
-		return
-	}
 
 	a.recordClaimActivity(code, itemID, itemName, personID, personName, "unclaim", -oldValue, 0)
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "unclaimed"})
-}
-
-// ApproveClaim handles POST /api/sessions/{code}/claims/{id}/approve (creator-only).
-func (a *API) ApproveClaim(w http.ResponseWriter, r *http.Request) {
-	if !a.requireCreator(w, r) {
-		return
-	}
-	code := r.PathValue("code")
-	claimID := r.PathValue("id")
-	if !a.requireNotSettled(w, r, code) {
-		return
-	}
-
-	if err := a.store.ApproveClaim(code, claimID); errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "claim not found")
-		return
-	} else if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to approve claim")
-		return
-	}
-
-	a.hub.Broadcast(code, sse.Event{Kind: "claim.approved", ID: claimID})
-	writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
-}
-
-// pendingClaimResponse enriches models.ItemClaim with the item/person names
-// a creator-facing list needs to display — those aren't columns on
-// item_claims itself, so they're resolved from the already-loaded session
-// (see findItemName/findPersonName) rather than joined in SQL.
-type pendingClaimResponse struct {
-	models.ItemClaim
-	ItemName   string `json:"itemName"`
-	PersonName string `json:"personName"`
-}
-
-// ListPendingClaims handles GET /api/sessions/{code}/claims/pending
-// (creator-only) — lets the Claim Approval page show what's awaiting a
-// decision (claims_require_approval mode). There's otherwise no way for a
-// creator to discover a pending claim beyond the transient claim.pending
-// SSE event, e.g. after a page refresh.
-func (a *API) ListPendingClaims(w http.ResponseWriter, r *http.Request) {
-	if !a.requireCreator(w, r) {
-		return
-	}
-	code := r.PathValue("code")
-
-	sess, err := a.store.GetSession(code)
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "session not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load session")
-		return
-	}
-
-	claims, err := a.store.ListPendingClaims(code)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load pending claims")
-		return
-	}
-
-	enriched := make([]pendingClaimResponse, len(claims))
-	for i, c := range claims {
-		enriched[i] = pendingClaimResponse{
-			ItemClaim:  c,
-			ItemName:   findItemName(sess, c.ItemID),
-			PersonName: findPersonName(sess, c.PersonID),
-		}
-	}
-
-	writeJSON(w, http.StatusOK, enriched)
-}
-
-// RejectClaim handles POST /api/sessions/{code}/claims/{id}/reject
-// (creator-only) — declines a pending claim, distinct from a joiner
-// cancelling their own pending claim via UnclaimItem.
-func (a *API) RejectClaim(w http.ResponseWriter, r *http.Request) {
-	if !a.requireCreator(w, r) {
-		return
-	}
-	code := r.PathValue("code")
-	claimID := r.PathValue("id")
-	if !a.requireNotSettled(w, r, code) {
-		return
-	}
-
-	sess, err := a.store.GetSession(code)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load session")
-		return
-	}
-
-	itemID, personID, value, err := a.store.RejectClaim(code, claimID)
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "claim not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to reject claim")
-		return
-	}
-
-	a.recordClaimActivity(code, itemID, findItemName(sess, itemID), personID, findPersonName(sess, personID), "reject", -value, 0)
-	a.hub.Broadcast(code, sse.Event{Kind: "claim.rejected", ID: claimID})
-	writeJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
 }
 
 // GetSettlement handles GET /api/sessions/{code}/settlement — server-computed

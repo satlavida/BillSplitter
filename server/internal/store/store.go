@@ -366,8 +366,8 @@ func (s *Store) AddItem(sessionID, billID string, item models.Item) error {
 // UpdateItem overwrites an item's own fields — used to sync a locally-edited
 // item (price, quantity, discount, split type) up to a live session. Never
 // touches consumedBy/allocations: those stay server-authoritative, driven
-// only by the claim endpoints (ClaimItemFreeSelect/CreatePendingClaim/
-// ApproveClaim), so a stale local edit can never clobber a joiner's claim.
+// only by ClaimItemFreeSelect/UnclaimItem, so a stale local edit can never
+// clobber a joiner's claim.
 func (s *Store) UpdateItem(sessionID, itemID, name string, price float64, quantity int, discount float64, discountType, splitType string) error {
 	res, err := s.db.Exec(
 		`UPDATE items SET name = ?, price = ?, quantity = ?, discount = ?, discount_type = ?, split_type = ? WHERE id = ?`,
@@ -397,70 +397,10 @@ func (s *Store) ClaimItemFreeSelect(sessionID, itemID, personID string, value fl
 	return s.touchSession(sessionID)
 }
 
-// UnclaimItem removes a person's allocation from an item (free_select mode,
-// or an already-approved claims_require_approval allocation).
+// UnclaimItem removes a person's allocation from an item.
 func (s *Store) UnclaimItem(sessionID, itemID, personID string) error {
 	_, err := s.db.Exec(`DELETE FROM item_allocations WHERE item_id = ? AND person_id = ?`, itemID, personID)
 	if err != nil {
-		return err
-	}
-	return s.touchSession(sessionID)
-}
-
-// CancelPendingClaim removes a not-yet-approved claim (claims_require_approval
-// mode) so a joiner can retract a claim before the creator has acted on it.
-// A no-op (not an error) if no pending claim exists for this (item, person).
-func (s *Store) CancelPendingClaim(sessionID, itemID, personID string) error {
-	_, err := s.db.Exec(`DELETE FROM item_claims WHERE item_id = ? AND person_id = ? AND status = 'pending'`, itemID, personID)
-	if err != nil {
-		return err
-	}
-	return s.touchSession(sessionID)
-}
-
-// CreatePendingClaim writes a pending item_claims row (claims_require_approval mode).
-func (s *Store) CreatePendingClaim(sessionID string, claim models.ItemClaim) error {
-	_, err := s.db.Exec(
-		`INSERT INTO item_claims (id, item_id, person_id, value, status) VALUES (?, ?, ?, ?, 'pending')`,
-		claim.ID, claim.ItemID, claim.PersonID, claim.Value,
-	)
-	if err != nil {
-		return err
-	}
-	return s.touchSession(sessionID)
-}
-
-// ApproveClaim marks a pending claim approved and copies it into item_allocations.
-func (s *Store) ApproveClaim(sessionID, claimID string) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	var itemID, personID string
-	var value float64
-	err = tx.QueryRow(`SELECT item_id, person_id, value FROM item_claims WHERE id = ? AND status = 'pending'`, claimID).
-		Scan(&itemID, &personID, &value)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(`UPDATE item_claims SET status = 'approved' WHERE id = ?`, claimID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(
-		`INSERT INTO item_allocations (item_id, person_id, value) VALUES (?, ?, ?)
-		 ON CONFLICT (item_id, person_id) DO UPDATE SET value = excluded.value`,
-		itemID, personID, value,
-	); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
 		return err
 	}
 	return s.touchSession(sessionID)
@@ -499,57 +439,6 @@ func (s *Store) ListItemActivity(sessionID string) ([]models.ItemActivity, error
 		entries = append(entries, e)
 	}
 	return entries, rows.Err()
-}
-
-// ListPendingClaims returns every not-yet-approved item_claims row for a
-// session (claims_require_approval mode), scoped via items/bills since
-// item_claims itself has no session_id column.
-func (s *Store) ListPendingClaims(sessionID string) ([]models.ItemClaim, error) {
-	rows, err := s.db.Query(
-		`SELECT ic.id, ic.item_id, ic.person_id, ic.value, ic.status
-		 FROM item_claims ic
-		 JOIN items i ON i.id = ic.item_id
-		 JOIN bills b ON b.id = i.bill_id
-		 WHERE b.session_id = ? AND ic.status = 'pending'`,
-		sessionID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	claims := []models.ItemClaim{}
-	for rows.Next() {
-		var c models.ItemClaim
-		if err := rows.Scan(&c.ID, &c.ItemID, &c.PersonID, &c.Value, &c.Status); err != nil {
-			return nil, err
-		}
-		claims = append(claims, c)
-	}
-	return claims, rows.Err()
-}
-
-// RejectClaim removes a pending claim without approving it (creator
-// declining it, as opposed to the joiner cancelling their own pending claim
-// via UnclaimItem/CancelPendingClaim). Returns the deleted claim's fields
-// so the caller can log activity without a second query.
-func (s *Store) RejectClaim(sessionID, claimID string) (itemID, personID string, value float64, err error) {
-	err = s.db.QueryRow(`SELECT item_id, person_id, value FROM item_claims WHERE id = ? AND status = 'pending'`, claimID).
-		Scan(&itemID, &personID, &value)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", 0, ErrNotFound
-	}
-	if err != nil {
-		return "", "", 0, err
-	}
-
-	if _, err = s.db.Exec(`DELETE FROM item_claims WHERE id = ?`, claimID); err != nil {
-		return "", "", 0, err
-	}
-	if err = s.touchSession(sessionID); err != nil {
-		return "", "", 0, err
-	}
-	return itemID, personID, value, nil
 }
 
 // CreateJoiner registers a join request. In open_link mode it is
