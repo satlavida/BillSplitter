@@ -17,6 +17,11 @@ type API struct {
 	adminToken       string
 	openRouterAPIKey string
 	openRouterModel  string
+
+	// Version is the running build's version string (set in cmd/server/main.go
+	// from a -ldflags-injected value, "dev" otherwise). Exposed via GET
+	// /healthz so a deployed instance's version can be checked remotely.
+	Version string
 }
 
 func New(st *store.Store, hub *sse.Hub, imageDir, adminToken, openRouterAPIKey, openRouterModel string) *API {

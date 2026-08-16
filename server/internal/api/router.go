@@ -8,8 +8,7 @@ func (a *API) Router() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": a.Version})
 	})
 
 	mux.HandleFunc("POST /api/sessions", a.CreateSession)

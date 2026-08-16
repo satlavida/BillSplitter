@@ -20,6 +20,13 @@ import (
 	appcleanup "billsplitter/server/internal/cleanup"
 )
 
+// version is set at build time via:
+//
+//	go build -ldflags "-X main.version=$(git describe --tags --always)" ./cmd/server
+//
+// Left as "dev" for local `go run`/unversioned builds.
+var version = "dev"
+
 func main() {
 	cfg := config.Load()
 
@@ -32,6 +39,7 @@ func main() {
 	st := store.New(database)
 	hub := sse.NewHub()
 	a := api.New(st, hub, cfg.ImageDir, cfg.AdminToken, cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+	a.Version = version
 
 	stopCleanup := make(chan struct{})
 	go appcleanup.Run(st, time.Duration(cfg.CleanupEvery)*time.Minute, stopCleanup)
@@ -47,7 +55,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("listening on :%s (db=%s images=%s)", cfg.Port, cfg.DBPath, cfg.ImageDir)
+		log.Printf("billsplitter-server %s listening on :%s (db=%s images=%s)", version, cfg.Port, cfg.DBPath, cfg.ImageDir)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}
