@@ -937,3 +937,64 @@ describe('billStore - hydrateFromSession (scratch editor)', () => {
     expect(state.items).toEqual([]); // Bill One's leftover item must not leak into Bill Two
   });
 });
+
+describe('billStore - syncItemsFromLive (live-sync refresh)', () => {
+  const people = [{ id: 'p1', name: 'Alice' }];
+  const baseBill = {
+    id: 'bill-1',
+    title: 'Dinner',
+    date: '2026-01-01T00:00:00.000Z',
+    items: [
+      {
+        id: 'i1',
+        name: 'Pizza',
+        price: 20,
+        quantity: 1,
+        discount: 0,
+        discountType: 'flat' as const,
+        consumedBy: [] as { personId: string; value: number }[],
+        splitType: 'equal' as const,
+      },
+    ],
+    taxAmount: 2,
+    currency: 'USD',
+    paidByPersonId: null,
+    receiptImage: null,
+    splitStateVersion: '2.0.0',
+    scanStatus: 'idle' as const,
+    scanError: null,
+  };
+
+  test('merges items without touching step, title, people, or other fields', () => {
+    act(() => {
+      useBillStore.getState().hydrateFromSession(people, baseBill);
+      useBillStore.getState().goToStep(3);
+    });
+
+    const liveItems = [{ ...baseBill.items[0], consumedBy: [{ personId: 'p1', value: 1 }] }];
+    act(() => {
+      useBillStore.getState().syncItemsFromLive('bill-1', liveItems);
+    });
+
+    const state = useBillStore.getState();
+    expect(state.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
+    expect(state.step).toBe(3); // untouched, unlike hydrateFromSession which resets to 1
+    expect(state.title).toBe('Dinner');
+    expect(state.people).toEqual(people);
+  });
+
+  test('is a no-op if the currently-open bill has changed since the refresh was requested', () => {
+    act(() => {
+      useBillStore.getState().hydrateFromSession(people, baseBill);
+    });
+
+    const staleLiveItems = [{ ...baseBill.items[0], consumedBy: [{ personId: 'p1', value: 1 }] }];
+    act(() => {
+      // Simulates an in-flight fetch for bill-1 resolving after the creator
+      // has already navigated to a different bill.
+      useBillStore.getState().syncItemsFromLive('some-other-bill', staleLiveItems);
+    });
+
+    expect(useBillStore.getState().items[0].consumedBy).toEqual([]);
+  });
+});

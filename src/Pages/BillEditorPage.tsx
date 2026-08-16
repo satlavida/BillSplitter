@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import useBillStore, { useBillStep, useDocumentTitle } from '../billStore';
+import { getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
+import { connectLiveSync } from '../lib/liveSync';
 import StepIndicator from '../Components/StepIndicator';
 import PeopleInput from '../Components/PeopleInput';
 import ItemsInput from '../Components/ItemsInput';
@@ -19,6 +21,7 @@ const BillEditorPage = () => {
   const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
   const navigate = useNavigate();
   const step = useBillStep();
+  const liveCode = useSessionStore((s) => (sessionId ? s.getSession(sessionId)?.liveCode : undefined) ?? null);
 
   useEffect(() => {
     if (!sessionId || !billId) return;
@@ -55,6 +58,39 @@ const BillEditorPage = () => {
 
     return unsubscribe;
   }, [sessionId, billId]);
+
+  // Keeps this bill's "claimed by" state and fraction-correctness reads
+  // live while the creator sits in the editor — without this, joiner
+  // claims/unclaims/item-adds only ever appeared after navigating away and
+  // back (BillEditorPage's hydration effect above is one-shot). Mirrors
+  // LiveSessionPanel.tsx's connectLiveSync usage; only billStore's items
+  // are updated (via syncItemsFromLive), never step/people/title, so the
+  // creator's place in the wizard isn't disturbed by a background refresh.
+  useEffect(() => {
+    if (!sessionId || !billId || !liveCode) return;
+
+    const refresh = () => {
+      getLiveSession(liveCode)
+        .then((liveSession) => {
+          useSessionStore.getState().mergeLiveSnapshot(sessionId, liveSession);
+          const updatedBill = useSessionStore.getState().getBill(sessionId, billId);
+          if (updatedBill) useBillStore.getState().syncItemsFromLive(billId, updatedBill.items);
+        })
+        .catch(() => {
+          // Transient refresh failures aren't worth surfacing here — the
+          // next poll/event will retry, matching LiveSessionPanel/JoinerSessionView.
+        });
+    };
+
+    const handle = connectLiveSync(liveCode, {
+      baseUrl: LIVE_SERVER_URL,
+      onStatusChange: () => {},
+      onEvent: refresh,
+      onPoll: refresh,
+    });
+
+    return () => handle.disconnect();
+  }, [sessionId, billId, liveCode]);
 
   useDocumentTitle();
 
