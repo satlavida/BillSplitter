@@ -877,6 +877,8 @@ describe('billStore - hydrateFromSession (scratch editor)', () => {
       paidByPersonId: 'p1',
       receiptImage: null,
       splitStateVersion: '2.0.0',
+      scanStatus: 'idle' as const,
+      scanError: null,
     };
 
     act(() => {
@@ -906,6 +908,8 @@ describe('billStore - hydrateFromSession (scratch editor)', () => {
         paidByPersonId: null,
         receiptImage: null,
         splitStateVersion: '2.0.0',
+        scanStatus: 'idle',
+        scanError: null,
       });
       useBillStore.getState().addItem({ name: 'Leftover', price: 1 });
     });
@@ -922,6 +926,8 @@ describe('billStore - hydrateFromSession (scratch editor)', () => {
         paidByPersonId: null,
         receiptImage: null,
         splitStateVersion: '2.0.0',
+        scanStatus: 'idle',
+        scanError: null,
       });
     });
 

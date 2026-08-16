@@ -20,6 +20,8 @@ const makeBill = (
   paidByPersonId,
   receiptImage: null,
   splitStateVersion: '2.0.0',
+  scanStatus: 'idle',
+  scanError: null,
   items: [
     {
       id: `${id}-item`,
