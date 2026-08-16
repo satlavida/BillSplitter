@@ -12,6 +12,7 @@ import SessionHomePage from './Pages/SessionHomePage';
 import BillEditorPage from './Pages/BillEditorPage';
 import SessionSettlementPage from './Pages/SessionSettlementPage';
 import ActivityLogPage from './Pages/ActivityLogPage';
+import ClaimApprovalPage from './Pages/ClaimApprovalPage';
 import JoinPage from './Pages/JoinPage';
 import './App.css';
 
@@ -159,6 +160,7 @@ const App = () => {
             <Route path="/session/:sessionId/bill/:billId" element={<BillEditorPage />} />
             <Route path="/session/:sessionId/settlement" element={<SessionSettlementPage />} />
             <Route path="/session/:sessionId/activity" element={<ActivityLogPage />} />
+            <Route path="/session/:sessionId/claims" element={<ClaimApprovalPage />} />
             <Route path="/join/:code" element={<JoinPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

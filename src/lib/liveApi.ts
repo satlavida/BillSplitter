@@ -8,6 +8,7 @@ import {
   LiveBillSchema,
   LiveItemSchema,
   LiveActivityEntrySchema,
+  PendingClaimSchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
@@ -16,6 +17,7 @@ import {
   type LiveBill,
   type LiveItem,
   type LiveActivityEntry,
+  type PendingClaim,
 } from '../schemas/live.schema';
 import type { Person, Item } from '../schemas/bill.schema';
 
@@ -169,5 +171,14 @@ export const getLiveSettlement = (code: string): Promise<LiveSettlement> =>
 
 export const getActivityLog = (code: string, creatorToken: string): Promise<LiveActivityEntry[]> =>
   request(`/api/sessions/${code}/activity`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveActivityEntrySchema));
+
+export const getPendingClaims = (code: string, creatorToken: string): Promise<PendingClaim[]> =>
+  request(`/api/sessions/${code}/claims/pending`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(PendingClaimSchema));
+
+export const approveClaim = (code: string, claimId: string, creatorToken: string): Promise<void> =>
+  request(`/api/sessions/${code}/claims/${claimId}/approve`, { method: 'POST', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
+
+export const rejectClaim = (code: string, claimId: string, creatorToken: string): Promise<void> =>
+  request(`/api/sessions/${code}/claims/${claimId}/reject`, { method: 'POST', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
 
 export { LiveApiError, LIVE_SERVER_URL };

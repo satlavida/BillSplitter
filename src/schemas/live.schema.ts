@@ -105,21 +105,35 @@ export function isFractionItemCorrect(item: LiveItem): boolean {
 // POST .../items/{itemId}/claims responds one of two shapes depending on
 // the session's claim_mode: free_select auto-approves and returns just
 // {status: "approved"}; claims_require_approval returns the created pending
-// claim (models.ItemClaim — its ItemID field is `json:"-"`, so it's not on
-// the wire here). The plain-status alternative is checked first and is
-// .strict() so it only matches the exact free_select shape; the richer
-// shape (which a non-strict object would otherwise also match, silently
-// dropping id/personId/value) is the fallback.
+// claim (models.ItemClaim). The plain-status alternative is checked first
+// and is .strict() so it only matches the exact free_select shape; the
+// richer shape (which a non-strict object would otherwise also match,
+// silently dropping id/personId/value) is the fallback.
 export const ClaimItemResponseSchema = z.union([
   z.object({ status: z.string() }).strict(),
   z.object({
     id: z.string(),
+    itemId: z.string().optional(),
     personId: z.string(),
     value: z.number(),
     status: z.enum(['pending', 'approved']),
   }),
 ]);
 export type ClaimItemResponse = z.infer<typeof ClaimItemResponseSchema>;
+
+// GET .../claims/pending's response shape — a pending claim enriched with
+// the item/person names a creator-facing list needs (see
+// api.pendingClaimResponse on the Go side).
+export const PendingClaimSchema = z.object({
+  id: z.string(),
+  itemId: z.string(),
+  itemName: z.string(),
+  personId: z.string(),
+  personName: z.string(),
+  value: z.number(),
+  status: z.enum(['pending', 'approved']),
+});
+export type PendingClaim = z.infer<typeof PendingClaimSchema>;
 
 export const LiveSettlementSchema = z.object({
   balances: z.array(z.object({ personId: z.string(), amount: z.number() })).default([]),

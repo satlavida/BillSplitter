@@ -1,4 +1,4 @@
-import { LiveJoinerSchema, LiveActivityEntrySchema, isFractionItemCorrect, type LiveItem } from './live.schema';
+import { LiveJoinerSchema, LiveActivityEntrySchema, PendingClaimSchema, isFractionItemCorrect, type LiveItem } from './live.schema';
 
 describe('LiveJoinerSchema', () => {
   test('parses without a token (the common case — already revealed, or not yet approved)', () => {
@@ -53,6 +53,35 @@ describe('LiveActivityEntrySchema', () => {
         deltaValue: 1,
         totalValue: 1,
         createdAt: '2026-01-01 00:00:00',
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('PendingClaimSchema', () => {
+  test('parses a pending claim enriched with item/person names', () => {
+    const claim = PendingClaimSchema.parse({
+      id: 'c1',
+      itemId: 'i1',
+      itemName: 'Pizza',
+      personId: 'p1',
+      personName: 'Bob',
+      value: 2,
+      status: 'pending',
+    });
+    expect(claim.itemName).toBe('Pizza');
+    expect(claim.personName).toBe('Bob');
+  });
+
+  test('rejects a missing itemId', () => {
+    expect(
+      PendingClaimSchema.safeParse({
+        id: 'c1',
+        itemName: 'Pizza',
+        personId: 'p1',
+        personName: 'Bob',
+        value: 2,
+        status: 'pending',
       }).success
     ).toBe(false);
   });

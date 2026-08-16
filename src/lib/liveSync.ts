@@ -106,6 +106,7 @@ export function connectLiveSync(sessionCode: string, options: ConnectOptions): L
       'joiner.disapproved',
       'claim.pending',
       'claim.approved',
+      'claim.rejected',
       'item.updated',
       'bill.updated',
       'session.settled',
