@@ -85,7 +85,7 @@ export const LiveActivityEntrySchema = z.object({
   itemName: z.string(),
   personId: z.string(),
   personName: z.string(),
-  action: z.enum(['claim', 'unclaim']),
+  action: z.enum(['claim', 'unclaim', 'reject']),
   deltaValue: z.number(),
   totalValue: z.number(),
   createdAt: z.string(),

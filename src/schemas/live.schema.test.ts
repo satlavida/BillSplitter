@@ -41,6 +41,21 @@ describe('LiveActivityEntrySchema', () => {
     expect(entry.action).toBe('claim');
   });
 
+  test('parses a reject entry (creator declining a pending claim)', () => {
+    const entry = LiveActivityEntrySchema.parse({
+      id: 2,
+      itemId: 'i1',
+      itemName: 'Pizza',
+      personId: 'p1',
+      personName: 'Bob',
+      action: 'reject',
+      deltaValue: -1,
+      totalValue: 0,
+      createdAt: '2026-01-01 00:00:00',
+    });
+    expect(entry.action).toBe('reject');
+  });
+
   test('rejects an unknown action', () => {
     expect(
       LiveActivityEntrySchema.safeParse({

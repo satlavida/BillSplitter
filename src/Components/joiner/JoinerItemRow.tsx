@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { claimItem, unclaimItem, LiveApiError } from '../../lib/liveApi';
 import { Button } from '../../ui/components';
+import type { LiveEvent } from '../../lib/liveSync';
 import type { LiveItem } from '../../schemas/live.schema';
 
 interface JoinerItemRowProps {
@@ -13,27 +14,41 @@ interface JoinerItemRowProps {
   nameFor: (personId: string) => string;
   disabled: boolean;
   onChanged: () => void;
+  lastEvent: LiveEvent | null;
 }
 
 // One item row in a joiner's bill view. Non-fraction items get a plain
 // claim/unclaim toggle; fraction items get a +/- stepper on this joiner's
 // own share only — never anyone else's.
-const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, nameFor, disabled, onChanged }: JoinerItemRowProps) => {
+const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, nameFor, disabled, onChanged, lastEvent }: JoinerItemRowProps) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // In claims_require_approval mode, a claim doesn't show up in
   // item.consumedBy until the creator approves it (see ClaimItem's doc
-  // comment), so this joiner's own pending submission is tracked locally to
-  // avoid a double-submit and to surface "awaiting approval". Cleared once
-  // myValue reflects an approved allocation.
-  const [pendingSelf, setPendingSelf] = useState(false);
+  // comment), so this joiner's own pending submission is tracked locally
+  // (by its claim id, so it can be matched against SSE events) to avoid a
+  // double-submit and to surface "awaiting approval".
+  const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
 
   const myValue = item.consumedBy.find((c) => c.personId === myPersonId)?.value ?? 0;
   const claimedByMe = myValue > 0;
+  const pendingSelf = pendingClaimId !== null;
+
+  // Cleared once myValue reflects an approved allocation (the common case),
+  // or on a claim.rejected SSE event matching this pending claim — a
+  // rejected claim just disappears server-side (no allocation was ever
+  // created), so myValue alone can never distinguish "still pending" from
+  // "the creator rejected it".
+  useEffect(() => {
+    if (myValue > 0) setPendingClaimId(null);
+  }, [myValue]);
 
   useEffect(() => {
-    if (myValue > 0) setPendingSelf(false);
-  }, [myValue]);
+    if (!pendingClaimId || !lastEvent) return;
+    if (lastEvent.id === pendingClaimId && (lastEvent.kind === 'claim.rejected' || lastEvent.kind === 'claim.approved')) {
+      setPendingClaimId(null);
+    }
+  }, [lastEvent, pendingClaimId]);
 
   const claimedLine =
     item.consumedBy.length > 0 ? `Claimed by ${item.consumedBy.map((c) => `${nameFor(c.personId)}${item.splitType === 'fraction' ? ` (${c.value})` : ''}`).join(', ')}` : null;
@@ -43,7 +58,7 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
     setError(null);
     try {
       const result = await claimItem(code, billId, item.id, myPersonId, value, joinerToken);
-      if (result.status === 'pending') setPendingSelf(true);
+      if (result.status === 'pending' && 'id' in result) setPendingClaimId(result.id);
       onChanged();
     } catch (err) {
       setError(err instanceof LiveApiError ? err.message : 'Failed to update claim');
@@ -57,7 +72,7 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
     setError(null);
     try {
       await unclaimItem(code, billId, item.id, myPersonId, joinerToken);
-      setPendingSelf(false);
+      setPendingClaimId(null);
       onChanged();
     } catch (err) {
       setError(err instanceof LiveApiError ? err.message : 'Failed to unclaim item');
