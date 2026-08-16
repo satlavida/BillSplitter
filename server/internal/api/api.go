@@ -5,6 +5,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"billsplitter/server/internal/presence"
 	"billsplitter/server/internal/sse"
@@ -35,6 +36,22 @@ func New(st *store.Store, hub *sse.Hub, imageDir, adminToken, openRouterAPIKey, 
 		adminToken:       adminToken,
 		openRouterAPIKey: openRouterAPIKey,
 		openRouterModel:  openRouterModel,
+	}
+}
+
+// RunPresenceSweeper periodically sweeps stale presence entries (see
+// presence.Tracker.Sweep) until stop is closed — mirrors cleanup.Run's
+// ticker-loop pattern for the session-purge job, started in cmd/server/main.go.
+func (a *API) RunPresenceSweeper(interval time.Duration, stop <-chan struct{}) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			a.presence.Sweep()
+		case <-stop:
+			return
+		}
 	}
 }
 

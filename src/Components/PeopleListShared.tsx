@@ -45,13 +45,30 @@ export const PersonInputForm = memo(({ onAddPerson }: PersonInputFormProps) => {
   );
 });
 
+// Req 3: 'online'/'offline' renders a colored dot next to a person who has a
+// joiner linked to their identity (presence.Tracker-backed); undefined means
+// no joiner is linked at all, so no indicator is shown.
+export type PresenceStatus = 'online' | 'offline' | undefined;
+
 interface PersonListItemProps {
   person: Person;
   onRemove: (id: string) => void;
   onEdit: (person: Person) => void;
+  presence?: PresenceStatus;
 }
 
-const PersonListItem = memo(({ person, onRemove, onEdit }: PersonListItemProps) => {
+const PresenceDot = ({ status }: { status: PresenceStatus }) => {
+  if (!status) return null;
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-500'}`}
+      title={status === 'online' ? 'Online' : 'Offline'}
+      aria-label={status === 'online' ? 'Online' : 'Offline'}
+    />
+  );
+};
+
+const PersonListItem = memo(({ person, onRemove, onEdit, presence }: PersonListItemProps) => {
   const handleRemove = useCallback(() => {
     onRemove(person.id);
   }, [onRemove, person.id]);
@@ -62,7 +79,8 @@ const PersonListItem = memo(({ person, onRemove, onEdit }: PersonListItemProps) 
 
   return (
     <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
-      <span className="dark:text-white cursor-pointer hover:underline" onClick={handleEdit}>
+      <span className="flex items-center gap-2 dark:text-white cursor-pointer hover:underline" onClick={handleEdit}>
+        <PresenceDot status={presence} />
         {person.name}
       </span>
       <div className="flex items-center space-x-2">
@@ -98,15 +116,16 @@ interface PeopleListProps {
   onRemove: (id: string) => void;
   onEdit: (person: Person) => void;
   emptyState?: React.ReactNode;
+  presenceFor?: (personId: string) => PresenceStatus;
 }
 
-export const PeopleList = memo(({ people, onRemove, onEdit, emptyState }: PeopleListProps) => {
+export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presenceFor }: PeopleListProps) => {
   if (people.length === 0) return emptyState ?? null;
 
   return (
     <ul className="space-y-2">
       {people.map((person) => (
-        <PersonListItem key={person.id} person={person} onRemove={onRemove} onEdit={onEdit} />
+        <PersonListItem key={person.id} person={person} onRemove={onRemove} onEdit={onEdit} presence={presenceFor?.(person.id)} />
       ))}
     </ul>
   );

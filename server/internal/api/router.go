@@ -31,6 +31,9 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}/claims/{personId}", a.UnclaimItem)
 	mux.HandleFunc("GET /api/sessions/{code}/activity", a.GetActivityLog)
 
+	mux.HandleFunc("POST /api/sessions/{code}/presence/heartbeat", a.PresenceHeartbeat)
+	mux.HandleFunc("GET /api/sessions/{code}/presence", a.GetPresence)
+
 	mux.HandleFunc("POST /api/sessions/{code}/bills/{billId}/images", a.UploadImage)
 	mux.HandleFunc("GET /api/images/{refKey}", a.ServeImage)
 

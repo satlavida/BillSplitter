@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getLiveSession, getLiveSettlement, LIVE_SERVER_URL } from '../../lib/liveApi';
 import { connectLiveSync } from '../../lib/liveSync';
+import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat';
 import { Alert } from '../../ui/components';
 import JoinerBillList from './JoinerBillList';
 import JoinerSettlementSummary from './JoinerSettlementSummary';
@@ -20,6 +21,8 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
   const [session, setSession] = useState<LiveSession | null>(null);
   const [settlement, setSettlement] = useState<LiveSettlement | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  usePresenceHeartbeat(code, myPersonId, joinerToken);
 
   const refreshRef = useRef<() => void>(() => {});
   refreshRef.current = () => {

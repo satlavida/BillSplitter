@@ -14,6 +14,7 @@ import (
 	"billsplitter/server/internal/config"
 	"billsplitter/server/internal/db"
 	"billsplitter/server/internal/middleware"
+	"billsplitter/server/internal/presence"
 	"billsplitter/server/internal/sse"
 	"billsplitter/server/internal/store"
 
@@ -44,6 +45,10 @@ func main() {
 	stopCleanup := make(chan struct{})
 	go appcleanup.Run(st, time.Duration(cfg.CleanupEvery)*time.Minute, stopCleanup)
 	defer close(stopCleanup)
+
+	stopPresenceSweep := make(chan struct{})
+	go a.RunPresenceSweeper(presence.FlushAfter, stopPresenceSweep)
+	defer close(stopPresenceSweep)
 
 	handler := middleware.Logging(
 		middleware.Allowlist(cfg.AllowedOrigins, a.Router()),

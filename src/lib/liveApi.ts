@@ -177,4 +177,21 @@ export const getLiveSettlement = (code: string): Promise<LiveSettlement> =>
 export const getActivityLog = (code: string, creatorToken: string): Promise<LiveActivityEntry[]> =>
   request(`/api/sessions/${code}/activity`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveActivityEntrySchema));
 
+// Req 3: a joiner's client calls this every 500ms while their view is
+// mounted (see hooks/usePresenceHeartbeat.ts) so the server's presence.Tracker
+// knows they're still active — both for the creator's online indicator and
+// for whether their identity can be reclaimed by someone else (see
+// server/internal/presence).
+export const sendPresenceHeartbeat = (code: string, personId: string, joinerToken: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/presence/heartbeat`,
+    { method: 'POST', body: JSON.stringify({ personId }), headers: { 'X-Joiner-Token': joinerToken } },
+    { parse: () => undefined }
+  );
+
+const PresenceResponseSchema = z.object({ online: z.array(z.string()).default([]) });
+
+export const getPresence = (code: string): Promise<string[]> =>
+  request(`/api/sessions/${code}/presence`, { method: 'GET' }, PresenceResponseSchema).then((r) => r.online);
+
 export { LiveApiError, LIVE_SERVER_URL };

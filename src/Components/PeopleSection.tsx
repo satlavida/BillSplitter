@@ -1,13 +1,68 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import useSessionStore from '../sessionStore';
+import { getPresence, listJoiners } from '../lib/liveApi';
 import { Card } from '../ui/components';
 import EditPersonModal from './EditPersonModal';
-import { PersonInputForm, PeopleList } from './PeopleListShared';
+import { PersonInputForm, PeopleList, type PresenceStatus } from './PeopleListShared';
 import type { Person } from '../schemas/bill.schema';
 import type { Session } from '../schemas/session.schema';
 
 interface PeopleSectionProps {
   session: Session;
+}
+
+// Req 3: while the session is live, poll every 500ms for which personIds
+// have a linked joiner (approved/pending — presence.Tracker doesn't care)
+// and which of those are currently online, so PeopleList can render a dot.
+// Two separate calls because "has a joiner at all" (listJoiners) and "is
+// currently online" (getPresence) come from different endpoints/tables —
+// joiners rarely change, but this polls both at the same interval for
+// simplicity rather than staggering them.
+function usePeoplePresence(liveCode: string | null, creatorToken: string | null) {
+  const [linkedPersonIds, setLinkedPersonIds] = useState<Set<string>>(new Set());
+  const [onlinePersonIds, setOnlinePersonIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!liveCode) {
+      setLinkedPersonIds(new Set());
+      setOnlinePersonIds(new Set());
+      return;
+    }
+
+    let cancelled = false;
+
+    const tick = () => {
+      getPresence(liveCode)
+        .then((online) => {
+          if (!cancelled) setOnlinePersonIds(new Set(online));
+        })
+        .catch(() => {});
+      if (creatorToken) {
+        listJoiners(liveCode, creatorToken)
+          .then((joiners) => {
+            if (!cancelled) setLinkedPersonIds(new Set(joiners.map((j) => j.personId).filter((id): id is string => Boolean(id))));
+          })
+          .catch(() => {});
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [liveCode, creatorToken]);
+
+  const presenceFor = useCallback(
+    (personId: string): PresenceStatus => {
+      if (!linkedPersonIds.has(personId)) return undefined;
+      return onlinePersonIds.has(personId) ? 'online' : 'offline';
+    },
+    [linkedPersonIds, onlinePersonIds]
+  );
+
+  return presenceFor;
 }
 
 // Session-level People editor (req 1): people are session-scoped data
@@ -22,6 +77,8 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentPerson, setCurrentPerson] = useState<Person | null>(null);
+
+  const presenceFor = usePeoplePresence(session.isLive ? session.liveCode : null, session.liveCreatorToken);
 
   const handleAddPerson = useCallback(
     (name: string) => {
@@ -60,6 +117,7 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
         onRemove={handleRemovePerson}
         onEdit={handleEditPerson}
         emptyState={<p className="text-sm text-zinc-500 dark:text-zinc-400">No one added yet — add the people splitting this session's bills.</p>}
+        presenceFor={presenceFor}
       />
 
       <EditPersonModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} person={currentPerson} onSave={handleSavePerson} />
