@@ -32,6 +32,8 @@ const billStateToBill = (billState: LegacyBillState, fallbackTitle: string, fall
   paidByPersonId: null,
   receiptImage: null,
   splitStateVersion: SESSION_STORE_VERSION,
+  scanStatus: 'idle',
+  scanError: null,
 });
 
 /**
