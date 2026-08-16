@@ -1,11 +1,12 @@
 import { useEffect, type MouseEvent } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
 import { Button, Card, Alert, Spinner } from '../ui/components';
 import EditableTitle from '../Components/EditableTitle';
 import GoLiveSection from '../Components/GoLiveSection';
 import LiveSessionPanel from '../Components/LiveSessionPanel';
+import PeopleSection from '../Components/PeopleSection';
 import { scanBillReceipt } from '../lib/receiptScan';
 
 const SCAN_ERROR_COPY: Record<'offline' | 'failed', string> = {
@@ -16,6 +17,8 @@ const SCAN_ERROR_COPY: Record<'offline' | 'failed', string> = {
 const SessionHomePage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoExpandGoLive = Boolean((location.state as { goLive?: boolean } | null)?.goLive);
 
   const session = useSessionStore(useShallow((s) => (sessionId ? s.sessions.find((sess) => sess.id === sessionId) : undefined)));
   const { addBill, setSessionTitle, setCurrentSession } = useSessionStore(
@@ -60,6 +63,8 @@ const SessionHomePage = () => {
   return (
     <div>
       <EditableTitle title={session.title} onSave={(title) => setSessionTitle(sessionId, title)} placeholder="Untitled Session" />
+
+      <PeopleSection session={session} />
 
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Bills</h2>
@@ -118,7 +123,7 @@ const SessionHomePage = () => {
         </Button>
       </div>
 
-      <GoLiveSection session={session} />
+      <GoLiveSection session={session} autoExpand={autoExpandGoLive} />
       {session.isLive && (
         <div className="mt-4">
           <LiveSessionPanel session={session} />

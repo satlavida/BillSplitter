@@ -6,31 +6,56 @@ import type { Session } from '../schemas/session.schema';
 
 interface GoLiveSectionProps {
   session: Session;
+  // Opens the configuration form immediately, e.g. when navigated here from
+  // a "Go Live" button on the sessions list (req 2) rather than expanded
+  // locally on this page.
+  autoExpand?: boolean;
 }
 
 // "Go Live" seeds a server-side mirror of the current session (title +
 // people) via the Go backend and shows the resulting join code/link. Going
 // live never blocks or replaces the offline-first local session — see
 // planv3.md 3.10.
-const GoLiveSection = ({ session }: GoLiveSectionProps) => {
+const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const markSessionLive = useSessionStore((s) => s.markSessionLive);
   const [joinMode, setJoinMode] = useState<'approval_code' | 'open_link'>('approval_code');
   const [claimMode, setClaimMode] = useState<'free_select' | 'claims_require_approval'>('free_select');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(Boolean(autoExpand));
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = async (link: string) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be denied by the browser — the read-only input
+      // itself is still selectable/copyable manually, so this is a soft failure.
+    }
+  };
 
   if (session.isLive && session.liveCode) {
     const joinLink = `${window.location.origin}${window.location.pathname}#/join/${session.liveCode}`;
     return (
       <Card>
         <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Live</h3>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
           Code: <span className="font-mono font-semibold">{session.liveCode}</span>
         </p>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 break-all">
-          Link: <span className="font-mono">{joinLink}</span>
-        </p>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Share link</label>
+        <div className="flex gap-2">
+          <input
+            readOnly
+            value={joinLink}
+            onFocus={(e) => e.currentTarget.select()}
+            className="flex-grow p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-white font-mono text-sm"
+          />
+          <Button variant="secondary" onClick={() => void handleCopyLink(joinLink)}>
+            {copied ? 'Copied!' : 'Copy'}
+          </Button>
+        </div>
       </Card>
     );
   }

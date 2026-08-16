@@ -79,6 +79,15 @@ const SessionsListPage = () => {
                     {session.title}
                   </Link>
                   <div className="flex gap-2">
+                    {session.isLive ? (
+                      <Button size="sm" variant="secondary" onClick={() => navigate(`/session/${session.id}`)}>
+                        Live
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" onClick={() => navigate(`/session/${session.id}`, { state: { goLive: true } })}>
+                        Go Live
+                      </Button>
+                    )}
                     <Button size="sm" variant="secondary" onClick={() => handleExport(session.id)}>
                       Export
                     </Button>
