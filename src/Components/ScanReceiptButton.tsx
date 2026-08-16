@@ -1,16 +1,12 @@
 import { useState, useRef, useEffect, type FormEvent, type MouseEvent, type RefObject } from 'react';
 import { useParams } from 'react-router-dom';
-import useBillStore from '../billStore';
 import useSessionStore from '../sessionStore';
-import { useShallow } from 'zustand/shallow';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
-import { ReceiptScanResponseSchema, type ReceiptScanResponse } from '../schemas/receiptScan.schema';
 import { resizeImageToDataUrl } from '../lib/imageResize';
 import { saveImageBlob, dataUrlToBlob } from '../lib/imageStore';
 import { generateId } from '../lib/generateId';
-
-const API_URL = import.meta.env.VITE_WORKER_URL;
+import { scanBillReceipt } from '../lib/receiptScan';
 
 interface ModeSelectionModalProps {
   isOpen: boolean;
@@ -126,14 +122,6 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef,
 const ScanReceiptButton = () => {
   const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
 
-  // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { addItem, setTax } = useBillStore(
-    useShallow((state) => ({
-      addItem: state.addItem,
-      setTax: state.setTax,
-    }))
-  );
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModeSelectionOpen, setIsModeSelectionOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -215,42 +203,6 @@ const ScanReceiptButton = () => {
     return null; // No error
   };
 
-  const convertToBase64 = (file: File): Promise<{ base64Data: string; mimeType: string }> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        // Remove the data:image/xxx;base64, prefix
-        const base64String = (reader.result as string).split(',')[1];
-        resolve({
-          base64Data: base64String,
-          mimeType: file.type,
-        });
-      };
-      reader.onerror = (error) => reject(error);
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const processReceiptItems = (data: ReceiptScanResponse) => {
-    // Add items to state. Discount is already normalized to
-    // {value, discountType} by ReceiptScanResponseSchema's parse step,
-    // so no dual-format handling is needed here.
-    data.items.forEach((item) => {
-      addItem({
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        discount: item.discount?.value ?? 0,
-        discountType: item.discount?.discountType ?? 'flat',
-      });
-    });
-
-    // Set tax amount
-    if (data.tax !== undefined) {
-      setTax(data.tax);
-    }
-  };
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -262,62 +214,37 @@ const ScanReceiptButton = () => {
       return;
     }
 
+    if (!sessionId || !billId) {
+      setError('Failed to process receipt. Please try again.');
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
 
-      // Convert image to base64
-      const imageData = await convertToBase64(file as File);
+      // Store the (resized) receipt image first — it's both what's shown as
+      // the bill's receipt reference and what gets scanned, and it needs to
+      // exist in IndexedDB before scanBillReceipt (or a later retry) can
+      // read it back.
+      const resized = await resizeImageToDataUrl(file as File);
+      const refKey = generateId();
+      await saveImageBlob(refKey, dataUrlToBlob(resized.dataUrl));
 
-      // Prepare payload
-      const payload = {
-        image: imageData,
-      };
-
-      const endpoint = API_URL;
-
-      // Send request to worker
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        mode: 'cors',
+      useSessionStore.getState().updateBill(sessionId, billId, {
+        receiptImage: { refKey, width: resized.width, height: resized.height },
+        scanStatus: 'processing',
+        scanError: null,
       });
 
-      if (!response.ok) {
-        throw new Error(`Server responded with status: ${response.status}`);
-      }
-
-      const rawData = await response.json();
-
-      // Validate and normalize the response structure with Zod
-      const data = ReceiptScanResponseSchema.parse(rawData);
-
-      // Process the received data
-      processReceiptItems(data);
-
-      // Capture a resized copy of the receipt for later reference, independent
-      // of the full-resolution bytes already sent to the OCR worker above.
-      // Failure here shouldn't block the scan flow - items are already added.
-      if (sessionId && billId) {
-        try {
-          const resized = await resizeImageToDataUrl(file as File);
-          const refKey = generateId();
-          await saveImageBlob(refKey, dataUrlToBlob(resized.dataUrl));
-          useSessionStore.getState().updateBill(sessionId, billId, {
-            receiptImage: { refKey, width: resized.width, height: resized.height },
-          });
-        } catch (imageErr) {
-          console.error('Failed to store receipt image:', imageErr);
-        }
-      }
-
-      // Close modal after successful processing
+      // Close the modal immediately — scanning happens in the background.
+      // scanBillReceipt has its own try/catch and writes results straight
+      // to the store, so it's fine that this component may unmount before
+      // it resolves.
       closeModal();
+      void scanBillReceipt(sessionId, billId);
     } catch (err) {
-      console.error('Error processing receipt:', err);
+      console.error('Error preparing receipt image:', err);
       setError('Failed to process receipt. Please try again.');
     } finally {
       setIsLoading(false);

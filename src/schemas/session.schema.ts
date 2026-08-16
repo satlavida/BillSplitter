@@ -20,6 +20,10 @@ export const BillSchema = z.object({
   paidByPersonId: z.string().nullable().default(null),
   receiptImage: ReceiptImageRefSchema.nullable().default(null),
   splitStateVersion: z.string().default(SESSION_STORE_VERSION),
+  // Local-only UI state for async receipt scanning — never synced to the
+  // live server (not part of BILL_FIELD_KEYS/LiveBillSchema).
+  scanStatus: z.enum(['idle', 'processing', 'error']).default('idle'),
+  scanError: z.enum(['offline', 'failed']).nullable().default(null),
 });
 export type Bill = z.infer<typeof BillSchema>;
 

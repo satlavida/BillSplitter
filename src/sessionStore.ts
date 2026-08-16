@@ -69,6 +69,8 @@ const newBillDefaults = (overrides?: Partial<Bill>): Bill => ({
   paidByPersonId: overrides?.paidByPersonId ?? null,
   receiptImage: overrides?.receiptImage ?? null,
   splitStateVersion: SESSION_STORE_VERSION,
+  scanStatus: overrides?.scanStatus ?? 'idle',
+  scanError: overrides?.scanError ?? null,
 });
 
 interface SessionStoreActions {
@@ -152,6 +154,8 @@ function mergeLiveBill(local: Bill | undefined, remote: LiveSession['bills'][num
     paidByPersonId: remote.paidByPersonId,
     receiptImage: local?.receiptImage ?? null,
     splitStateVersion: local?.splitStateVersion ?? SESSION_STORE_VERSION,
+    scanStatus: local?.scanStatus ?? 'idle',
+    scanError: local?.scanError ?? null,
   };
 }
 
