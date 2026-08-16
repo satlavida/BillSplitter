@@ -21,11 +21,14 @@ test('creator disapproves a pending joiner, who sees the rejection and can try a
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText('Waiting for the host to approve you.')).toBeVisible();
 
-  await expect(page.getByText('Nina')).toBeVisible({ timeout: 10000 });
+  // `.last()`: "Nina" also becomes a session-level person in PeopleSection
+  // above the Joiners panel (the server creates a person row for a
+  // new-name joiner regardless of approval outcome).
+  await expect(page.getByText('Nina').last()).toBeVisible({ timeout: 10000 });
   await page.getByRole('button', { name: 'Disapprove', exact: true }).click();
 
   // The creator's own list reflects the decision.
-  await expect(page.getByText('Nina')).toBeVisible();
+  await expect(page.getByText('Nina').last()).toBeVisible();
   await expect(page.getByText('disapproved')).toBeVisible({ timeout: 10000 });
 
   // The joiner's still-open page picks up the rejection live.

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { generateId } from './lib/generateId';
 import { SessionStoreStateSchema, SessionSchema, SESSION_STORE_VERSION, type Session, type Bill } from './schemas/session.schema';
 import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schema';
-import type { LiveSession } from './schemas/live.schema';
+import type { LiveSession, LiveBill, LiveItem } from './schemas/live.schema';
 import { getImageBlob } from './lib/imageStore';
 
 // Dynamically imported (rather than a static import) so this module never
@@ -45,6 +45,91 @@ function billFieldsChanged(a: Bill, b: Bill): boolean {
 
 function itemFieldsChanged(a: Item, b: Item): boolean {
   return ITEM_FIELD_KEYS.some((key) => a[key] !== b[key]);
+}
+
+function localBillDiffersFromLive(local: Bill, remote: LiveBill): boolean {
+  return (
+    local.title !== remote.title ||
+    local.currency !== remote.currency ||
+    local.taxAmount !== remote.taxAmount ||
+    local.paidByPersonId !== remote.paidByPersonId
+  );
+}
+
+function localItemDiffersFromLive(local: Item, remote: LiveItem): boolean {
+  return (
+    local.name !== remote.name ||
+    local.price !== remote.price ||
+    local.quantity !== remote.quantity ||
+    local.discount !== remote.discount ||
+    local.discountType !== remote.discountType ||
+    local.splitType !== remote.splitType
+  );
+}
+
+// Fixes a bug where activating "Go Live" on a session that already has
+// bills never pushed them up — only addBill/updateBill push, and both were
+// only ever called *after* isLive was already true. Called (fire-and-forget,
+// like every other live push in this file) right after markSessionLive sets
+// isLive, this does a compare-and-sync instead of a blind re-push: it fetches
+// what the server already knows about (covering a retried/partial prior
+// activation) and only pushes bills/items that are missing or changed, so
+// it's safe to call unconditionally on every Go Live activation.
+async function syncExistingBillsLive(liveCode: string, bills: Bill[]) {
+  const { getLiveSession } = await import('./lib/liveApi');
+  let remoteSession: LiveSession;
+  try {
+    remoteSession = await getLiveSession(liveCode);
+  } catch {
+    return;
+  }
+  const remoteBillsById = new Map(remoteSession.bills.map((b) => [b.id, b]));
+
+  for (const bill of bills) {
+    const remoteBill = remoteBillsById.get(bill.id);
+
+    if (!remoteBill) {
+      await pushNewBillLive(liveCode, { id: bill.id, title: bill.title, currency: bill.currency, taxAmount: bill.taxAmount }).catch(() => {});
+      for (const item of bill.items) {
+        await pushNewItemLive(liveCode, bill.id, item).catch(() => {});
+      }
+      if (bill.paidByPersonId) {
+        await pushBillFieldsLive(liveCode, bill.id, {
+          title: bill.title,
+          currency: bill.currency,
+          taxAmount: bill.taxAmount,
+          paidByPersonId: bill.paidByPersonId,
+        }).catch(() => {});
+      }
+      if (bill.receiptImage) {
+        await pushReceiptImageLive(liveCode, bill.id, bill.receiptImage).catch(() => {});
+      }
+      continue;
+    }
+
+    if (localBillDiffersFromLive(bill, remoteBill)) {
+      await pushBillFieldsLive(liveCode, bill.id, {
+        title: bill.title,
+        currency: bill.currency,
+        taxAmount: bill.taxAmount,
+        paidByPersonId: bill.paidByPersonId,
+      }).catch(() => {});
+    }
+
+    const remoteItemsById = new Map(remoteBill.items.map((i) => [i.id, i]));
+    for (const item of bill.items) {
+      const remoteItem = remoteItemsById.get(item.id);
+      if (!remoteItem) {
+        await pushNewItemLive(liveCode, bill.id, item).catch(() => {});
+      } else if (localItemDiffersFromLive(item, remoteItem)) {
+        await pushItemFieldsLive(liveCode, bill.id, item).catch(() => {});
+      }
+    }
+
+    if (bill.receiptImage && !remoteBill.imageRefKey) {
+      await pushReceiptImageLive(liveCode, bill.id, bill.receiptImage).catch(() => {});
+    }
+  }
 }
 
 interface SessionStoreState {
@@ -379,10 +464,19 @@ const useSessionStore = create<SessionStore>()(
           sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, people }) : s)),
         })),
 
-      markSessionLive: (sessionId, liveCode, liveCreatorToken) =>
+      markSessionLive: (sessionId, liveCode, liveCreatorToken) => {
+        const bills = get().sessions.find((s) => s.id === sessionId)?.bills ?? [];
+
         set((state) => ({
           sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, isLive: true, liveCode, liveCreatorToken }) : s)),
-        })),
+        }));
+
+        // Fire-and-forget, matching every other live push in this file — a
+        // failed sync here doesn't block Go Live from completing locally.
+        if (bills.length > 0) {
+          syncExistingBillsLive(liveCode, bills).catch(() => {});
+        }
+      },
 
       mergeLiveSnapshot: (sessionId, liveSession) =>
         set((state) => ({

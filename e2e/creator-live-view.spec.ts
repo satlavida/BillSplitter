@@ -41,10 +41,13 @@ test('creator sees a pending joiner appear live and can approve them', async ({ 
   await expect(joinerPage.getByText('Waiting for the host to approve you.')).toBeVisible();
 
   // The creator's live panel picks up the pending joiner without a reload.
-  await expect(page.getByText('Bob')).toBeVisible({ timeout: 10000 });
+  // (Once approved, "Bob" also becomes a session-level person shown by
+  // PeopleSection above — `.last()` targets the Joiners panel entry, which
+  // renders after it in the DOM.)
+  await expect(page.getByText('Bob').last()).toBeVisible({ timeout: 10000 });
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
 
-  await expect(page.getByText('Bob')).toBeVisible();
+  await expect(page.getByText('Bob').last()).toBeVisible();
   await expect(page.getByText('approved')).toBeVisible({ timeout: 10000 });
 
   await joinerPage.close();

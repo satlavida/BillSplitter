@@ -76,7 +76,9 @@ test('approval_code + claims_require_approval: joiner claim goes pending until t
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText('Waiting for the host to approve you.')).toBeVisible();
 
-  await expect(page.getByText('Eli')).toBeVisible({ timeout: 10000 });
+  // `.last()`: once approved, "Eli" also appears as a session-level person
+  // in PeopleSection above the Joiners panel.
+  await expect(page.getByText('Eli').last()).toBeVisible({ timeout: 10000 });
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible({ timeout: 10000 });
 

@@ -15,7 +15,8 @@ test.describe('Go Live', () => {
     await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible();
     const code = await page.locator('span.font-mono.font-semibold').first().innerText();
     expect(code).toMatch(/^[A-Z0-9]{5}$/);
-    await expect(page.getByText(new RegExp(`join/${code}`))).toBeVisible();
+    // Share link is a read-only input (with a Copy button), not plain text.
+    await expect(page.locator('input[readonly]')).toHaveValue(new RegExp(`join/${code}`));
   });
 
   test('Cancel collapses the form back to the button', async ({ page }) => {

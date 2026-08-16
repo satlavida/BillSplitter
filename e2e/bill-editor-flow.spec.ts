@@ -71,8 +71,10 @@ test.describe('Bill editor — full 4-step flow', () => {
     await expect(page.getByText('Alice')).toBeVisible();
 
     // Go back to the session home; both bills should now be listed.
+    // Scoped to the bill list specifically — the session home page also has
+    // a People list (PeopleSection) with its own <ul><li> items.
     await page.goto(`/#/session/${sessionId}`);
-    const bills = page.locator('ul li');
+    const bills = page.getByTestId('bill-list').locator('li');
     await expect(bills).toHaveCount(2);
   });
 

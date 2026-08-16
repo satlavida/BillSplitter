@@ -74,7 +74,7 @@ const SessionHomePage = () => {
       {session.bills.length === 0 ? (
         <p className="text-zinc-500 dark:text-zinc-400 mb-6">No bills yet. Add one to get started.</p>
       ) : (
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-2 mb-6" data-testid="bill-list">
           {session.bills.map((bill) => (
             <li key={bill.id}>
               <Card className="mb-0 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700" onClick={() => navigate(`/session/${sessionId}/bill/${bill.id}`)}>
