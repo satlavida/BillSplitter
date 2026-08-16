@@ -31,13 +31,14 @@ async function seedFractionItem(request: APIRequestContext, code: string): Promi
 
 test('two joiners increment their own fraction shares and the totals sum correctly', async ({ page, context, request, browser }: { page: Page; context: BrowserContext; request: APIRequestContext; browser: Browser }) => {
   const code = await goLive(page);
-  await seedFractionItem(request, code);
+  const { billId } = await seedFractionItem(request, code);
 
   const joinerA = await context.newPage();
   await joinerA.goto(`/#/join/${code}`);
   await joinerA.getByPlaceholder('Enter your name').fill('Alice');
   await joinerA.getByRole('button', { name: 'Join' }).click();
   await expect(joinerA.getByText("You're in!")).toBeVisible();
+  await joinerA.goto(`/#/join/${code}/bills/${billId}/step/3`);
 
   // joinerB needs its own browser context, not just a new page in the
   // creator's/joinerA's context — joinerStorage.ts keys the stored joiner
@@ -50,6 +51,7 @@ test('two joiners increment their own fraction shares and the totals sum correct
   await joinerB.getByPlaceholder('Enter your name').fill('Bob');
   await joinerB.getByRole('button', { name: 'Join' }).click();
   await expect(joinerB.getByText("You're in!")).toBeVisible();
+  await joinerB.goto(`/#/join/${code}/bills/${billId}/step/3`);
 
   // Alice claims 2 slices.
   await expect(joinerA.getByText('Pizza', { exact: true })).toBeVisible();

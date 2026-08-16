@@ -7,7 +7,7 @@ import { test, expect, type Page, type Browser, type BrowserContext } from '@pla
 // navigating away, while multiple joiners in separate browser contexts
 // claim items — and sees each claim reflected without a manual refresh.
 
-async function joinAndClaim(browser: Browser, code: string, name: string, itemName: string): Promise<{ page: Page; context: BrowserContext }> {
+async function joinAndClaim(browser: Browser, code: string, billId: string, name: string, itemName: string): Promise<{ page: Page; context: BrowserContext }> {
   // Each joiner needs its own browser context — joinerStorage.ts keys the
   // stored joiner id purely by session code, so two pages sharing a
   // context collide (see joiner-fraction-stepper.spec.ts, which hit this).
@@ -17,6 +17,7 @@ async function joinAndClaim(browser: Browser, code: string, name: string, itemNa
   await page.getByPlaceholder('Enter your name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText("You're in!")).toBeVisible();
+  await page.goto(`/#/join/${code}/bills/${billId}/step/3`);
 
   await expect(page.getByText(itemName, { exact: true })).toBeVisible({ timeout: 10000 });
   await page
@@ -39,6 +40,8 @@ test('creator sitting in the bill editor sees multiple claimers update live, wit
   const code = await page.locator('span.font-mono.font-semibold').first().innerText();
 
   await page.getByRole('button', { name: 'Add Bill' }).click();
+  await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
+  const billId = page.url().match(/\/bill\/([^/]+)\/step\/1$/)![1];
   await page.getByRole('button', { name: 'Go to step 2: Items' }).click();
 
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza');
@@ -61,16 +64,16 @@ test('creator sitting in the bill editor sees multiple claimers update live, wit
 
   // Two joiners claim two different items, without the creator ever
   // navigating away from step 3.
-  const alice = await joinAndClaim(browser, code, 'Alice', 'Pizza');
+  const alice = await joinAndClaim(browser, code, billId, 'Alice', 'Pizza');
   await expect(pizzaCard.getByText('Split between:')).toBeVisible({ timeout: 10000 });
   await expect(pizzaCard).toContainText('Alice', { timeout: 10000 });
 
-  const bob = await joinAndClaim(browser, code, 'Bob', 'Nachos');
+  const bob = await joinAndClaim(browser, code, billId, 'Bob', 'Nachos');
   await expect(nachosCard).toContainText('Bob', { timeout: 10000 });
 
   // A third joiner claims the SAME item as Alice — the creator should see
   // both names listed together, not one overwriting the other.
-  const carol = await joinAndClaim(browser, code, 'Carol', 'Pizza');
+  const carol = await joinAndClaim(browser, code, billId, 'Carol', 'Pizza');
   await expect(pizzaCard.getByText(/Split between:.*Alice.*Carol|Split between:.*Carol.*Alice/)).toBeVisible({ timeout: 10000 });
 
   await alice.page.close();

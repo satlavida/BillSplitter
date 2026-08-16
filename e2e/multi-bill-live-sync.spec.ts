@@ -64,24 +64,28 @@ test('two bills in a live session stay independent, and settlement nets balances
     data: { title: 'Movie Night', currency: 'USD', taxAmount: 0, paidByPersonId: eli.id },
   });
 
-  // Cross-consumption: Eli claims Dana's Bread, Dana claims Eli's Tickets.
+  // Cross-consumption: Eli claims Dana's Bread (bill1), Dana claims Eli's
+  // Tickets (bill2) — each on that bill's own step-3 (Assign) page (req 4).
+  await eliPage.goto(`/#/join/${code}/bills/${bill1.id}/step/3`);
   const eliBreadRow = eliPage.locator('li', { hasText: 'Bread' });
   await expect(eliBreadRow).toBeVisible({ timeout: 10000 });
   await eliBreadRow.getByRole('button', { name: 'Claim', exact: true }).click();
 
+  await danaPage.goto(`/#/join/${code}/bills/${bill2.id}/step/3`);
   const danaTicketsRow = danaPage.locator('li', { hasText: 'Tickets' });
   await expect(danaTicketsRow).toBeVisible({ timeout: 10000 });
   await danaTicketsRow.getByRole('button', { name: 'Claim', exact: true }).click();
 
-  // No cross-bill leakage: on Dana's own page, Bread (which she did NOT
-  // claim) shows Eli, not her; Tickets (which she DID claim) shows her.
-  const danaBreadCard = danaPage.locator('div.rounded-xl.shadow-sm', { hasText: 'Groceries' });
-  await expect(danaBreadCard).toContainText('Claimed by Eli', { timeout: 10000 });
-  await expect(danaBreadCard).not.toContainText('Claimed by Dana');
+  // No cross-bill leakage: Bread (bill1, which Dana did NOT claim) shows
+  // Eli, not her; Tickets (bill2, which she DID claim) shows her.
+  await danaPage.goto(`/#/join/${code}/bills/${bill1.id}/step/3`);
+  const danaBreadRow = danaPage.locator('li', { hasText: 'Bread' });
+  await expect(danaBreadRow).toContainText('Claimed by Eli', { timeout: 10000 });
+  await expect(danaBreadRow).not.toContainText('Claimed by Dana');
 
-  const danaTicketsCard = danaPage.locator('div.rounded-xl.shadow-sm', { hasText: 'Movie Night' });
-  await expect(danaTicketsCard).toContainText('Claimed by Dana', { timeout: 10000 });
-  await expect(danaTicketsCard).not.toContainText('Claimed by Eli');
+  await danaPage.goto(`/#/join/${code}/bills/${bill2.id}/step/3`);
+  await expect(danaTicketsRow).toContainText('Claimed by Dana', { timeout: 10000 });
+  await expect(danaTicketsRow).not.toContainText('Claimed by Eli');
 
   // Creator's session home (never navigated away from) reflects both bills,
   // via LiveSessionPanel's own live-sync subscription.

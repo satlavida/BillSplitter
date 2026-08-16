@@ -25,7 +25,7 @@ async function seedBill(request: APIRequestContext, code: string): Promise<strin
 
 test('a joiner can add an item to an existing bill, and it shows up for both the joiner and the creator', async ({ page, context, request }) => {
   const code = await goLive(page);
-  await seedBill(request, code);
+  const billId = await seedBill(request, code);
 
   const joinerPage = await context.newPage();
   await joinerPage.goto(`/#/join/${code}`);
@@ -33,6 +33,7 @@ test('a joiner can add an item to an existing bill, and it shows up for both the
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in!")).toBeVisible();
 
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await expect(joinerPage.getByText('No items yet.')).toBeVisible();
   await joinerPage.getByRole('button', { name: '+ Add item' }).click();
   await joinerPage.getByPlaceholder('Item name').fill('Soda');

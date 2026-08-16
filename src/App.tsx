@@ -13,6 +13,7 @@ import BillEditorPage from './Pages/BillEditorPage';
 import SessionSettlementPage from './Pages/SessionSettlementPage';
 import ActivityLogPage from './Pages/ActivityLogPage';
 import JoinPage from './Pages/JoinPage';
+import JoinerBillEditorPage from './Pages/JoinerBillEditorPage';
 import './App.css';
 
 interface HeaderProps {
@@ -169,6 +170,7 @@ const App = () => {
             <Route path="/session/:sessionId/settlement" element={<SessionSettlementPage />} />
             <Route path="/session/:sessionId/activity" element={<ActivityLogPage />} />
             <Route path="/join/:code" element={<JoinPage />} />
+            <Route path="/join/:code/bills/:billId/step/:step" element={<JoinerBillEditorPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>

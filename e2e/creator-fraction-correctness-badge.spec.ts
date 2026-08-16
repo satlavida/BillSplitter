@@ -22,21 +22,23 @@ async function goLive(page: Page): Promise<string> {
 }
 
 // quantity: 3 "parts" — two joiners will together claim exactly 3.
-async function seedFractionItem(request: APIRequestContext, code: string): Promise<void> {
+async function seedFractionItem(request: APIRequestContext, code: string): Promise<string> {
   const billRes = await request.post(`${LIVE_SERVER_URL}/api/sessions/${code}/bills`, { data: { title: 'Pizza Night', currency: 'USD' } });
   const bill = await billRes.json();
   await request.post(`${LIVE_SERVER_URL}/api/sessions/${code}/bills/${bill.id}/items`, {
     data: { name: 'Pizza', price: 24, quantity: 3, splitType: 'fraction' },
   });
+  return bill.id;
 }
 
-async function joinAndIncrement(browser: Browser, code: string, name: string, times: number): Promise<{ page: Page; context: BrowserContext }> {
+async function joinAndIncrement(browser: Browser, code: string, billId: string, name: string, times: number): Promise<{ page: Page; context: BrowserContext }> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(`/#/join/${code}`);
   await page.getByPlaceholder('Enter your name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText("You're in!")).toBeVisible();
+  await page.goto(`/#/join/${code}/bills/${billId}/step/3`);
   await expect(page.getByText('Pizza', { exact: true })).toBeVisible({ timeout: 10000 });
 
   const increment = page.getByRole('button', { name: '+', exact: true });
@@ -52,7 +54,7 @@ test("the creator's fraction-correctness badge flips to 'Split complete' as join
   request,
 }) => {
   const code = await goLive(page);
-  await seedFractionItem(request, code);
+  const billId = await seedFractionItem(request, code);
 
   // Creator's session home already merges the API-seeded bill live — click
   // into it once it appears, rather than creating it through the UI (which
@@ -67,10 +69,10 @@ test("the creator's fraction-correctness badge flips to 'Split complete' as join
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });
   await expect(pizzaCard.getByText(/Claimed parts total 0, item has 3/)).toBeVisible({ timeout: 10000 });
 
-  const alice = await joinAndIncrement(browser, code, 'Alice', 2);
+  const alice = await joinAndIncrement(browser, code, billId, 'Alice', 2);
   await expect(pizzaCard.getByText(/Claimed parts total 2, item has 3/)).toBeVisible({ timeout: 10000 });
 
-  const bob = await joinAndIncrement(browser, code, 'Bob', 1);
+  const bob = await joinAndIncrement(browser, code, billId, 'Bob', 1);
   await expect(pizzaCard.getByText('✓ Split complete')).toBeVisible({ timeout: 10000 });
 
   await alice.page.close();

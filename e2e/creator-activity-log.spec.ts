@@ -30,7 +30,7 @@ test('the creator sees a joiner claim and unclaim in the activity log', async ({
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
 
   const code = await goLive(page);
-  await seedBillWithItem(page.request, code);
+  const { billId } = await seedBillWithItem(page.request, code);
 
   const joinerPage = await context.newPage();
   await joinerPage.goto(`/#/join/${code}`);
@@ -38,6 +38,7 @@ test('the creator sees a joiner claim and unclaim in the activity log', async ({
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in!")).toBeVisible();
 
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/3`);
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Claimed by Dana')).toBeVisible({ timeout: 10000 });
   await joinerPage.getByRole('button', { name: 'Unclaim' }).click();

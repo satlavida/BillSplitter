@@ -41,7 +41,7 @@ test('open_link + edit: a new-name joiner claims an item and it shows up immedia
   request: APIRequestContext;
 }) => {
   const code = await goLive(page, 'Open link (anyone with the link joins instantly)', 'Edit (joiners can add and claim items directly)');
-  await seedBillWithItem(request, code);
+  const { billId } = await seedBillWithItem(request, code);
 
   const joinerPage = await context.newPage();
   await joinerPage.goto(`/#/join/${code}`);
@@ -49,6 +49,8 @@ test('open_link + edit: a new-name joiner claims an item and it shows up immedia
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
+  // Step 3: Assign — where a joiner claims their own share (req 4).
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/3`);
   await expect(joinerPage.getByText('Chips')).toBeVisible();
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
 

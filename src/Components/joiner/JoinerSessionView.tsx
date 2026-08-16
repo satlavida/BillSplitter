@@ -53,7 +53,6 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
   }
 
   const nameFor = (personId: string) => session.people.find((p) => p.id === personId)?.name ?? 'Someone';
-  const readOnly = session.isSettled || session.permissionMode === 'read_only';
 
   return (
     <div>
@@ -70,17 +69,11 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
 
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
 
-      <JoinerBillList
-        code={code}
-        bills={session.bills}
-        myPersonId={myPersonId}
-        joinerToken={joinerToken}
-        nameFor={nameFor}
-        disabled={readOnly}
-        onChanged={refreshRef.current}
-      />
+      <JoinerBillList code={code} bills={session.bills} />
 
-      <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} />
+      <div className="mt-4">
+        <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} />
+      </div>
     </div>
   );
 };

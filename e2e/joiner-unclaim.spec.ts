@@ -29,7 +29,7 @@ async function seedBillWithItem(request: APIRequestContext, code: string): Promi
 
 test('a joiner can unclaim an item they claimed, making it claimable again', async ({ page, context, request }) => {
   const code = await goLive(page);
-  await seedBillWithItem(request, code);
+  const { billId } = await seedBillWithItem(request, code);
 
   const joinerPage = await context.newPage();
   await joinerPage.goto(`/#/join/${code}`);
@@ -37,6 +37,7 @@ test('a joiner can unclaim an item they claimed, making it claimable again', asy
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in!")).toBeVisible();
 
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/3`);
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Claimed by Dana')).toBeVisible({ timeout: 10000 });
 
