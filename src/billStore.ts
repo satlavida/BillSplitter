@@ -81,16 +81,19 @@ interface BillStoreActions {
   importBill: (data: Partial<BillStoreState>) => void;
   hydrateFromSession: (people: Person[], bill: Bill) => void;
   // Merges a live-refreshed bill's items (consumedBy from joiner claims, or
-  // brand-new items a joiner added) into this scratch editor without
-  // touching step/people/title/etc. — unlike hydrateFromSession, which
-  // always resets step to 1, so it can't be re-run on every live-sync tick
-  // without jerking the creator back to the wizard's first step. billId is
-  // passed so a fetch that resolves after the creator has navigated to a
-  // different bill (BillEditorPage's cleanup stops new fetches but can't
-  // cancel one already in flight) is a no-op rather than cross-contaminating
-  // the now-open bill. See BillEditorPage.tsx's live-sync effect, the only
+  // brand-new items a joiner added) and the session's people (a joiner who
+  // picked "someone new" adds a new Person server-side — without syncing
+  // this too, that joiner's name wouldn't resolve in e.g. ItemAssignment's
+  // "Split between: ..." list) into this scratch editor without touching
+  // step/title/etc. — unlike hydrateFromSession, which always resets step
+  // to 1, so it can't be re-run on every live-sync tick without jerking the
+  // creator back to the wizard's first step. billId is passed so a fetch
+  // that resolves after the creator has navigated to a different bill
+  // (BillEditorPage's cleanup stops new fetches but can't cancel one
+  // already in flight) is a no-op rather than cross-contaminating the
+  // now-open bill. See BillEditorPage.tsx's live-sync effect, the only
   // caller.
-  syncItemsFromLive: (billId: string, items: Item[]) => void;
+  syncItemsFromLive: (billId: string, items: Item[], people: Person[]) => void;
 
   getPersonTotals: () => PersonTotal[];
   getSubtotal: () => number;
@@ -396,12 +399,12 @@ const useBillStore = create<BillStore>()((set, get) => ({
         return allocations;
       },
 
-      // Hydrate this scratch editor from a session's shared people pool and
-      // a specific bill's fields. Called by BillEditorPage on route entry.
-      syncItemsFromLive: (billId, items) => {
-        set((state) => (state.billId === billId ? { items } : state));
+      syncItemsFromLive: (billId, items, people) => {
+        set((state) => (state.billId === billId ? { items, people } : state));
       },
 
+      // Hydrate this scratch editor from a session's shared people pool and
+      // a specific bill's fields. Called by BillEditorPage on route entry.
       hydrateFromSession: (people, bill) => {
         const result = BillStateSchema.safeParse({
           version: BILL_STORE_VERSION,

@@ -965,22 +965,26 @@ describe('billStore - syncItemsFromLive (live-sync refresh)', () => {
     scanError: null,
   };
 
-  test('merges items without touching step, title, people, or other fields', () => {
+  test('merges items and people without touching step, title, or other fields', () => {
     act(() => {
       useBillStore.getState().hydrateFromSession(people, baseBill);
       useBillStore.getState().goToStep(3);
     });
 
-    const liveItems = [{ ...baseBill.items[0], consumedBy: [{ personId: 'p1', value: 1 }] }];
+    // A joiner who picked "someone new" adds a Person server-side — this
+    // must reach billStore too, or their name won't resolve in e.g.
+    // ItemAssignment's "Split between: ..." list.
+    const liveItems = [{ ...baseBill.items[0], consumedBy: [{ personId: 'p1', value: 1 }, { personId: 'p2', value: 1 }] }];
+    const livePeople = [...people, { id: 'p2', name: 'Bob' }];
     act(() => {
-      useBillStore.getState().syncItemsFromLive('bill-1', liveItems);
+      useBillStore.getState().syncItemsFromLive('bill-1', liveItems, livePeople);
     });
 
     const state = useBillStore.getState();
-    expect(state.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
+    expect(state.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }, { personId: 'p2', value: 1 }]);
+    expect(state.people).toEqual(livePeople);
     expect(state.step).toBe(3); // untouched, unlike hydrateFromSession which resets to 1
     expect(state.title).toBe('Dinner');
-    expect(state.people).toEqual(people);
   });
 
   test('is a no-op if the currently-open bill has changed since the refresh was requested', () => {
@@ -992,7 +996,7 @@ describe('billStore - syncItemsFromLive (live-sync refresh)', () => {
     act(() => {
       // Simulates an in-flight fetch for bill-1 resolving after the creator
       // has already navigated to a different bill.
-      useBillStore.getState().syncItemsFromLive('some-other-bill', staleLiveItems);
+      useBillStore.getState().syncItemsFromLive('some-other-bill', staleLiveItems, people);
     });
 
     expect(useBillStore.getState().items[0].consumedBy).toEqual([]);

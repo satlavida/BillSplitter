@@ -64,8 +64,9 @@ const BillEditorPage = () => {
   // claims/unclaims/item-adds only ever appeared after navigating away and
   // back (BillEditorPage's hydration effect above is one-shot). Mirrors
   // LiveSessionPanel.tsx's connectLiveSync usage; only billStore's items
-  // are updated (via syncItemsFromLive), never step/people/title, so the
-  // creator's place in the wizard isn't disturbed by a background refresh.
+  // and people are updated (via syncItemsFromLive), never step/title, so
+  // the creator's place in the wizard isn't disturbed by a background
+  // refresh.
   useEffect(() => {
     if (!sessionId || !billId || !liveCode) return;
 
@@ -73,8 +74,11 @@ const BillEditorPage = () => {
       getLiveSession(liveCode)
         .then((liveSession) => {
           useSessionStore.getState().mergeLiveSnapshot(sessionId, liveSession);
+          const updatedSession = useSessionStore.getState().getSession(sessionId);
           const updatedBill = useSessionStore.getState().getBill(sessionId, billId);
-          if (updatedBill) useBillStore.getState().syncItemsFromLive(billId, updatedBill.items);
+          if (updatedBill && updatedSession) {
+            useBillStore.getState().syncItemsFromLive(billId, updatedBill.items, updatedSession.people);
+          }
         })
         .catch(() => {
           // Transient refresh failures aren't worth surfacing here — the
