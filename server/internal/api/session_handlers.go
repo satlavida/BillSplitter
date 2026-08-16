@@ -10,10 +10,12 @@ import (
 )
 
 type createSessionRequest struct {
-	Title     string          `json:"title"`
-	People    []models.Person `json:"people"`
-	JoinMode  string          `json:"joinMode"`
-	ClaimMode string          `json:"claimMode"`
+	Title           string          `json:"title"`
+	People          []models.Person `json:"people"`
+	JoinMode        string          `json:"joinMode"`
+	ClaimMode       string          `json:"claimMode"`
+	PermissionMode  string          `json:"permissionMode"`
+	CreatorPersonID *string         `json:"creatorPersonId"`
 }
 
 type createSessionResponse struct {
@@ -40,8 +42,26 @@ func (a *API) CreateSession(w http.ResponseWriter, r *http.Request) {
 	if req.ClaimMode == string(models.ClaimModeClaimsRequireApproval) {
 		claimMode = models.ClaimModeClaimsRequireApproval
 	}
+	permissionMode := models.PermissionModeEdit
+	if req.PermissionMode == string(models.PermissionModeReadOnly) {
+		permissionMode = models.PermissionModeReadOnly
+	}
 
-	sess, err := a.store.CreateSession(req.Title, req.People, joinMode, claimMode)
+	if req.CreatorPersonID != nil {
+		found := false
+		for _, p := range req.People {
+			if p.ID == *req.CreatorPersonID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			writeError(w, http.StatusBadRequest, "creatorPersonId must reference a person in people")
+			return
+		}
+	}
+
+	sess, err := a.store.CreateSession(req.Title, req.People, joinMode, claimMode, permissionMode, req.CreatorPersonID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create session")
 		return
@@ -103,6 +123,17 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ExistingPersonID != nil {
+		if sess.CreatorPersonID != nil && *req.ExistingPersonID == *sess.CreatorPersonID {
+			writeError(w, http.StatusForbidden, "cannot join as the session creator's own identity")
+			return
+		}
+		if !a.presence.IsAvailable(code, *req.ExistingPersonID) {
+			writeError(w, http.StatusConflict, "this person is already active in the session — try again in a few minutes")
+			return
+		}
+	}
+
 	name := req.Name
 	if name == "" && req.ExistingPersonID != nil {
 		for _, p := range sess.People {
@@ -136,6 +167,10 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create joiner")
 		return
+	}
+
+	if joiner.PersonID != nil {
+		a.presence.Touch(code, *joiner.PersonID)
 	}
 
 	if joiner.Status == models.JoinerPending {

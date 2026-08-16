@@ -42,6 +42,11 @@ export const SessionSchema = z.object({
   // back to the live server that issued it.
   liveCode: z.string().nullable().default(null),
   liveCreatorToken: z.string().nullable().default(null),
+  // Mirrors LiveSessionSchema's fields of the same name once live — kept
+  // here too so the creator's local UI (e.g. GoLiveSection's permission
+  // picker) can read/set them before/without a live round-trip.
+  permissionMode: z.enum(['edit', 'read_only']).default('edit'),
+  creatorPersonId: z.string().nullable().default(null),
 });
 export type Session = z.infer<typeof SessionSchema>;
 

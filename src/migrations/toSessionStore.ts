@@ -63,6 +63,8 @@ export const buildSessionsFromLegacyData = (historyRaw: unknown, activeBillRaw: 
         isLive: false,
         liveCode: null,
         liveCreatorToken: null,
+        permissionMode: 'edit',
+        creatorPersonId: null,
       });
     });
   } else if (historyRaw !== undefined) {
@@ -90,6 +92,8 @@ export const buildSessionsFromLegacyData = (historyRaw: unknown, activeBillRaw: 
         isLive: false,
         liveCode: null,
         liveCreatorToken: null,
+        permissionMode: 'edit',
+        creatorPersonId: null,
       });
     }
   } else if (activeBillRaw !== undefined) {

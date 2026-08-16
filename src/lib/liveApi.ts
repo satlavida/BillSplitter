@@ -59,11 +59,16 @@ export const createLiveSession = (
   title: string,
   people: Person[],
   joinMode: 'approval_code' | 'open_link',
-  claimMode: 'free_select' | 'claims_require_approval'
+  claimMode: 'free_select' | 'claims_require_approval',
+  permissionMode?: 'edit' | 'read_only',
+  creatorPersonId?: string | null
 ): Promise<CreateLiveSessionResponse> =>
   request(
     '/api/sessions',
-    { method: 'POST', body: JSON.stringify({ title, people, joinMode, claimMode }) },
+    {
+      method: 'POST',
+      body: JSON.stringify({ title, people, joinMode, claimMode, permissionMode, creatorPersonId: creatorPersonId ?? null }),
+    },
     CreateLiveSessionResponseSchema
   );
 

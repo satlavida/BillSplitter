@@ -53,6 +53,8 @@ const (
 )
 
 // ClaimMode controls how item claims are handled for a session.
+// Deprecated: superseded by PermissionMode; removed once the claims
+// mechanism is dropped (migration 0006).
 type ClaimMode string
 
 const (
@@ -60,19 +62,30 @@ const (
 	ClaimModeClaimsRequireApproval ClaimMode = "claims_require_approval"
 )
 
+// PermissionMode controls whether joiners can directly edit bills/items
+// (edit) or only view the creator's changes (read_only).
+type PermissionMode string
+
+const (
+	PermissionModeEdit     PermissionMode = "edit"
+	PermissionModeReadOnly PermissionMode = "read_only"
+)
+
 type Session struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	CreatedAt    string    `json:"createdAt"`
-	UpdatedAt    string    `json:"updatedAt"`
-	LastAccessAt string    `json:"-"`
-	JoinMode     JoinMode  `json:"joinMode"`
-	ClaimMode    ClaimMode `json:"claimMode"`
-	IsSettled    bool      `json:"isSettled"`
-	SettledAt    *string   `json:"settledAt"`
-	CreatorToken string    `json:"-"`
-	People       []Person  `json:"people"`
-	Bills        []Bill    `json:"bills"`
+	ID              string         `json:"id"`
+	Title           string         `json:"title"`
+	CreatedAt       string         `json:"createdAt"`
+	UpdatedAt       string         `json:"updatedAt"`
+	LastAccessAt    string         `json:"-"`
+	JoinMode        JoinMode       `json:"joinMode"`
+	ClaimMode       ClaimMode      `json:"claimMode"`
+	PermissionMode  PermissionMode `json:"permissionMode"`
+	CreatorPersonID *string        `json:"creatorPersonId"`
+	IsSettled       bool           `json:"isSettled"`
+	SettledAt       *string        `json:"settledAt"`
+	CreatorToken    string         `json:"-"`
+	People          []Person       `json:"people"`
+	Bills           []Bill         `json:"bills"`
 }
 
 type JoinerStatus string

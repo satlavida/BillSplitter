@@ -60,8 +60,10 @@ func now() string {
 }
 
 // CreateSession seeds server state from a creator's local session snapshot.
-// Returns the new session (with its generated code and creator token).
-func (s *Store) CreateSession(title string, people []models.Person, joinMode models.JoinMode, claimMode models.ClaimMode) (*models.Session, error) {
+// creatorPersonID, if non-nil, must reference one of the ids in people (or be
+// nil if the creator hasn't picked/added their own identity yet). Returns the
+// new session (with its generated code and creator token).
+func (s *Store) CreateSession(title string, people []models.Person, joinMode models.JoinMode, claimMode models.ClaimMode, permissionMode models.PermissionMode, creatorPersonID *string) (*models.Session, error) {
 	code, err := s.newUniqueSessionCode()
 	if err != nil {
 		return nil, err
@@ -78,10 +80,15 @@ func (s *Store) CreateSession(title string, people []models.Person, joinMode mod
 	}
 	defer tx.Rollback()
 
+	// creator_person_id is set via a follow-up UPDATE below, not on this
+	// INSERT: it references people.id, and people rows in turn reference
+	// this session's id, so neither table can be seeded first under FK
+	// enforcement — insert the session with a NULL creator_person_id, then
+	// the people, then backfill.
 	_, err = tx.Exec(
-		`INSERT INTO sessions (id, title, creator_token, join_mode, claim_mode, is_settled, created_at, updated_at, last_access_at)
-		 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-		code, title, token, joinMode, claimMode, ts, ts, ts,
+		`INSERT INTO sessions (id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, created_at, updated_at, last_access_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)`,
+		code, title, token, joinMode, claimMode, permissionMode, ts, ts, ts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
@@ -93,11 +100,30 @@ func (s *Store) CreateSession(title string, people []models.Person, joinMode mod
 		}
 	}
 
+	if creatorPersonID != nil {
+		if _, err := tx.Exec(`UPDATE sessions SET creator_person_id = ? WHERE id = ?`, *creatorPersonID, code); err != nil {
+			return nil, fmt.Errorf("set creator_person_id: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
 	return s.GetSession(code)
+}
+
+// SetCreatorPersonID records which person row represents the session
+// creator (req 7/8) — personID must already exist in this session's people.
+func (s *Store) SetCreatorPersonID(sessionID, personID string) error {
+	res, err := s.db.Exec(`UPDATE sessions SET creator_person_id = ? WHERE id = ?`, personID, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
 }
 
 func (s *Store) newUniqueSessionCode() (string, error) {
@@ -127,11 +153,11 @@ func (s *Store) TouchLastAccess(sessionID string) error {
 
 func (s *Store) GetSession(code string) (*models.Session, error) {
 	sess := &models.Session{}
-	var settledAt sql.NullString
+	var settledAt, creatorPersonID sql.NullString
 	err := s.db.QueryRow(
-		`SELECT id, title, creator_token, join_mode, claim_mode, is_settled, settled_at, created_at, updated_at, last_access_at
+		`SELECT id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, settled_at, created_at, updated_at, last_access_at
 		 FROM sessions WHERE id = ?`, code,
-	).Scan(&sess.ID, &sess.Title, &sess.CreatorToken, &sess.JoinMode, &sess.ClaimMode, &sess.IsSettled, &settledAt, &sess.CreatedAt, &sess.UpdatedAt, &sess.LastAccessAt)
+	).Scan(&sess.ID, &sess.Title, &sess.CreatorToken, &sess.JoinMode, &sess.ClaimMode, &sess.PermissionMode, &creatorPersonID, &sess.IsSettled, &settledAt, &sess.CreatedAt, &sess.UpdatedAt, &sess.LastAccessAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -140,6 +166,9 @@ func (s *Store) GetSession(code string) (*models.Session, error) {
 	}
 	if settledAt.Valid {
 		sess.SettledAt = &settledAt.String
+	}
+	if creatorPersonID.Valid {
+		sess.CreatorPersonID = &creatorPersonID.String
 	}
 
 	people, err := s.listPeople(code)

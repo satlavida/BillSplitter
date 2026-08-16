@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"billsplitter/server/internal/presence"
 	"billsplitter/server/internal/sse"
 	"billsplitter/server/internal/store"
 )
@@ -13,6 +14,7 @@ import (
 type API struct {
 	store            *store.Store
 	hub              *sse.Hub
+	presence         *presence.Tracker
 	imageDir         string
 	adminToken       string
 	openRouterAPIKey string
@@ -28,6 +30,7 @@ func New(st *store.Store, hub *sse.Hub, imageDir, adminToken, openRouterAPIKey, 
 	return &API{
 		store:            st,
 		hub:              hub,
+		presence:         presence.NewTracker(),
 		imageDir:         imageDir,
 		adminToken:       adminToken,
 		openRouterAPIKey: openRouterAPIKey,

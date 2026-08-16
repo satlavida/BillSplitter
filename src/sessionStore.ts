@@ -190,6 +190,8 @@ const useSessionStore = create<SessionStore>()(
           isLive: false,
           liveCode: null,
           liveCreatorToken: null,
+          permissionMode: 'edit',
+          creatorPersonId: null,
         };
 
         set((state) => ({
