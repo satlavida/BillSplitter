@@ -1,4 +1,5 @@
 import { useState, useEffect, type ChangeEvent, type MouseEvent } from 'react';
+import { Dropdown } from '../ui/components';
 import PercentageSplitInput from './PercentageSplitInput';
 import FractionalSplitInput from './FractionalSplitInput';
 import { SPLIT_TYPES, type Allocation, type SplitType } from '../billStore';
@@ -106,15 +107,15 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
 
           <div className="mt-4">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Split Type</label>
-            <select
+            <Dropdown
               value={splitType}
               onChange={handleSplitTypeChange}
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
-            >
-              <option value={SPLIT_TYPES.EQUAL}>Equal Split</option>
-              <option value={SPLIT_TYPES.PERCENTAGE}>Percentage Split</option>
-              <option value={SPLIT_TYPES.FRACTION}>Fractional Split</option>
-            </select>
+              options={[
+                { value: SPLIT_TYPES.EQUAL, label: 'Equal Split' },
+                { value: SPLIT_TYPES.PERCENTAGE, label: 'Percentage Split' },
+                { value: SPLIT_TYPES.FRACTION, label: 'Fractional Split' },
+              ]}
+            />
           </div>
         </div>
 

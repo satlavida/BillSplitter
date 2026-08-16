@@ -171,6 +171,11 @@ export const unclaimItem = (code: string, billId: string, itemId: string, person
 export const settleLiveSession = (code: string, creatorToken: string): Promise<void> =>
   request(`/api/sessions/${code}/settle`, { method: 'POST', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
 
+// Req 15: permanently deletes the online mirror of a session — never the
+// creator's own local/offline data.
+export const deleteLiveSession = (code: string, creatorToken: string): Promise<void> =>
+  request(`/api/sessions/${code}`, { method: 'DELETE', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
+
 export const getLiveSettlement = (code: string): Promise<LiveSettlement> =>
   request(`/api/sessions/${code}/settlement`, { method: 'GET' }, LiveSettlementSchema);
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { addLiveItem } from '../../lib/liveApi';
 import { generateId } from '../../lib/generateId';
-import { Button } from '../../ui/components';
+import { Button, Dropdown } from '../../ui/components';
 import type { SplitType } from '../../schemas/bill.schema';
 
 interface AddItemFormProps {
@@ -101,15 +101,15 @@ const AddItemForm = ({ code, billId, joinerToken, disabled, onAdded }: AddItemFo
             className="w-1/2 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-sm"
           />
         </div>
-        <select
+        <Dropdown
           value={splitType}
           onChange={(e) => setSplitType(e.target.value as SplitType)}
-          className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-sm"
-        >
-          <option value="equal">Split equally</option>
-          <option value="percentage">Split by percentage</option>
-          <option value="fraction">Split by parts</option>
-        </select>
+          options={[
+            { value: 'equal', label: 'Split equally' },
+            { value: 'percentage', label: 'Split by percentage' },
+            { value: 'fraction', label: 'Split by parts' },
+          ]}
+        />
         <div className="flex gap-2">
           <Button size="sm" onClick={handleSubmit} disabled={submitting}>
             {submitting ? 'Adding…' : 'Add'}

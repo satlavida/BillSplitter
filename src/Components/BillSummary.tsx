@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import useBillStore, { useBillPersonTotals, useBillPersons, type PersonTotal, type PersonTotalItem } from '../billStore';
+import useBillStore, { useBillPersonTotals, useBillPersons, useBillItems, type PersonTotal, type PersonTotalItem } from '../billStore';
+import { generateSplitSummaryText } from '../lib/splitSummary';
 import useSessionStore from '../sessionStore';
 import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
-import { Button, Card, PrintButton, PrintWrapper } from '../ui/components';
+import { Button, Card, PrintButton, PrintWrapper, Dropdown } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
 import { getImageBlob } from '../lib/imageStore';
 import type { ReceiptImageRef } from '../schemas/session.schema';
@@ -23,19 +24,12 @@ const PaidBySelector = memo(({ sessionId, billId }: PaidBySelectorProps) => {
   return (
     <div className="no-print">
       <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Who Paid?</h3>
-      <select
+      <Dropdown
         value={paidByPersonId ?? ''}
         onChange={(e) => setBillPaidBy(sessionId, billId, e.target.value || null)}
-        className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
         disabled={people.length === 0}
-      >
-        <option value="">Not set</option>
-        {people.map((person) => (
-          <option key={person.id} value={person.id}>
-            {person.name}
-          </option>
-        ))}
-      </select>
+        options={[{ value: '', label: 'Not set' }, ...people.map((person) => ({ value: person.id, label: person.name }))]}
+      />
     </div>
   );
 });
@@ -233,6 +227,8 @@ const BillSummary = () => {
 
   // Get person totals using the specialized hook
   const personTotals = useBillPersonTotals();
+  const items = useBillItems();
+  const people = useBillPersons();
 
   // Calculate subtotal from person totals
   const subtotal = personTotals.reduce((sum, person) => sum + person.subtotal, 0);
@@ -283,6 +279,26 @@ const BillSummary = () => {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
+
+      {sessionId && billId && (
+        <div className="mb-4">
+          <PaidBySelector sessionId={sessionId} billId={billId} />
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Split Breakdown</h3>
+          <ul className="space-y-1">
+            {items.map((item) => (
+              <li key={item.id} className="text-sm text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium">{item.name}:</span> {generateSplitSummaryText(item, people)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {isInr && (
         <div className="mb-4">
           {showUpiInput ? (
@@ -323,12 +339,6 @@ const BillSummary = () => {
       </PrintWrapper>
 
       <div className="no-print space-y-6">
-        {sessionId && billId && (
-          <div>
-            <PaidBySelector sessionId={sessionId} billId={billId} />
-          </div>
-        )}
-
         {receiptImage && (
           <div>
             <ReceiptImagePreview receiptImage={receiptImage} />

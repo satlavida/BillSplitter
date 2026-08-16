@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
-import { Modal, Button } from '../ui/components';
+import { Modal, Button, Dropdown } from '../ui/components';
 import type { Item } from '../schemas/bill.schema';
 
 interface EditItemFormData {
@@ -136,15 +136,15 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: EditItemModalProps) =>
               className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
               placeholder="0.00"
             />
-            <select
+            <Dropdown
               name="discountType"
               value={formData.discountType}
               onChange={handleChange}
-              className="p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
-            >
-              <option value="flat">Flat</option>
-              <option value="percentage">%</option>
-            </select>
+              options={[
+                { value: 'flat', label: 'Flat' },
+                { value: 'percentage', label: '%' },
+              ]}
+            />
           </div>
         </div>
 

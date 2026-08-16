@@ -187,6 +187,7 @@ interface SessionStoreActions {
   // Marks a session as live once the creator's "Go Live" call to the server
   // succeeds — see src/lib/liveApi.ts's createLiveSession.
   markSessionLive: (sessionId: string, liveCode: string, liveCreatorToken: string) => void;
+  unmarkSessionLive: (sessionId: string) => void;
 
   // Merges a snapshot fetched from the Go live server (getLiveSession) into
   // this session by entity id, per planv3.md 3.10. Upserts people/bills/items
@@ -477,6 +478,15 @@ const useSessionStore = create<SessionStore>()(
           syncExistingBillsLive(liveCode, bills).catch(() => {});
         }
       },
+
+      // Req 15: clears local isLive/liveCode/liveCreatorToken after the
+      // online mirror has been deleted server-side — never touches
+      // people/bills, so the session's own offline data survives untouched
+      // and the creator can go live again later.
+      unmarkSessionLive: (sessionId) =>
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, isLive: false, liveCode: null, liveCreatorToken: null }) : s)),
+        })),
 
       mergeLiveSnapshot: (sessionId, liveSession) =>
         set((state) => ({

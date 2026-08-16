@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"os"
 
 	"billsplitter/server/internal/models"
 	"billsplitter/server/internal/sse"
@@ -389,4 +390,30 @@ func (a *API) Settle(w http.ResponseWriter, r *http.Request) {
 
 	a.hub.Broadcast(code, sse.Event{Kind: "session.settled", ID: code})
 	writeJSON(w, http.StatusOK, map[string]bool{"settled": true})
+}
+
+// DeleteLiveSession handles DELETE /api/sessions/{code} (creator-only, req
+// 15): permanently removes the online/live mirror of a session — never the
+// creator's own local/offline data, which lives entirely in this browser's
+// sessionStore and is untouched by this call. The creator can always go
+// live again later, seeding a fresh live session from their local data.
+// Reuses the same store.PurgeSessionByID the admin panel's per-row purge
+// button already uses.
+func (a *API) DeleteLiveSession(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+
+	paths, err := a.store.PurgeSessionByID(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete session")
+		return
+	}
+	for _, p := range paths {
+		_ = os.Remove(p)
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "session.deleted", ID: code})
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }

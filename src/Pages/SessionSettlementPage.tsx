@@ -1,14 +1,49 @@
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
 import { calculateSettlement } from '../lib/settlement';
+import { getDiscountedItemPrice } from '../lib/personTotals';
+import { getImageBlob } from '../lib/imageStore';
 import { useFormatCurrency } from '../currencyStore';
-import { Card } from '../ui/components';
+import { Card, Button, Modal } from '../ui/components';
+import type { Bill } from '../schemas/session.schema';
+
+// Req 16: a compact per-bill list on the settlement page (bill totals
+// computed the same way BillSummary/personTotals.ts do — subtotal after
+// item-level discounts, plus tax) with an optional receipt-image viewer,
+// so the whole session's bills are visible in one place without opening
+// each one's own editor.
+const billTotal = (bill: Bill): number => bill.items.reduce((sum, item) => sum + getDiscountedItemPrice(item) * item.quantity, 0) + bill.taxAmount;
+
+const ReceiptModal = ({ refKey, onClose }: { refKey: string; onClose: () => void }) => {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let currentUrl: string | null = null;
+    getImageBlob(refKey).then((blob) => {
+      if (blob) {
+        currentUrl = URL.createObjectURL(blob);
+        setObjectUrl(currentUrl);
+      }
+    });
+    return () => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [refKey]);
+
+  return (
+    <Modal isOpen onClose={onClose} title="Receipt">
+      {objectUrl ? <img src={objectUrl} alt="Receipt" className="max-w-full rounded" /> : <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>}
+    </Modal>
+  );
+};
 
 const SessionSettlementPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const session = useSessionStore(useShallow((s) => (sessionId ? s.sessions.find((sess) => sess.id === sessionId) : undefined)));
   const formatCurrency = useFormatCurrency();
+  const [viewingReceiptFor, setViewingReceiptFor] = useState<string | null>(null);
 
   if (!sessionId || !session) {
     return (
@@ -74,6 +109,34 @@ const SessionSettlementPage = () => {
           </ul>
         )}
       </Card>
+
+      <Card>
+        <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Bills</h3>
+        {session.bills.length === 0 ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">No bills yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {session.bills.map((bill) => (
+              <li key={bill.id} className="flex justify-between items-center text-sm">
+                <div>
+                  <span className="text-zinc-800 dark:text-white transition-colors">{bill.title}</span>
+                  <span className="block text-xs text-zinc-500 dark:text-zinc-400">{new Date(bill.date).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">{formatCurrency(billTotal(bill))}</span>
+                  {bill.receiptImage && (
+                    <Button size="sm" variant="secondary" onClick={() => setViewingReceiptFor(bill.receiptImage!.refKey)}>
+                      View Receipt
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {viewingReceiptFor && <ReceiptModal refKey={viewingReceiptFor} onClose={() => setViewingReceiptFor(null)} />}
     </div>
   );
 };

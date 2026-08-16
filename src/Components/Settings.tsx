@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import useCurrencyStore from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
+import { Dropdown } from '../ui/components';
 
 const getCurrencySymbol = (code: string): string => {
   try {
@@ -47,17 +48,11 @@ const Settings = () => {
 
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Currency</label>
-        <select
+        <Dropdown
           value={currency}
           onChange={(e) => changeCurrency(e.target.value)}
-          className="w-full p-2 border rounded-md bg-white dark:bg-zinc-800 dark:text-white dark:border-zinc-600"
-        >
-          {currencyOptions.map(({ code, symbol }) => (
-            <option key={code} value={code}>
-              {code} ({symbol})
-            </option>
-          ))}
-        </select>
+          options={currencyOptions.map(({ code, symbol }) => ({ value: code, label: `${code} (${symbol})` }))}
+        />
       </div>
     </div>
   );

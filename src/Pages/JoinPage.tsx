@@ -4,7 +4,7 @@ import { getLiveSession, joinLiveSession, getJoiner, LiveApiError } from '../lib
 import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId, getStoredJoinerToken, setStoredJoinerToken } from '../lib/joinerStorage';
 import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
-import { Button, Card, Alert } from '../ui/components';
+import { Button, Card, Alert, Dropdown } from '../ui/components';
 
 // Captures a joiner's secret token into storage the moment it's observed —
 // the server only ever includes it once (see live.schema.ts's LiveJoiner
@@ -214,21 +214,14 @@ const JoinPage = () => {
         {session.people.length > 0 && (
           <div className="mb-3">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">I am…</label>
-            <select
+            <Dropdown
               value={selectedPersonId}
               onChange={(e) => {
                 setSelectedPersonId(e.target.value);
                 if (e.target.value) setName('');
               }}
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
-            >
-              <option value="">Someone new</option>
-              {session.people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              options={[{ value: '', label: 'Someone new' }, ...session.people.map((p) => ({ value: p.id, label: p.name }))]}
+            />
           </div>
         )}
 

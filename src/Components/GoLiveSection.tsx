@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import useSessionStore from '../sessionStore';
-import { createLiveSession, LiveApiError, LIVE_SERVER_URL } from '../lib/liveApi';
-import { Button, Card, Alert } from '../ui/components';
+import { createLiveSession, deleteLiveSession, LiveApiError, LIVE_SERVER_URL } from '../lib/liveApi';
+import { Button, Card, Alert, Dropdown } from '../ui/components';
 import type { Session } from '../schemas/session.schema';
 
 interface GoLiveSectionProps {
@@ -22,6 +22,7 @@ const NEW_PERSON = '__new__';
 
 const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const markSessionLive = useSessionStore((s) => s.markSessionLive);
+  const unmarkSessionLive = useSessionStore((s) => s.unmarkSessionLive);
   const addPerson = useSessionStore((s) => s.addPerson);
   const [joinMode, setJoinMode] = useState<'approval_code' | 'open_link'>('approval_code');
   const [permissionMode, setPermissionMode] = useState<'edit' | 'read_only'>('edit');
@@ -31,6 +32,8 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(Boolean(autoExpand));
   const [copied, setCopied] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleCopyLink = async (link: string) => {
     try {
@@ -45,14 +48,33 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
 
   if (session.isLive && session.liveCode) {
     const joinLink = `${window.location.origin}${window.location.pathname}#/join/${session.liveCode}`;
+    const liveCode = session.liveCode;
+    const creatorToken = session.liveCreatorToken;
+
+    const handleDelete = async () => {
+      if (!creatorToken) return;
+      setDeleting(true);
+      setError(null);
+      try {
+        await deleteLiveSession(liveCode, creatorToken);
+        unmarkSessionLive(session.id);
+      } catch (err) {
+        setError(err instanceof LiveApiError ? err.message : 'Failed to delete the online session');
+      } finally {
+        setDeleting(false);
+        setConfirmingDelete(false);
+      }
+    };
+
     return (
       <Card>
         <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Live</h3>
+        {error && <Alert type="error" className="mb-3">{error}</Alert>}
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
           Code: <span className="font-mono font-semibold">{session.liveCode}</span>
         </p>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Share link</label>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-4">
           <input
             readOnly
             value={joinLink}
@@ -63,6 +85,22 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
             {copied ? 'Copied!' : 'Copy'}
           </Button>
         </div>
+
+        {confirmingDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Delete the online session? Your local data stays intact.</span>
+            <Button size="sm" variant="danger" onClick={() => void handleDelete()} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Confirm Delete'}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setConfirmingDelete(false)} disabled={deleting}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button size="sm" variant="danger" onClick={() => setConfirmingDelete(true)}>
+            Delete Online Session
+          </Button>
+        )}
       </Card>
     );
   }
@@ -117,43 +155,39 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
 
       <div className="mb-3">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">How can people join?</label>
-        <select
+        <Dropdown
           value={joinMode}
           onChange={(e) => setJoinMode(e.target.value as typeof joinMode)}
-          className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
-        >
-          <option value="approval_code">Approval required (you approve each joiner)</option>
-          <option value="open_link">Open link (anyone with the link joins instantly)</option>
-        </select>
+          options={[
+            { value: 'approval_code', label: 'Approval required (you approve each joiner)' },
+            { value: 'open_link', label: 'Open link (anyone with the link joins instantly)' },
+          ]}
+        />
       </div>
 
       <div className="mb-3">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Joiner permissions</label>
-        <select
+        <Dropdown
           value={permissionMode}
           onChange={(e) => setPermissionMode(e.target.value as typeof permissionMode)}
-          className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
-        >
-          <option value="edit">Edit (joiners can add and claim items directly)</option>
-          <option value="read_only">Read-only (joiners can only view your changes)</option>
-        </select>
+          options={[
+            { value: 'edit', label: 'Edit (joiners can add and claim items directly)' },
+            { value: 'read_only', label: 'Read-only (joiners can only view your changes)' },
+          ]}
+        />
       </div>
 
       <div className="mb-4">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Which person are you?</label>
-        <select
+        <Dropdown
           value={creatorPersonId}
           onChange={(e) => setCreatorPersonId(e.target.value)}
-          className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
-        >
-          <option value="">I'm not in the list (no one can join as me)</option>
-          {session.people.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-          <option value={NEW_PERSON}>Add myself as a new person…</option>
-        </select>
+          options={[
+            { value: '', label: "I'm not in the list (no one can join as me)" },
+            ...session.people.map((p) => ({ value: p.id, label: p.name })),
+            { value: NEW_PERSON, label: 'Add myself as a new person…' },
+          ]}
+        />
         {creatorPersonId === NEW_PERSON && (
           <input
             type="text"
