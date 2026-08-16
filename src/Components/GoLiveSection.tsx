@@ -16,10 +16,17 @@ interface GoLiveSectionProps {
 // people) via the Go backend and shows the resulting join code/link. Going
 // live never blocks or replaces the offline-first local session — see
 // planv3.md 3.10.
+// Sentinel option values for the creator-identity <select> — distinct from
+// any real person id, and from '' (no selection).
+const NEW_PERSON = '__new__';
+
 const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const markSessionLive = useSessionStore((s) => s.markSessionLive);
+  const addPerson = useSessionStore((s) => s.addPerson);
   const [joinMode, setJoinMode] = useState<'approval_code' | 'open_link'>('approval_code');
-  const [claimMode, setClaimMode] = useState<'free_select' | 'claims_require_approval'>('free_select');
+  const [permissionMode, setPermissionMode] = useState<'edit' | 'read_only'>('edit');
+  const [creatorPersonId, setCreatorPersonId] = useState<string>('');
+  const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(Boolean(autoExpand));
@@ -64,7 +71,29 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await createLiveSession(session.title, session.people, joinMode, claimMode);
+      // Req 7: the creator can claim an existing person as themselves, or
+      // add a brand new one on the spot — either way it must be included in
+      // the people array the live session is seeded with.
+      let people = session.people;
+      let resolvedCreatorPersonId: string | null = creatorPersonId || null;
+      if (creatorPersonId === NEW_PERSON) {
+        const trimmed = newPersonName.trim();
+        if (!trimmed) {
+          setError('Enter a name for yourself, or pick an existing person.');
+          setLoading(false);
+          return;
+        }
+        const created = addPerson(session.id, trimmed);
+        if (!created) {
+          setError('Failed to add your person.');
+          setLoading(false);
+          return;
+        }
+        resolvedCreatorPersonId = created.id;
+        people = [...session.people, created];
+      }
+
+      const result = await createLiveSession(session.title, people, joinMode, 'free_select', permissionMode, resolvedCreatorPersonId);
       markSessionLive(session.id, result.code, result.creatorToken);
     } catch (err) {
       setError(err instanceof LiveApiError ? err.message : `Could not reach the live server (${LIVE_SERVER_URL}). Is it running?`);
@@ -98,16 +127,43 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
         </select>
       </div>
 
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Item claims</label>
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Joiner permissions</label>
         <select
-          value={claimMode}
-          onChange={(e) => setClaimMode(e.target.value as typeof claimMode)}
+          value={permissionMode}
+          onChange={(e) => setPermissionMode(e.target.value as typeof permissionMode)}
           className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
         >
-          <option value="free_select">Free select (joiners claim items directly)</option>
-          <option value="claims_require_approval">Require approval (you approve each claim)</option>
+          <option value="edit">Edit (joiners can add and claim items directly)</option>
+          <option value="read_only">Read-only (joiners can only view your changes)</option>
         </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Which person are you?</label>
+        <select
+          value={creatorPersonId}
+          onChange={(e) => setCreatorPersonId(e.target.value)}
+          className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+        >
+          <option value="">I'm not in the list (no one can join as me)</option>
+          {session.people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+          <option value={NEW_PERSON}>Add myself as a new person…</option>
+        </select>
+        {creatorPersonId === NEW_PERSON && (
+          <input
+            type="text"
+            value={newPersonName}
+            onChange={(e) => setNewPersonName(e.target.value)}
+            placeholder="Your name"
+            className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+          />
+        )}
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">No one else will be able to join as this person (req 8).</p>
       </div>
 
       <div className="flex gap-2">

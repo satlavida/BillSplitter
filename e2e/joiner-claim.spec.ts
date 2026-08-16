@@ -9,13 +9,13 @@ import { test, expect, type Page, type BrowserContext, type APIRequestContext } 
 
 const LIVE_SERVER_URL = 'http://localhost:8080';
 
-async function goLive(page: Page, joinModeLabel: string, claimModeLabel: string): Promise<string> {
+async function goLive(page: Page, joinModeLabel: string, permissionModeLabel: string): Promise<string> {
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
 
   await page.getByRole('button', { name: 'Go Live' }).click();
   await page.locator('select').first().selectOption({ label: joinModeLabel });
-  await page.locator('select').nth(1).selectOption({ label: claimModeLabel });
+  await page.locator('select').nth(1).selectOption({ label: permissionModeLabel });
   await page.getByRole('button', { name: 'Start Live Session' }).click();
   await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible();
   return page.locator('span.font-mono.font-semibold').first().innerText();
@@ -31,7 +31,7 @@ async function seedBillWithItem(request: APIRequestContext, code: string): Promi
   return { billId: bill.id, itemId: item.id };
 }
 
-test('open_link + free_select: a new-name joiner claims an item and it shows up immediately', async ({
+test('open_link + edit: a new-name joiner claims an item and it shows up immediately, no approval step', async ({
   page,
   context,
   request,
@@ -40,7 +40,7 @@ test('open_link + free_select: a new-name joiner claims an item and it shows up 
   context: BrowserContext;
   request: APIRequestContext;
 }) => {
-  const code = await goLive(page, 'Open link (anyone with the link joins instantly)', 'Free select (joiners claim items directly)');
+  const code = await goLive(page, 'Open link (anyone with the link joins instantly)', 'Edit (joiners can add and claim items directly)');
   await seedBillWithItem(request, code);
 
   const joinerPage = await context.newPage();
@@ -52,39 +52,9 @@ test('open_link + free_select: a new-name joiner claims an item and it shows up 
   await expect(joinerPage.getByText('Chips')).toBeVisible();
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
 
+  // Takes effect immediately — no pending/awaiting-approval state (req 6).
   await expect(joinerPage.getByText('Claimed by Dana')).toBeVisible({ timeout: 10000 });
   await expect(joinerPage.getByRole('button', { name: 'Unclaim' })).toBeEnabled();
-
-  await joinerPage.close();
-});
-
-test('approval_code + claims_require_approval: joiner claim goes pending until the creator approves the claim', async ({
-  page,
-  context,
-  request,
-}: {
-  page: Page;
-  context: BrowserContext;
-  request: APIRequestContext;
-}) => {
-  const code = await goLive(page, 'Approval required (you approve each joiner)', 'Require approval (you approve each claim)');
-  await seedBillWithItem(request, code);
-
-  const joinerPage = await context.newPage();
-  await joinerPage.goto(`/#/join/${code}`);
-  await joinerPage.getByPlaceholder('Enter your name').fill('Eli');
-  await joinerPage.getByRole('button', { name: 'Join' }).click();
-  await expect(joinerPage.getByText('Waiting for the host to approve you.')).toBeVisible();
-
-  // `.last()`: once approved, "Eli" also appears as a session-level person
-  // in PeopleSection above the Joiners panel.
-  await expect(page.getByText('Eli').last()).toBeVisible({ timeout: 10000 });
-  await page.getByRole('button', { name: 'Approve', exact: true }).click();
-  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible({ timeout: 10000 });
-
-  await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
-  await expect(joinerPage.getByText('Awaiting host approval…')).toBeVisible();
-  await expect(joinerPage.getByRole('button', { name: 'Pending' })).toBeDisabled();
 
   await joinerPage.close();
 });

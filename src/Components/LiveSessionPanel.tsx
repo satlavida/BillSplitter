@@ -31,10 +31,6 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
   const [confirmingSettle, setConfirmingSettle] = useState(false);
   const [settling, setSettling] = useState(false);
   const [settlement, setSettlement] = useState<LiveSettlement | null>(null);
-  // Not persisted to sessionStore (session.schema.ts has no claimMode
-  // field) — kept as local state purely to gate the Pending Claims link,
-  // sourced from the same getLiveSession call refreshRef already makes.
-  const [claimMode, setClaimMode] = useState<'free_select' | 'claims_require_approval' | null>(null);
 
   const code = session.liveCode;
   const creatorToken = session.liveCreatorToken;
@@ -49,7 +45,6 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
       .then((liveSession) => {
         mergeLiveSnapshot(sessionId, liveSession);
         setIsSettled(liveSession.isSettled);
-        setClaimMode(liveSession.claimMode);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to sync live session'));
 
@@ -175,11 +170,6 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-medium text-zinc-800 dark:text-white transition-colors">Joiners</h3>
           <div className="flex items-center gap-3">
-            {creatorToken && claimMode === 'claims_require_approval' && (
-              <Link to={`/session/${sessionId}/claims`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                Pending claims
-              </Link>
-            )}
             {creatorToken && (
               <Link to={`/session/${sessionId}/activity`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
                 Activity log

@@ -84,13 +84,7 @@ const ActivityLogPage = () => {
             {entries.map((entry) => {
               const parts = Math.abs(entry.deltaValue);
               const partWord = `${parts} part${parts === 1 ? '' : 's'}`;
-              // "reject" is the creator declining the claim, not the
-              // claimant's own action, so it reads differently from the
-              // claim/unclaim template ("X claimed/unclaimed N parts of Y").
-              const line =
-                entry.action === 'reject'
-                  ? `${entry.personName}'s claim on ${partWord} of ${entry.itemName} was declined`
-                  : `${entry.personName} ${entry.action === 'claim' ? 'claimed' : 'unclaimed'} ${partWord} of ${entry.itemName}`;
+              const line = `${entry.personName} ${entry.action === 'claim' ? 'claimed' : 'unclaimed'} ${partWord} of ${entry.itemName}`;
               return (
                 <li key={entry.id} className="text-sm text-zinc-700 dark:text-zinc-300 transition-colors">
                   <span>{line}</span>

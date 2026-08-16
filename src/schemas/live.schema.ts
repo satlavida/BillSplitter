@@ -58,10 +58,9 @@ export const LiveSessionSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   joinMode: z.enum(['approval_code', 'open_link']),
-  claimMode: z.enum(['free_select', 'claims_require_approval']),
-  // permissionMode replaces claimMode's role once the claims-approval
-  // workflow is removed: 'edit' lets joiners directly add/assign items,
-  // 'read_only' means they can only view the creator's changes.
+  // 'edit' lets joiners directly add/assign items; 'read_only' means they
+  // can only view the creator's changes (req 6 — replaces the removed
+  // claims-approval workflow's claimMode field).
   permissionMode: z.enum(['edit', 'read_only']).default('edit'),
   // The person row that represents the session creator's own identity, if
   // they've claimed/added one. Joiners are never allowed to join as this
@@ -93,7 +92,7 @@ export const LiveActivityEntrySchema = z.object({
   itemName: z.string(),
   personId: z.string(),
   personName: z.string(),
-  action: z.enum(['claim', 'unclaim', 'reject']),
+  action: z.enum(['claim', 'unclaim']),
   deltaValue: z.number(),
   totalValue: z.number(),
   createdAt: z.string(),
@@ -109,39 +108,6 @@ export function isFractionItemCorrect(item: LiveItem): boolean {
   const total = item.consumedBy.reduce((sum, c) => sum + c.value, 0);
   return Math.abs(total - item.quantity) < FRACTION_EPSILON;
 }
-
-// POST .../items/{itemId}/claims responds one of two shapes depending on
-// the session's claim_mode: free_select auto-approves and returns just
-// {status: "approved"}; claims_require_approval returns the created pending
-// claim (models.ItemClaim). The plain-status alternative is checked first
-// and is .strict() so it only matches the exact free_select shape; the
-// richer shape (which a non-strict object would otherwise also match,
-// silently dropping id/personId/value) is the fallback.
-export const ClaimItemResponseSchema = z.union([
-  z.object({ status: z.string() }).strict(),
-  z.object({
-    id: z.string(),
-    itemId: z.string().optional(),
-    personId: z.string(),
-    value: z.number(),
-    status: z.enum(['pending', 'approved']),
-  }),
-]);
-export type ClaimItemResponse = z.infer<typeof ClaimItemResponseSchema>;
-
-// GET .../claims/pending's response shape — a pending claim enriched with
-// the item/person names a creator-facing list needs (see
-// api.pendingClaimResponse on the Go side).
-export const PendingClaimSchema = z.object({
-  id: z.string(),
-  itemId: z.string(),
-  itemName: z.string(),
-  personId: z.string(),
-  personName: z.string(),
-  value: z.number(),
-  status: z.enum(['pending', 'approved']),
-});
-export type PendingClaim = z.infer<typeof PendingClaimSchema>;
 
 export const LiveSettlementSchema = z.object({
   balances: z.array(z.object({ personId: z.string(), amount: z.number() })).default([]),

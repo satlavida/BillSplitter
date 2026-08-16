@@ -33,7 +33,7 @@ test('creator sitting in the bill editor sees multiple claimers update live, wit
 
   await page.getByRole('button', { name: 'Go Live' }).click();
   await page.locator('select').first().selectOption({ label: 'Open link (anyone with the link joins instantly)' });
-  await page.locator('select').nth(1).selectOption({ label: 'Free select (joiners claim items directly)' });
+  await page.locator('select').nth(1).selectOption({ label: 'Edit (joiners can add and claim items directly)' });
   await page.getByRole('button', { name: 'Start Live Session' }).click();
   await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible();
   const code = await page.locator('span.font-mono.font-semibold').first().innerText();

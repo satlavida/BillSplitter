@@ -4,20 +4,16 @@ import {
   LiveSessionSchema,
   LiveJoinerSchema,
   LiveSettlementSchema,
-  ClaimItemResponseSchema,
   LiveBillSchema,
   LiveItemSchema,
   LiveActivityEntrySchema,
-  PendingClaimSchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
   type LiveSettlement,
-  type ClaimItemResponse,
   type LiveBill,
   type LiveItem,
   type LiveActivityEntry,
-  type PendingClaim,
 } from '../schemas/live.schema';
 import type { Person, Item } from '../schemas/bill.schema';
 
@@ -151,7 +147,11 @@ export const uploadLiveImage = async (code: string, billId: string, blob: Blob, 
   return z.object({ refKey: z.string() }).parse(await res.json());
 };
 
-export const claimItem = (code: string, billId: string, itemId: string, personId: string, value?: number, joinerToken?: string): Promise<ClaimItemResponse> =>
+const ClaimItemResponseSchema = z.object({ status: z.string() });
+
+// Directly selects/updates a person's share of an item — takes effect
+// immediately, no approval queue (req 6).
+export const claimItem = (code: string, billId: string, itemId: string, personId: string, value?: number, joinerToken?: string): Promise<{ status: string }> =>
   request(
     `/api/sessions/${code}/bills/${billId}/items/${itemId}/claims`,
     { method: 'POST', body: JSON.stringify({ personId, value }), headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
@@ -176,14 +176,5 @@ export const getLiveSettlement = (code: string): Promise<LiveSettlement> =>
 
 export const getActivityLog = (code: string, creatorToken: string): Promise<LiveActivityEntry[]> =>
   request(`/api/sessions/${code}/activity`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveActivityEntrySchema));
-
-export const getPendingClaims = (code: string, creatorToken: string): Promise<PendingClaim[]> =>
-  request(`/api/sessions/${code}/claims/pending`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(PendingClaimSchema));
-
-export const approveClaim = (code: string, claimId: string, creatorToken: string): Promise<void> =>
-  request(`/api/sessions/${code}/claims/${claimId}/approve`, { method: 'POST', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
-
-export const rejectClaim = (code: string, claimId: string, creatorToken: string): Promise<void> =>
-  request(`/api/sessions/${code}/claims/${claimId}/reject`, { method: 'POST', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
 
 export { LiveApiError, LIVE_SERVER_URL };

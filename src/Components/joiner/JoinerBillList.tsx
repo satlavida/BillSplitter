@@ -1,6 +1,5 @@
 import { Card } from '../../ui/components';
 import { LIVE_SERVER_URL } from '../../lib/liveApi';
-import type { LiveEvent } from '../../lib/liveSync';
 import AddItemForm from './AddItemForm';
 import JoinerItemRow from './JoinerItemRow';
 import type { LiveBill } from '../../schemas/live.schema';
@@ -13,10 +12,9 @@ interface JoinerBillListProps {
   nameFor: (personId: string) => string;
   disabled: boolean;
   onChanged: () => void;
-  lastEvent: LiveEvent | null;
 }
 
-const JoinerBillList = ({ code, bills, myPersonId, joinerToken, nameFor, disabled, onChanged, lastEvent }: JoinerBillListProps) => {
+const JoinerBillList = ({ code, bills, myPersonId, joinerToken, nameFor, disabled, onChanged }: JoinerBillListProps) => {
   if (bills.length === 0) {
     return <p className="text-zinc-500 dark:text-zinc-400">No bills yet.</p>;
   }
@@ -49,7 +47,6 @@ const JoinerBillList = ({ code, bills, myPersonId, joinerToken, nameFor, disable
                   nameFor={nameFor}
                   disabled={disabled}
                   onChanged={onChanged}
-                  lastEvent={lastEvent}
                 />
               ))}
             </ul>
