@@ -1,5 +1,6 @@
 import { useMemo, memo, useCallback, useState } from 'react';
 import useBillStore, { useBillPersons, useBillItems, SPLIT_TYPES, getDiscountedItemPrice, type Allocation, type SplitType } from '../billStore';
+import useSessionStore from '../sessionStore';
 import { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
@@ -13,10 +14,20 @@ interface ItemCardProps {
   onTogglePerson: (personId: string, itemId: string) => void;
   formatCurrency: (amount: number | null | undefined) => string;
   onOpenSplitDrawer: (item: Item) => void;
+  // Only meaningful in a live session: a joiner's fraction stepper writes
+  // literal "how many of item.quantity units I'm claiming" counts (see
+  // JoinerItemRow.tsx), so consumedBy sums are comparable to quantity there.
+  // Offline, fraction `value` is a pure ratio/weight (personTotals.ts
+  // normalizes it against the sum of all values, never against quantity) —
+  // e.g. weights 1:3 are a perfectly valid split regardless of quantity —
+  // so this check is deliberately gated on isLive rather than always shown.
+  isLive: boolean;
 }
 
+const FRACTION_EPSILON = 1e-6;
+
 // Individual Item Card component
-const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSplitDrawer }: ItemCardProps) => {
+const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSplitDrawer, isLive }: ItemCardProps) => {
   // Compute if all people are assigned to this item
   const allSelected = useMemo(() => {
     // Extract person IDs from consumedBy (handle both string and object formats)
@@ -97,6 +108,12 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
     onTogglePerson('none', item.id);
   }, [onTogglePerson, item.id]);
 
+  const fractionCorrectness = useMemo(() => {
+    if (!isLive || item.splitType !== SPLIT_TYPES.FRACTION) return null;
+    const total = item.consumedBy.reduce((sum, c) => sum + (typeof c === 'string' ? 1 : c.value), 0);
+    return Math.abs(total - item.quantity) < FRACTION_EPSILON ? { ok: true, total } : { ok: false, total };
+  }, [isLive, item.splitType, item.consumedBy, item.quantity]);
+
   const itemPrice = useMemo(() => getDiscountedItemPrice(item), [item]);
   const hasDiscount = item.discount > 0;
   const discountText = hasDiscount ? `Discount ${item.discountType === 'percentage' ? `${item.discount}%` : formatCurrency(item.discount)}` : '';
@@ -160,6 +177,18 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
             </span>
           </div>
 
+          {fractionCorrectness && (
+            <p
+              className={`text-xs mt-1 ${
+                fractionCorrectness.ok ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'
+              }`}
+            >
+              {fractionCorrectness.ok
+                ? '✓ Split complete'
+                : `⚠ Claimed parts total ${fractionCorrectness.total}, item has ${item.quantity} — tap the split icon to adjust`}
+            </p>
+          )}
+
           {hasCustomSplit ? (
             <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 transition-colors">{splitInfoText}</p>
           ) : (
@@ -180,6 +209,7 @@ const ItemAssignment = () => {
   // Use Zustand store with specialized hooks and useShallow
   const people = useBillPersons();
   const items = useBillItems();
+  const isLive = useSessionStore((s) => s.getCurrentSession()?.isLive ?? false);
   const [splitDrawerItem, setSplitDrawerItem] = useState<Item | null>(null);
 
   const { assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople, setSplitType, nextStep, prevStep, getUnassignedItems } =
@@ -333,7 +363,15 @@ const ItemAssignment = () => {
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who consumed what?</h2>
 
       {items.map((item) => (
-        <ItemCard key={item.id} item={item} people={people} onTogglePerson={handleTogglePerson} formatCurrency={formatCurrency} onOpenSplitDrawer={handleOpenSplitDrawer} />
+        <ItemCard
+          key={item.id}
+          item={item}
+          people={people}
+          onTogglePerson={handleTogglePerson}
+          formatCurrency={formatCurrency}
+          onOpenSplitDrawer={handleOpenSplitDrawer}
+          isLive={isLive}
+        />
       ))}
 
       <div className="flex justify-between mt-4">

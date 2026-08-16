@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import { getLiveSession, listJoiners, approveJoiner, disapproveJoiner, settleLiveSession, getLiveSettlement, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync, type LiveSyncStatus } from '../lib/liveSync';
@@ -168,7 +169,14 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
       <Card>
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-medium text-zinc-800 dark:text-white transition-colors">Joiners</h3>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">{statusLabel[syncStatus]}</span>
+          <div className="flex items-center gap-3">
+            {creatorToken && (
+              <Link to={`/session/${sessionId}/activity`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                Activity log
+              </Link>
+            )}
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{statusLabel[syncStatus]}</span>
+          </div>
         </div>
 
         {error && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>}

@@ -368,9 +368,21 @@ func (s *Store) ClaimItemFreeSelect(sessionID, itemID, personID string, value fl
 	return s.touchSession(sessionID)
 }
 
-// UnclaimItem removes a person's allocation from an item (free_select mode).
+// UnclaimItem removes a person's allocation from an item (free_select mode,
+// or an already-approved claims_require_approval allocation).
 func (s *Store) UnclaimItem(sessionID, itemID, personID string) error {
 	_, err := s.db.Exec(`DELETE FROM item_allocations WHERE item_id = ? AND person_id = ?`, itemID, personID)
+	if err != nil {
+		return err
+	}
+	return s.touchSession(sessionID)
+}
+
+// CancelPendingClaim removes a not-yet-approved claim (claims_require_approval
+// mode) so a joiner can retract a claim before the creator has acted on it.
+// A no-op (not an error) if no pending claim exists for this (item, person).
+func (s *Store) CancelPendingClaim(sessionID, itemID, personID string) error {
+	_, err := s.db.Exec(`DELETE FROM item_claims WHERE item_id = ? AND person_id = ? AND status = 'pending'`, itemID, personID)
 	if err != nil {
 		return err
 	}
@@ -425,6 +437,41 @@ func (s *Store) ApproveClaim(sessionID, claimID string) error {
 	return s.touchSession(sessionID)
 }
 
+// RecordItemActivity appends one claim/unclaim log entry. Names are
+// snapshotted by the caller (the API handler, which already has the item
+// and person names from the loaded session) rather than looked up here —
+// see migrations/0003 for why.
+func (s *Store) RecordItemActivity(sessionID string, entry models.ItemActivity) error {
+	_, err := s.db.Exec(
+		`INSERT INTO item_activity (session_id, item_id, item_name, person_id, person_name, action, delta_value, total_value, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionID, entry.ItemID, entry.ItemName, entry.PersonID, entry.PersonName, entry.Action, entry.DeltaValue, entry.TotalValue, now(),
+	)
+	return err
+}
+
+// ListItemActivity returns a session's claim/unclaim log, newest first.
+func (s *Store) ListItemActivity(sessionID string) ([]models.ItemActivity, error) {
+	rows, err := s.db.Query(
+		`SELECT id, item_id, item_name, person_id, person_name, action, delta_value, total_value, created_at
+		 FROM item_activity WHERE session_id = ? ORDER BY id DESC`, sessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := []models.ItemActivity{}
+	for rows.Next() {
+		var e models.ItemActivity
+		if err := rows.Scan(&e.ID, &e.ItemID, &e.ItemName, &e.PersonID, &e.PersonName, &e.Action, &e.DeltaValue, &e.TotalValue, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 // CreateJoiner registers a join request. In open_link mode it is
 // auto-approved; in approval_code mode it starts pending with a 2-digit
 // approval code shown to the joiner. When newPersonID is non-nil (the joiner
@@ -442,6 +489,15 @@ func (s *Store) CreateJoiner(sessionID, id, name string, existingPersonID *strin
 			return nil, err
 		}
 		approvalCode = code
+	}
+
+	// Generated regardless of status/mode — a pending joiner still needs a
+	// token to claim items once approved, and they never re-call Join, so
+	// there's no later point to generate it at. It's only ever revealed to
+	// the client once approved (see RevealJoinerTokenIfPending).
+	token, err := randomToken()
+	if err != nil {
+		return nil, err
 	}
 
 	personID := existingPersonID
@@ -462,9 +518,10 @@ func (s *Store) CreateJoiner(sessionID, id, name string, existingPersonID *strin
 		}
 	}
 
+	tokenRevealed := status == models.JoinerApproved
 	if _, err := tx.Exec(
-		`INSERT INTO joiners (id, session_id, name, person_id, status, approval_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, sessionID, name, personID, status, approvalCode, ts,
+		`INSERT INTO joiners (id, session_id, name, person_id, status, approval_code, created_at, joiner_token, token_revealed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, sessionID, name, personID, status, approvalCode, ts, token, tokenRevealed,
 	); err != nil {
 		return nil, err
 	}
@@ -476,7 +533,15 @@ func (s *Store) CreateJoiner(sessionID, id, name string, existingPersonID *strin
 		return nil, err
 	}
 
-	return &models.Joiner{ID: id, SessionID: sessionID, Name: name, PersonID: personID, Status: status, ApprovalCode: approvalCode, CreatedAt: ts}, nil
+	joiner := &models.Joiner{ID: id, SessionID: sessionID, Name: name, PersonID: personID, Status: status, ApprovalCode: approvalCode, CreatedAt: ts, TokenRevealed: tokenRevealed}
+	// Only surfaced to the immediate caller when already approved
+	// (open_link mode) — the API layer decides whether to put this on the
+	// wire; approval_code-mode joiners get it later via GetJoiner's
+	// one-time reveal, once a creator approves them.
+	if tokenRevealed {
+		joiner.JoinerToken = token
+	}
+	return joiner, nil
 }
 
 // SetJoinerStatus approves or disapproves a pending joiner (creator-only).
@@ -498,9 +563,9 @@ func (s *Store) GetJoiner(sessionID, joinerID string) (*models.Joiner, error) {
 	var j models.Joiner
 	var personID sql.NullString
 	err := s.db.QueryRow(
-		`SELECT id, name, person_id, status, approval_code, created_at FROM joiners WHERE id = ? AND session_id = ?`,
+		`SELECT id, name, person_id, status, approval_code, created_at, token_revealed FROM joiners WHERE id = ? AND session_id = ?`,
 		joinerID, sessionID,
-	).Scan(&j.ID, &j.Name, &personID, &j.Status, &j.ApprovalCode, &j.CreatedAt)
+	).Scan(&j.ID, &j.Name, &personID, &j.Status, &j.ApprovalCode, &j.CreatedAt, &j.TokenRevealed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -511,6 +576,54 @@ func (s *Store) GetJoiner(sessionID, joinerID string) (*models.Joiner, error) {
 		j.PersonID = &personID.String
 	}
 	return &j, nil
+}
+
+// RevealJoinerTokenIfPending returns this joiner's secret token exactly
+// once: if the joiner is approved and its token hasn't been revealed yet,
+// it atomically flips token_revealed and returns the token; every call
+// after that (or before approval) returns "". This lets a joiner's existing
+// GetJoiner poll loop pick up its token the first time it observes
+// status=approved, without a dedicated push mechanism.
+func (s *Store) RevealJoinerTokenIfPending(sessionID, joinerID string) (string, error) {
+	var token string
+	err := s.db.QueryRow(
+		`SELECT joiner_token FROM joiners WHERE id = ? AND session_id = ? AND status = 'approved' AND token_revealed = 0`,
+		joinerID, sessionID,
+	).Scan(&token)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if _, err := s.db.Exec(`UPDATE joiners SET token_revealed = 1 WHERE id = ?`, joinerID); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// VerifyJoinerToken checks whether token authenticates the caller as the
+// joiner who owns personID in this session. Returns false (no error) for a
+// personID with no owning joiner row — notably, the session creator's own
+// seeded people are never owned by a joiner, so this correctly refuses to
+// "authenticate" them; the creator's own live-editing calls are expected to
+// omit a token entirely rather than attempt this check (see requireJoiner).
+func (s *Store) VerifyJoinerToken(sessionID, personID, token string) (bool, error) {
+	if token == "" {
+		return false, nil
+	}
+	var stored string
+	err := s.db.QueryRow(
+		`SELECT joiner_token FROM joiners WHERE session_id = ? AND person_id = ?`,
+		sessionID, personID,
+	).Scan(&stored)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return stored != "" && stored == token, nil
 }
 
 func (s *Store) ListJoiners(sessionID string) ([]models.Joiner, error) {
@@ -708,4 +821,162 @@ func (s *Store) PurgeSessionByID(sessionID string) ([]string, error) {
 		return nil, err
 	}
 	return paths, nil
+}
+
+// ScanUsage is the aggregate token/request usage shape shared by the daily
+// and monthly lookups (and by /api/scan/usage's response body).
+type ScanUsage struct {
+	RequestCount     int `json:"request_count"`
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
+// RecordScanRequest logs one receipt-scan request (success or failure) and
+// atomically upserts its day/month aggregates. Unlike the bill-processor
+// Worker's KV read-modify-write (a race under concurrent requests), the
+// aggregate updates here are single ON CONFLICT statements.
+func (s *Store) RecordScanRequest(model string, success bool, promptTokens, completionTokens, totalTokens int) error {
+	ts := time.Now().UTC()
+	day := ts.Format("2006-01-02")
+	month := ts.Format("2006-01")
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	successInt := 0
+	if success {
+		successInt = 1
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO scan_requests (requested_at, model, success, prompt_tokens, completion_tokens, total_tokens)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		now(), model, successInt, promptTokens, completionTokens, totalTokens,
+	); err != nil {
+		return fmt.Errorf("insert scan_requests: %w", err)
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO scan_usage_daily (day, request_count, prompt_tokens, completion_tokens, total_tokens)
+		 VALUES (?, 1, ?, ?, ?)
+		 ON CONFLICT(day) DO UPDATE SET
+		   request_count = request_count + 1,
+		   prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+		   completion_tokens = completion_tokens + excluded.completion_tokens,
+		   total_tokens = total_tokens + excluded.total_tokens`,
+		day, promptTokens, completionTokens, totalTokens,
+	); err != nil {
+		return fmt.Errorf("upsert scan_usage_daily: %w", err)
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO scan_usage_monthly (month, request_count, prompt_tokens, completion_tokens, total_tokens)
+		 VALUES (?, 1, ?, ?, ?)
+		 ON CONFLICT(month) DO UPDATE SET
+		   request_count = request_count + 1,
+		   prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+		   completion_tokens = completion_tokens + excluded.completion_tokens,
+		   total_tokens = total_tokens + excluded.total_tokens`,
+		month, promptTokens, completionTokens, totalTokens,
+	); err != nil {
+		return fmt.Errorf("upsert scan_usage_monthly: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// ScanUsageDaily returns the aggregate for a single day (YYYY-MM-DD), or a
+// zero-value ScanUsage if no requests were recorded that day.
+func (s *Store) ScanUsageDaily(day string) (ScanUsage, error) {
+	var u ScanUsage
+	err := s.db.QueryRow(
+		`SELECT request_count, prompt_tokens, completion_tokens, total_tokens FROM scan_usage_daily WHERE day = ?`, day,
+	).Scan(&u.RequestCount, &u.PromptTokens, &u.CompletionTokens, &u.TotalTokens)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ScanUsage{}, nil
+	}
+	return u, err
+}
+
+// ScanUsageMonthly returns the aggregate for a single month (YYYY-MM), or a
+// zero-value ScanUsage if no requests were recorded that month.
+func (s *Store) ScanUsageMonthly(month string) (ScanUsage, error) {
+	var u ScanUsage
+	err := s.db.QueryRow(
+		`SELECT request_count, prompt_tokens, completion_tokens, total_tokens FROM scan_usage_monthly WHERE month = ?`, month,
+	).Scan(&u.RequestCount, &u.PromptTokens, &u.CompletionTokens, &u.TotalTokens)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ScanUsage{}, nil
+	}
+	return u, err
+}
+
+// ScanRequestLogEntry is one row shown in the admin bill-processor page's
+// recent-requests table.
+type ScanRequestLogEntry struct {
+	RequestedAt      string
+	Model            string
+	Success          bool
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+}
+
+// ScanAnalyticsSummary holds everything the admin bill-processor page shows:
+// last-30-day totals, a lifetime success/failure count, and the most recent
+// requests.
+type ScanAnalyticsSummary struct {
+	Last30Days     ScanUsage
+	SuccessCount   int
+	FailureCount   int
+	RecentRequests []ScanRequestLogEntry
+}
+
+func (s *Store) ScanAnalyticsSummary() (ScanAnalyticsSummary, error) {
+	var summary ScanAnalyticsSummary
+
+	since := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02 15:04:05")
+	err := s.db.QueryRow(
+		`SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COALESCE(SUM(total_tokens),0)
+		 FROM scan_requests WHERE requested_at >= ?`, since,
+	).Scan(&summary.Last30Days.RequestCount, &summary.Last30Days.PromptTokens, &summary.Last30Days.CompletionTokens, &summary.Last30Days.TotalTokens)
+	if err != nil {
+		return summary, err
+	}
+
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM scan_requests WHERE success = 1`).Scan(&summary.SuccessCount); err != nil {
+		return summary, err
+	}
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM scan_requests WHERE success = 0`).Scan(&summary.FailureCount); err != nil {
+		return summary, err
+	}
+
+	rows, err := s.db.Query(
+		`SELECT requested_at, model, success, prompt_tokens, completion_tokens, total_tokens
+		 FROM scan_requests ORDER BY id DESC LIMIT 25`,
+	)
+	if err != nil {
+		return summary, err
+	}
+	defer rows.Close()
+
+	entries := []ScanRequestLogEntry{}
+	for rows.Next() {
+		var e ScanRequestLogEntry
+		var successInt int
+		if err := rows.Scan(&e.RequestedAt, &e.Model, &successInt, &e.PromptTokens, &e.CompletionTokens, &e.TotalTokens); err != nil {
+			return summary, err
+		}
+		e.Success = successInt == 1
+		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		return summary, err
+	}
+	summary.RecentRequests = entries
+
+	return summary, nil
 }

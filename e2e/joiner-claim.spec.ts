@@ -47,13 +47,13 @@ test('open_link + free_select: a new-name joiner claims an item and it shows up 
   await joinerPage.goto(`/#/join/${code}`);
   await joinerPage.getByPlaceholder('Enter your name').fill('Dana');
   await joinerPage.getByRole('button', { name: 'Join' }).click();
-  await expect(joinerPage.getByText("You're in! Tap an item to claim it.")).toBeVisible();
+  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   await expect(joinerPage.getByText('Chips')).toBeVisible();
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
 
   await expect(joinerPage.getByText('Claimed by Dana')).toBeVisible({ timeout: 10000 });
-  await expect(joinerPage.getByRole('button', { name: 'Claimed' })).toBeDisabled();
+  await expect(joinerPage.getByRole('button', { name: 'Unclaim' })).toBeEnabled();
 
   await joinerPage.close();
 });
@@ -78,7 +78,7 @@ test('approval_code + claims_require_approval: joiner claim goes pending until t
 
   await expect(page.getByText('Eli')).toBeVisible({ timeout: 10000 });
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
-  await expect(joinerPage.getByText("You're in! Tap an item to claim it.")).toBeVisible({ timeout: 10000 });
+  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible({ timeout: 10000 });
 
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Awaiting host approval…')).toBeVisible();

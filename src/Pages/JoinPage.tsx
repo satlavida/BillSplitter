@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getLiveSession, joinLiveSession, getJoiner, claimItem, LiveApiError, LIVE_SERVER_URL } from '../lib/liveApi';
-import { connectLiveSync } from '../lib/liveSync';
-import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId } from '../lib/joinerStorage';
+import { getLiveSession, joinLiveSession, getJoiner, LiveApiError } from '../lib/liveApi';
+import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId, getStoredJoinerToken, setStoredJoinerToken } from '../lib/joinerStorage';
+import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
 import { Button, Card, Alert } from '../ui/components';
+
+// Captures a joiner's secret token into storage the moment it's observed —
+// the server only ever includes it once (see live.schema.ts's LiveJoiner
+// .token comment), so every response that might carry it must be checked.
+const captureToken = (code: string, joiner: LiveJoiner) => {
+  if (joiner.token) setStoredJoinerToken(code, joiner.token);
+};
 
 type LoadState = 'loading' | 'ready' | 'not-found' | 'error';
 
@@ -12,7 +19,8 @@ type LoadState = 'loading' | 'ready' | 'not-found' | 'error';
  * Live-session join flow (planv3.md 3.10): loads the session's public state
  * by code, lets the joiner pick an existing person or enter a new name,
  * then shows a pending-approval state (with the 2-digit code) or immediate
- * admission depending on the session's join_mode.
+ * admission depending on the session's join_mode. Once approved, hands off
+ * to JoinerSessionView for the actual in-session experience.
  */
 const JoinPage = () => {
   const { code } = useParams<{ code: string }>();
@@ -23,12 +31,6 @@ const JoinPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joiner, setJoiner] = useState<LiveJoiner | null>(null);
-  const [claimingItemId, setClaimingItemId] = useState<string | null>(null);
-  const [claimError, setClaimError] = useState<string | null>(null);
-  // Items with a claim awaiting the host's approval (claims_require_approval
-  // mode). Not reflected in item.consumedBy until approved, so tracked
-  // locally to avoid letting this joiner double-submit while waiting.
-  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!code) return;
@@ -65,6 +67,7 @@ const JoinPage = () => {
           clearStoredJoinerId(code);
           return;
         }
+        captureToken(code, restored);
         setJoiner(restored);
       })
       .catch(() => {
@@ -80,7 +83,9 @@ const JoinPage = () => {
 
   // While pending, poll for the creator's approve/disapprove decision —
   // there's no push channel a not-yet-admitted joiner can subscribe to, so
-  // this is a plain interval rather than connectLiveSync.
+  // this is a plain interval rather than connectLiveSync. This is also the
+  // moment an approval_code-mode joiner's token first arrives (see
+  // GetJoiner's one-time reveal).
   useEffect(() => {
     if (!code || !joiner || joiner.status !== 'pending') return;
     const joinerId = joiner.id;
@@ -88,7 +93,10 @@ const JoinPage = () => {
       getJoiner(code, joinerId)
         .then((updated) => {
           if (updated.status === 'disapproved') clearStoredJoinerId(code);
-          if (updated.status !== 'pending') setJoiner(updated);
+          if (updated.status !== 'pending') {
+            captureToken(code, updated);
+            setJoiner(updated);
+          }
         })
         .catch(() => {
           // Transient polling failures aren't worth surfacing — retried
@@ -96,30 +104,6 @@ const JoinPage = () => {
         });
     }, 3000);
     return () => clearInterval(interval);
-  }, [code, joiner]);
-
-  // Once admitted, keep the bill/item list live so claims made by this
-  // joiner or anyone else show up without a manual reload.
-  const refreshRef = useRef<() => void>(() => {});
-  refreshRef.current = () => {
-    if (!code) return;
-    getLiveSession(code)
-      .then(setSession)
-      .catch(() => {
-        // Transient refresh failures aren't worth surfacing — the next
-        // poll/event will retry.
-      });
-  };
-
-  useEffect(() => {
-    if (!code || !joiner || joiner.status !== 'approved') return;
-    const handle = connectLiveSync(code, {
-      baseUrl: LIVE_SERVER_URL,
-      onStatusChange: () => {},
-      onEvent: () => refreshRef.current(),
-      onPoll: () => refreshRef.current(),
-    });
-    return () => handle.disconnect();
   }, [code, joiner]);
 
   if (!code) return null;
@@ -176,88 +160,29 @@ const JoinPage = () => {
 
   if (joiner && joiner.status === 'approved') {
     const myPersonId = joiner.personId;
-    const nameFor = (personId: string) => session.people.find((p) => p.id === personId)?.name ?? 'Someone';
+    const joinerToken = getStoredJoinerToken(code);
 
-    const handleClaim = async (billId: string, itemId: string) => {
-      if (!myPersonId) return;
-      setClaimingItemId(itemId);
-      setClaimError(null);
-      try {
-        const result = await claimItem(code, billId, itemId, myPersonId);
-        if (result.status === 'pending') {
-          setPendingItemIds((prev) => new Set(prev).add(itemId));
-        }
-        refreshRef.current();
-      } catch (err) {
-        setClaimError(err instanceof LiveApiError ? err.message : 'Failed to claim item');
-      } finally {
-        setClaimingItemId(null);
-      }
-    };
+    if (!myPersonId || !joinerToken) {
+      // Shouldn't happen on a normal join, but guards against a stale
+      // pre-token-migration joiner (see migrations/0003's header comment) —
+      // no way to authenticate their claims, so ask them to rejoin.
+      return (
+        <div className="text-center py-8">
+          <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">Your session needs a fresh join to continue.</p>
+          <Button
+            onClick={() => {
+              clearStoredJoinerId(code);
+              setJoiner(null);
+            }}
+          >
+            Rejoin
+          </Button>
+        </div>
+      );
+    }
 
-    return (
-      <div>
-        <h2 className="text-xl font-semibold mb-1 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">You're in! Tap an item to claim it.</p>
-
-        {session.isSettled && (
-          <Alert type="info" className="mb-4">
-            The host has settled this session — items are read-only now.
-          </Alert>
-        )}
-
-        {claimError && <Alert type="error" className="mb-4">{claimError}</Alert>}
-
-        {session.bills.length === 0 && <p className="text-zinc-500 dark:text-zinc-400">No bills yet.</p>}
-
-        {session.bills.map((bill) => (
-          <Card key={bill.id} className="mb-3">
-            <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">{bill.title}</h3>
-            {bill.imageRefKey && (
-              <img
-                src={`${LIVE_SERVER_URL}/api/images/${bill.imageRefKey}`}
-                alt="Receipt"
-                className="mb-3 max-h-48 rounded border border-zinc-200 dark:border-zinc-700"
-              />
-            )}
-            {bill.items.length === 0 ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No items yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {bill.items.map((item) => {
-                  const claimedByMe = myPersonId ? item.consumedBy.some((c) => c.personId === myPersonId) : false;
-                  const isPending = !claimedByMe && pendingItemIds.has(item.id);
-                  return (
-                    <li key={item.id} className="flex justify-between items-center">
-                      <div>
-                        <span className="text-zinc-800 dark:text-white transition-colors">{item.name}</span>
-                        <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
-                          {bill.currency} {item.price.toFixed(2)}
-                        </span>
-                        {item.consumedBy.length > 0 && (
-                          <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                            Claimed by {item.consumedBy.map((c) => nameFor(c.personId)).join(', ')}
-                          </span>
-                        )}
-                        {isPending && <span className="block text-xs text-amber-600 dark:text-amber-400">Awaiting host approval…</span>}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={claimedByMe ? 'secondary' : 'primary'}
-                        disabled={claimedByMe || isPending || claimingItemId === item.id || !myPersonId || session.isSettled}
-                        onClick={() => handleClaim(bill.id, item.id)}
-                      >
-                        {claimedByMe ? 'Claimed' : isPending ? 'Pending' : claimingItemId === item.id ? 'Claiming…' : 'Claim'}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Card>
-        ))}
-      </div>
-    );
+    return <JoinerSessionView code={code} myPersonId={myPersonId} joinerToken={joinerToken} />;
   }
 
   const handleSubmit = async () => {
@@ -270,6 +195,7 @@ const JoinPage = () => {
     try {
       const result = await joinLiveSession(code, name.trim(), selectedPersonId || null);
       setStoredJoinerId(code, result.id);
+      captureToken(code, result);
       setJoiner(result);
     } catch (err) {
       setError(err instanceof LiveApiError ? err.message : 'Failed to join');

@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Outlet, useNavigate, useLocation } from 'rea
 import { ThemeProvider } from './ThemeContext';
 import ThemeSwitcher from './Components/ThemeSwitcher';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
+import { Spinner } from './ui/components';
 import useSessionStore from './sessionStore';
 import Settings from './Components/Settings';
 import ServiceWorkerPrompt from './Components/Prompts/ServiceWorkerPrompt';
@@ -10,6 +11,7 @@ import SessionsListPage from './Pages/SessionsListPage';
 import SessionHomePage from './Pages/SessionHomePage';
 import BillEditorPage from './Pages/BillEditorPage';
 import SessionSettlementPage from './Pages/SessionSettlementPage';
+import ActivityLogPage from './Pages/ActivityLogPage';
 import JoinPage from './Pages/JoinPage';
 import './App.css';
 
@@ -20,11 +22,25 @@ interface HeaderProps {
 
 // Header with theme switcher and hamburger button
 const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
+  // Count of bills in the current session still being scanned in the
+  // background (see receiptScan.ts) — shown as a spinner here so progress
+  // is visible even after the upload modal that started the scan has
+  // already closed.
+  const processingCount = useSessionStore((state) => {
+    const current = state.sessions.find((s) => s.id === state.currentSessionId);
+    return current ? current.bills.filter((b) => b.scanStatus === 'processing').length : 0;
+  });
+
   return (
     <div className="flex justify-between items-center mb-6">
       <div className="flex items-center gap-3">
         <HamburgerButton onClick={toggleSidebar} isOpen={isSidebarOpen} />
         <h1 className="text-2xl font-bold text-zinc-800 dark:text-white">Bill Splitter</h1>
+        {processingCount > 0 && (
+          <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400" title="Scanning receipt...">
+            <Spinner size="sm" />
+          </span>
+        )}
       </div>
       <ThemeSwitcher />
     </div>
@@ -142,6 +158,7 @@ const App = () => {
             <Route path="/session/:sessionId" element={<SessionHomePage />} />
             <Route path="/session/:sessionId/bill/:billId" element={<BillEditorPage />} />
             <Route path="/session/:sessionId/settlement" element={<SessionSettlementPage />} />
+            <Route path="/session/:sessionId/activity" element={<ActivityLogPage />} />
             <Route path="/join/:code" element={<JoinPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

@@ -235,10 +235,60 @@ type claimItemRequest struct {
 	Value    float64 `json:"value"`
 }
 
+// findItemName looks up an item's name across every bill in sess — sess is
+// already fully loaded (bills+items) by the caller, so this avoids a
+// separate query just for the activity-log snapshot.
+func findItemName(sess *models.Session, itemID string) string {
+	for _, b := range sess.Bills {
+		for _, it := range b.Items {
+			if it.ID == itemID {
+				return it.Name
+			}
+		}
+	}
+	return ""
+}
+
+func findPersonName(sess *models.Session, personID string) string {
+	for _, p := range sess.People {
+		if p.ID == personID {
+			return p.Name
+		}
+	}
+	return ""
+}
+
+// currentAllocationValue returns a person's existing approved allocation
+// value for an item (0 if none), used to compute delta_value for the
+// activity log — ClaimItemFreeSelect/ApproveClaim upsert an absolute value,
+// not an additive one, so the caller must diff against the prior value.
+func currentAllocationValue(sess *models.Session, itemID, personID string) float64 {
+	for _, b := range sess.Bills {
+		for _, it := range b.Items {
+			if it.ID != itemID {
+				continue
+			}
+			for _, c := range it.ConsumedBy {
+				if c.PersonID == personID {
+					return c.Value
+				}
+			}
+		}
+	}
+	return 0
+}
+
 // ClaimItem handles POST /api/sessions/{code}/bills/{billId}/items/{itemId}/claims.
 // free_select writes an item_allocations row directly (auto-approved,
 // insert-only so concurrent claims never conflict); claims_require_approval
 // writes a pending item_claims row, SSE-pushed to the creator.
+//
+// If the caller sends X-Joiner-Token, it must authenticate them as the
+// personId being claimed for (self-claim enforcement). If the header is
+// absent, the request proceeds unauthenticated — the creator's own
+// live-editing UI (ItemAssignment) claims on behalf of arbitrary people as
+// the creator and has no joiner token to send; this dual-mode is
+// deliberate, not an oversight.
 func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	itemID := r.PathValue("itemId")
@@ -266,16 +316,24 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "personId is required")
 		return
 	}
+	if r.Header.Get("X-Joiner-Token") != "" && !a.requireJoiner(w, r, code, req.PersonID) {
+		return
+	}
 	value := req.Value
 	if value == 0 {
 		value = 1
 	}
+
+	itemName := findItemName(sess, itemID)
+	personName := findPersonName(sess, req.PersonID)
+	delta := value - currentAllocationValue(sess, itemID, req.PersonID)
 
 	if sess.ClaimMode == models.ClaimModeFreeSelect {
 		if err := a.store.ClaimItemFreeSelect(code, itemID, req.PersonID, value); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to claim item")
 			return
 		}
+		a.recordClaimActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value)
 		a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
 		writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
 		return
@@ -291,8 +349,67 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to claim item")
 		return
 	}
+	// Logged at submission (the joiner's own action), not at the creator's
+	// later approval — see bill_handlers.go's ClaimItem doc comment.
+	a.recordClaimActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value)
 	a.hub.Broadcast(code, sse.Event{Kind: "claim.pending", ID: claimID})
 	writeJSON(w, http.StatusCreated, claim)
+}
+
+// recordClaimActivity logs a claim/unclaim and broadcasts it; logging
+// failures are swallowed (not surfaced to the caller) since the claim/
+// unclaim itself already succeeded by the time this runs — the log is a
+// secondary audit trail, not something worth failing the user-visible
+// request over.
+func (a *API) recordClaimActivity(code, itemID, itemName, personID, personName, action string, delta, total float64) {
+	if err := a.store.RecordItemActivity(code, models.ItemActivity{
+		ItemID: itemID, ItemName: itemName, PersonID: personID, PersonName: personName,
+		Action: action, DeltaValue: delta, TotalValue: total,
+	}); err != nil {
+		return
+	}
+	a.hub.Broadcast(code, sse.Event{Kind: "activity.created", ID: itemID})
+}
+
+// UnclaimItem handles DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}/claims/{personId}.
+// Always requires X-Joiner-Token — no creator-editing flow needs to unclaim
+// on someone else's behalf server-side today. Removes both an approved
+// allocation (free_select, or an already-approved claims_require_approval
+// claim) and any still-pending claim for this (item, person), so a joiner
+// can retract either kind with one action.
+func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	itemID := r.PathValue("itemId")
+	personID := r.PathValue("personId")
+
+	if !a.requireJoiner(w, r, code, personID) {
+		return
+	}
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+
+	sess, err := a.store.GetSession(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session")
+		return
+	}
+	itemName := findItemName(sess, itemID)
+	personName := findPersonName(sess, personID)
+	oldValue := currentAllocationValue(sess, itemID, personID)
+
+	if err := a.store.UnclaimItem(code, itemID, personID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to unclaim item")
+		return
+	}
+	if err := a.store.CancelPendingClaim(code, itemID, personID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to unclaim item")
+		return
+	}
+
+	a.recordClaimActivity(code, itemID, itemName, personID, personName, "unclaim", -oldValue, 0)
+	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "unclaimed"})
 }
 
 // ApproveClaim handles POST /api/sessions/{code}/claims/{id}/approve (creator-only).

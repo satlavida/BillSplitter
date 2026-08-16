@@ -38,7 +38,7 @@ test('a bill and item added locally after going live show up for a joiner', asyn
   await joinerPage.goto(`/#/join/${code}`);
   await joinerPage.getByPlaceholder('Enter your name').fill('Frank');
   await joinerPage.getByRole('button', { name: 'Join' }).click();
-  await expect(joinerPage.getByText("You're in! Tap an item to claim it.")).toBeVisible();
+  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   await expect(joinerPage.getByText('Nachos')).toBeVisible({ timeout: 10000 });
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();

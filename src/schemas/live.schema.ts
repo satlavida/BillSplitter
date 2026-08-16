@@ -73,8 +73,34 @@ export const LiveJoinerSchema = z.object({
   status: z.enum(['pending', 'approved', 'disapproved']),
   approvalCode: z.string().optional(),
   createdAt: z.string(),
+  // Only present the one time the server reveals it (the first response
+  // that observes status: 'approved') — see liveApi.ts/joinerStorage.ts.
+  token: z.string().optional(),
 });
 export type LiveJoiner = z.infer<typeof LiveJoinerSchema>;
+
+export const LiveActivityEntrySchema = z.object({
+  id: z.number(),
+  itemId: z.string(),
+  itemName: z.string(),
+  personId: z.string(),
+  personName: z.string(),
+  action: z.enum(['claim', 'unclaim']),
+  deltaValue: z.number(),
+  totalValue: z.number(),
+  createdAt: z.string(),
+});
+export type LiveActivityEntry = z.infer<typeof LiveActivityEntrySchema>;
+
+// "Correctly split" for a fraction-splitType item means every claimed share
+// sums exactly (within floating-point epsilon) to the item's quantity.
+// Non-fraction items have no such target and are always considered correct.
+const FRACTION_EPSILON = 1e-6;
+export function isFractionItemCorrect(item: LiveItem): boolean {
+  if (item.splitType !== 'fraction') return true;
+  const total = item.consumedBy.reduce((sum, c) => sum + c.value, 0);
+  return Math.abs(total - item.quantity) < FRACTION_EPSILON;
+}
 
 // POST .../items/{itemId}/claims responds one of two shapes depending on
 // the session's claim_mode: free_select auto-approves and returns just

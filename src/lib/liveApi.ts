@@ -7,6 +7,7 @@ import {
   ClaimItemResponseSchema,
   LiveBillSchema,
   LiveItemSchema,
+  LiveActivityEntrySchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
@@ -14,13 +15,14 @@ import {
   type ClaimItemResponse,
   type LiveBill,
   type LiveItem,
+  type LiveActivityEntry,
 } from '../schemas/live.schema';
 import type { Person, Item } from '../schemas/bill.schema';
 
-// Base URL of the Go live-collaboration server (server/cmd/server). Follows
-// the same import.meta.env pattern as ScanReceiptButton's VITE_WORKER_URL,
-// defaulting to the local dev server so `go run ./server/cmd/server` works
-// out of the box without any .env changes.
+// Base URL of the Go live-collaboration server (server/cmd/server), also
+// used by receiptScan.ts for POST /api/scan. Defaults to the local dev
+// server so `go run ./server/cmd/server` works out of the box without any
+// .env changes.
 const LIVE_SERVER_URL = import.meta.env.VITE_LIVE_SERVER_URL || 'http://localhost:8080';
 
 class LiveApiError extends Error {
@@ -74,8 +76,17 @@ export const addLiveBill = (
   bill: { id: string; title: string; currency: string; taxAmount: number }
 ): Promise<LiveBill> => request(`/api/sessions/${code}/bills`, { method: 'POST', body: JSON.stringify(bill) }, LiveBillSchema);
 
-export const addLiveItem = (code: string, billId: string, item: Pick<Item, 'id' | 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>): Promise<LiveItem> =>
-  request(`/api/sessions/${code}/bills/${billId}/items`, { method: 'POST', body: JSON.stringify(item) }, LiveItemSchema);
+export const addLiveItem = (
+  code: string,
+  billId: string,
+  item: Pick<Item, 'id' | 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>,
+  joinerToken?: string
+): Promise<LiveItem> =>
+  request(
+    `/api/sessions/${code}/bills/${billId}/items`,
+    { method: 'POST', body: JSON.stringify(item), headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    LiveItemSchema
+  );
 
 // Syncs edits to an already-pushed bill/item's own fields. Deliberately
 // never sends consumedBy/allocations — those stay server-authoritative,
@@ -133,11 +144,21 @@ export const uploadLiveImage = async (code: string, billId: string, blob: Blob, 
   return z.object({ refKey: z.string() }).parse(await res.json());
 };
 
-export const claimItem = (code: string, billId: string, itemId: string, personId: string, value?: number): Promise<ClaimItemResponse> =>
+export const claimItem = (code: string, billId: string, itemId: string, personId: string, value?: number, joinerToken?: string): Promise<ClaimItemResponse> =>
   request(
     `/api/sessions/${code}/bills/${billId}/items/${itemId}/claims`,
-    { method: 'POST', body: JSON.stringify({ personId, value }) },
+    { method: 'POST', body: JSON.stringify({ personId, value }), headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
     ClaimItemResponseSchema
+  );
+
+// A joiner can only unclaim their own personId — the server enforces this
+// via joinerToken (X-Joiner-Token), required here (unlike claimItem, which
+// also allows the creator's own token-free live-editing calls).
+export const unclaimItem = (code: string, billId: string, itemId: string, personId: string, joinerToken: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/bills/${billId}/items/${itemId}/claims/${personId}`,
+    { method: 'DELETE', headers: { 'X-Joiner-Token': joinerToken } },
+    { parse: () => undefined }
   );
 
 export const settleLiveSession = (code: string, creatorToken: string): Promise<void> =>
@@ -145,5 +166,8 @@ export const settleLiveSession = (code: string, creatorToken: string): Promise<v
 
 export const getLiveSettlement = (code: string): Promise<LiveSettlement> =>
   request(`/api/sessions/${code}/settlement`, { method: 'GET' }, LiveSettlementSchema);
+
+export const getActivityLog = (code: string, creatorToken: string): Promise<LiveActivityEntry[]> =>
+  request(`/api/sessions/${code}/activity`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveActivityEntrySchema));
 
 export { LiveApiError, LIVE_SERVER_URL };

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -49,7 +50,39 @@ func Open(path string) (*sql.DB, error) {
 	return database, nil
 }
 
+// schema_migrations records which migration files have already run. Early
+// migrations only used CREATE TABLE/INDEX IF NOT EXISTS, which are naturally
+// idempotent, so this tracking wasn't needed until a migration needed a
+// non-idempotent statement like ALTER TABLE ADD COLUMN (fails with
+// "duplicate column" if re-run).
+const createSchemaMigrations = `CREATE TABLE IF NOT EXISTS schema_migrations (
+	name        TEXT PRIMARY KEY,
+	applied_at  TEXT NOT NULL
+)`
+
 func migrate(database *sql.DB) error {
+	if _, err := database.Exec(createSchemaMigrations); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+
+	applied := map[string]bool{}
+	rows, err := database.Query(`SELECT name FROM schema_migrations`)
+	if err != nil {
+		return fmt.Errorf("query schema_migrations: %w", err)
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan schema_migrations: %w", err)
+		}
+		applied[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate schema_migrations: %w", err)
+	}
+	rows.Close()
+
 	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {
 		return err
@@ -62,12 +95,18 @@ func migrate(database *sql.DB) error {
 	sort.Strings(names)
 
 	for _, name := range names {
+		if applied[name] {
+			continue
+		}
 		sqlBytes, err := migrationsFS.ReadFile("migrations/" + name)
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", name, err)
 		}
 		if _, err := database.Exec(string(sqlBytes)); err != nil {
 			return fmt.Errorf("apply migration %s: %w", name, err)
+		}
+		if _, err := database.Exec(`INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)`, name, time.Now().UTC().Format(time.RFC3339)); err != nil {
+			return fmt.Errorf("record migration %s: %w", name, err)
 		}
 	}
 

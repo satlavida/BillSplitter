@@ -144,7 +144,19 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 		a.hub.Broadcast(code, sse.Event{Kind: "joiner.approved", ID: joiner.ID})
 	}
 
-	writeJSON(w, http.StatusCreated, joiner)
+	writeJSON(w, http.StatusCreated, withJoinerToken(joiner))
+}
+
+// joinerResponse wraps models.Joiner to add an optional one-time-reveal
+// token field, without touching Joiner's own json:"-" tag (which must stay
+// unexported from every other response, e.g. ListJoiners).
+type joinerResponse struct {
+	*models.Joiner
+	Token string `json:"token,omitempty"`
+}
+
+func withJoinerToken(joiner *models.Joiner) joinerResponse {
+	return joinerResponse{Joiner: joiner, Token: joiner.JoinerToken}
 }
 
 // ListJoiners handles GET /api/sessions/{code}/joiners (creator-only) — lets
@@ -181,7 +193,17 @@ func (a *API) GetJoiner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, joiner)
+	// One-time reveal: a joiner who's just become approved picks up its
+	// secret claim/unclaim token on the first poll that observes it, and
+	// never again — see store.RevealJoinerTokenIfPending.
+	token, err := a.store.RevealJoinerTokenIfPending(code, joinerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load joiner")
+		return
+	}
+	joiner.JoinerToken = token
+
+	writeJSON(w, http.StatusOK, withJoinerToken(joiner))
 }
 
 // ApproveJoiner handles POST /api/sessions/{code}/joiners/{id}/approve (creator-only).
@@ -236,6 +258,31 @@ func (a *API) requireCreator(w http.ResponseWriter, r *http.Request) bool {
 
 	if token != sess.CreatorToken {
 		writeError(w, http.StatusForbidden, "invalid creator token")
+		return false
+	}
+	return true
+}
+
+// requireJoiner checks the X-Joiner-Token header authenticates the caller
+// as the joiner who owns personID in this session — used to enforce that a
+// joiner can only claim/unclaim for themselves, never on behalf of someone
+// else. Writes a 401/403 and returns false on failure. Callers that also
+// want to allow token-free requests (e.g. the creator's own live-editing
+// claims) should only call this when a token header is actually present —
+// see ClaimItem.
+func (a *API) requireJoiner(w http.ResponseWriter, r *http.Request, code, personID string) bool {
+	token := r.Header.Get("X-Joiner-Token")
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "X-Joiner-Token header required")
+		return false
+	}
+	ok, err := a.store.VerifyJoinerToken(code, personID, token)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to verify joiner")
+		return false
+	}
+	if !ok {
+		writeError(w, http.StatusForbidden, "invalid joiner token for this person")
 		return false
 	}
 	return true

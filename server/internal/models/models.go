@@ -91,6 +91,12 @@ type Joiner struct {
 	Status       JoinerStatus `json:"status"`
 	ApprovalCode string       `json:"approvalCode,omitempty"`
 	CreatedAt    string       `json:"createdAt"`
+	// JoinerToken authenticates later claim/unclaim requests as coming from
+	// this joiner (see store.VerifyJoinerToken). Never serialized directly —
+	// it's revealed to the client exactly once via a separate response
+	// wrapper (see api.joinerWithToken), not through this struct's own JSON.
+	JoinerToken   string `json:"-"`
+	TokenRevealed bool   `json:"-"`
 }
 
 type ClaimStatus string
@@ -106,6 +112,21 @@ type ItemClaim struct {
 	PersonID string      `json:"personId"`
 	Value    float64     `json:"value"`
 	Status   ClaimStatus `json:"status"`
+}
+
+// ItemActivity is a durable log entry recording a single claim or unclaim
+// action, snapshotting the item/person names at write time so the log stays
+// legible even if either is later removed (see migrations/0003).
+type ItemActivity struct {
+	ID         int64   `json:"id"`
+	ItemID     string  `json:"itemId"`
+	ItemName   string  `json:"itemName"`
+	PersonID   string  `json:"personId"`
+	PersonName string  `json:"personName"`
+	Action     string  `json:"action"` // "claim" | "unclaim"
+	DeltaValue float64 `json:"deltaValue"`
+	TotalValue float64 `json:"totalValue"`
+	CreatedAt  string  `json:"createdAt"`
 }
 
 type ImageMeta struct {

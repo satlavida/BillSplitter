@@ -8,9 +8,10 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 //
 // The client-side push (sessionStore.ts's pushReceiptImageLive, triggered
 // when ScanReceiptButton.tsx sets Bill.receiptImage) isn't exercised here —
-// it would require driving the real OCR worker or a test-only store hook.
-// It's covered by typecheck (LiveBillSchema/liveApi.ts wiring) and mirrors
-// the same dynamic-import push pattern already e2e-tested for bill/item
+// it would require driving the real OpenRouter-backed POST /api/scan (see
+// server/internal/api/scan_handlers.go) or a test-only store hook. It's
+// covered by typecheck (LiveBillSchema/liveApi.ts wiring) and mirrors the
+// same dynamic-import push pattern already e2e-tested for bill/item
 // creation and edits.
 
 const LIVE_SERVER_URL = 'http://localhost:8080';
@@ -43,7 +44,7 @@ test('a receipt image uploaded to a live bill is visible to a joiner', async ({ 
   await joinerPage.goto(`/#/join/${code}`);
   await joinerPage.getByPlaceholder('Enter your name').fill('Jo');
   await joinerPage.getByRole('button', { name: 'Join' }).click();
-  await expect(joinerPage.getByText("You're in! Tap an item to claim it.")).toBeVisible();
+  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   const img = joinerPage.getByAltText('Receipt');
   await expect(img).toBeVisible({ timeout: 10000 });

@@ -43,11 +43,11 @@ test('an admitted joiner who refreshes lands back on the claiming screen', async
   await joinerPage.goto(`/#/join/${code}`);
   await joinerPage.getByPlaceholder('Enter your name').fill('Ivy');
   await joinerPage.getByRole('button', { name: 'Join' }).click();
-  await expect(joinerPage.getByText("You're in! Tap an item to claim it.")).toBeVisible();
+  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   await joinerPage.reload();
 
-  await expect(joinerPage.getByText("You're in! Tap an item to claim it.")).toBeVisible();
+  await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   await joinerPage.close();
 });
