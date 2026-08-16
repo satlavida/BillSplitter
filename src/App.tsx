@@ -1,5 +1,5 @@
 import { memo, useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ThemeProvider } from './ThemeContext';
 import ThemeSwitcher from './Components/ThemeSwitcher';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
@@ -139,6 +139,14 @@ const RootRedirect = () => {
   return null;
 };
 
+// Req 14: "/session/:sessionId/bill/:billId" (no step) redirects to step 1
+// — keeps old bare bill links working while the wizard's real source of
+// truth is the URL's step segment (see BillEditorPage.tsx).
+const BillEditorStepRedirect = () => {
+  const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
+  return <Navigate to={`/session/${sessionId}/bill/${billId}/step/1`} replace />;
+};
+
 // Main App component
 const App = () => {
   return (
@@ -156,7 +164,8 @@ const App = () => {
             <Route path="/" element={<RootRedirect />} />
             <Route path="/sessions" element={<SessionsListPage />} />
             <Route path="/session/:sessionId" element={<SessionHomePage />} />
-            <Route path="/session/:sessionId/bill/:billId" element={<BillEditorPage />} />
+            <Route path="/session/:sessionId/bill/:billId" element={<BillEditorStepRedirect />} />
+            <Route path="/session/:sessionId/bill/:billId/step/:step" element={<BillEditorPage />} />
             <Route path="/session/:sessionId/settlement" element={<SessionSettlementPage />} />
             <Route path="/session/:sessionId/activity" element={<ActivityLogPage />} />
             <Route path="/join/:code" element={<JoinPage />} />

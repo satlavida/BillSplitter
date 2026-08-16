@@ -25,7 +25,7 @@ test.describe('Sessions list', () => {
     // Add a bill with a person so the export isn't empty (people live on the
     // shared session pool, but are only editable from within a bill).
     await page.getByRole('button', { name: 'Add Bill' }).click();
-    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+$`));
+    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
     await page.getByPlaceholder('Enter name').fill('Alice');
     await page.getByPlaceholder('Enter name').press('Enter');
     await expect(page.getByText('Alice')).toBeVisible();

@@ -26,7 +26,7 @@ test.describe('Join flow', () => {
     // Seed a person on the session before going live, via the bill editor
     // (people live on the shared pool, only editable from within a bill).
     await page.getByRole('button', { name: 'Add Bill' }).click();
-    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+$`));
+    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
     await addPerson(page, 'Alice');
     await page.getByRole('link', { name: '← Back to Session' }).click();
     await page.waitForURL(`http://localhost:5173/#/session/${sessionId}`);

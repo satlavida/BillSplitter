@@ -16,7 +16,7 @@ async function createSessionAndEnterFirstBill(page: Page): Promise<string> {
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
   await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+$`));
+  await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
   return sessionId;
 }
 

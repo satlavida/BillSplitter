@@ -59,7 +59,7 @@ test("the creator's fraction-correctness badge flips to 'Split complete' as join
   // has no splitType control for a brand-new item).
   await expect(page.getByText('Pizza Night', { exact: true })).toBeVisible({ timeout: 10000 });
   await page.getByText('Pizza Night', { exact: true }).click();
-  await page.waitForURL(new RegExp(`#/session/[^/]+/bill/[^/]+$`));
+  await page.waitForURL(new RegExp(`#/session/[^/]+/bill/[^/]+/step/1$`));
 
   await page.getByRole('button', { name: 'Go to step 3: Assign' }).click();
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();

@@ -19,7 +19,7 @@ async function createSessionAndEnterFirstBill(page: Page): Promise<string> {
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
   await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+$`));
+  await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
   return sessionId;
 }
 
@@ -64,7 +64,7 @@ test.describe('Bill editor — full 4-step flow', () => {
 
     // Add a second bill from the summary screen.
     await page.getByRole('button', { name: 'Add Another Bill' }).click();
-    await expect(page).toHaveURL(new RegExp(`#/session/${sessionId}/bill/[^/]+$`));
+    await expect(page).toHaveURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
     await expect(page.getByRole('heading', { name: "Who's splitting the bill?" })).toBeVisible();
 
     // Shared people pool: Alice should already be present on the new bill.

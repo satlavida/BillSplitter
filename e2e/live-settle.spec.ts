@@ -11,7 +11,7 @@ test('creator settles a live session and a joiner sees it reflected live', async
   await page.waitForURL(/#\/session\/[^/]+$/);
 
   await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(/#\/session\/[^/]+\/bill\/[^/]+$/);
+  await page.waitForURL(/#\/session\/[^/]+\/bill\/[^/]+\/step\/1$/);
   await page.getByPlaceholder('Enter name').fill('Kim');
   await page.getByPlaceholder('Enter name').press('Enter');
   await page.getByPlaceholder('Enter name').fill('Lee');

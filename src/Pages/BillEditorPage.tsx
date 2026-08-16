@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
-import useBillStore, { useBillStep, useDocumentTitle } from '../billStore';
+import useBillStore, { useDocumentTitle } from '../billStore';
 import { getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync } from '../lib/liveSync';
 import StepIndicator from '../Components/StepIndicator';
@@ -18,9 +18,9 @@ import BillSummary from '../Components/BillSummary';
  * used by passAndSplitStore, one layer up).
  */
 const BillEditorPage = () => {
-  const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
+  const { sessionId, billId, step: stepParam } = useParams<{ sessionId: string; billId: string; step: string }>();
   const navigate = useNavigate();
-  const step = useBillStep();
+  const step = Number(stepParam) || 1;
   const liveCode = useSessionStore((s) => (sessionId ? s.getSession(sessionId)?.liveCode : undefined) ?? null);
 
   useEffect(() => {
@@ -38,6 +38,35 @@ const BillEditorPage = () => {
     useSessionStore.getState().setCurrentBill(sessionId, billId);
     useBillStore.getState().hydrateFromSession(session.people, bill);
   }, [sessionId, billId, navigate]);
+
+  // Two-way sync between billStore's step (still the source of truth
+  // StepIndicator/nextStep/prevStep/goToStep write to) and the URL's step
+  // segment (the source of truth for rendering/navigation — req 14): a
+  // billStore step change navigates the URL; a URL step change (browser
+  // back/forward, or a direct link) resets billStore back in step.
+  // syncingFromRoute guards against the two effects re-triggering each
+  // other — without it, a browser-back-driven store update would
+  // immediately push a *new* history entry for the same URL, corrupting
+  // the back/forward stack instead of just following it.
+  const syncingFromRoute = useRef(false);
+
+  useEffect(() => {
+    if (!sessionId || !billId) return;
+    const unsubscribe = useBillStore.subscribe((state, prevState) => {
+      if (state.billId !== billId || state.step === prevState.step) return;
+      if (syncingFromRoute.current) return;
+      navigate(`/session/${sessionId}/bill/${billId}/step/${state.step}`);
+    });
+    return unsubscribe;
+  }, [sessionId, billId, navigate]);
+
+  useEffect(() => {
+    if (useBillStore.getState().step !== step) {
+      syncingFromRoute.current = true;
+      useBillStore.getState().goToStep(step);
+      syncingFromRoute.current = false;
+    }
+  }, [step]);
 
   useEffect(() => {
     if (!sessionId || !billId) return;
