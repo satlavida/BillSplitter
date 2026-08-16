@@ -166,6 +166,20 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
         })}
       </div>
 
+      {/* Rendered outside the consumedBy.length > 0 gate below — a fraction
+          item with zero claims so far is exactly the "under-claimed"
+          warning case this badge exists to surface, so it can't be hidden
+          behind "has at least one claim yet". */}
+      {fractionCorrectness && (
+        <p
+          className={`text-xs mt-2 ${fractionCorrectness.ok ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}
+        >
+          {fractionCorrectness.ok
+            ? '✓ Split complete'
+            : `⚠ Claimed parts total ${fractionCorrectness.total}, item has ${item.quantity} — tap the split icon to adjust`}
+        </p>
+      )}
+
       {item.consumedBy.length > 0 && (
         <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-700 transition-colors">
           <div className="flex justify-between items-center mb-1">
@@ -176,18 +190,6 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
               {splitTypeText}
             </span>
           </div>
-
-          {fractionCorrectness && (
-            <p
-              className={`text-xs mt-1 ${
-                fractionCorrectness.ok ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'
-              }`}
-            >
-              {fractionCorrectness.ok
-                ? '✓ Split complete'
-                : `⚠ Claimed parts total ${fractionCorrectness.total}, item has ${item.quantity} — tap the split icon to adjust`}
-            </p>
-          )}
 
           {hasCustomSplit ? (
             <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 transition-colors">{splitInfoText}</p>
