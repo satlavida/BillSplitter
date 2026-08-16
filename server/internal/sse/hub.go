@@ -12,7 +12,7 @@ import (
 
 // Event is a small, named notification broadcast to every subscriber of a
 // session code. Kind is one of: joiner.pending, joiner.approved,
-// claim.pending, claim.approved, item.updated, bill.updated,
+// claim.pending, claim.approved, claim.rejected, item.updated, bill.updated,
 // session.settled, activity.created.
 type Event struct {
 	Kind string `json:"kind"`

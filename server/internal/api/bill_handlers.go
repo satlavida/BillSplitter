@@ -435,6 +435,89 @@ func (a *API) ApproveClaim(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
 
+// pendingClaimResponse enriches models.ItemClaim with the item/person names
+// a creator-facing list needs to display — those aren't columns on
+// item_claims itself, so they're resolved from the already-loaded session
+// (see findItemName/findPersonName) rather than joined in SQL.
+type pendingClaimResponse struct {
+	models.ItemClaim
+	ItemName   string `json:"itemName"`
+	PersonName string `json:"personName"`
+}
+
+// ListPendingClaims handles GET /api/sessions/{code}/claims/pending
+// (creator-only) — lets the Claim Approval page show what's awaiting a
+// decision (claims_require_approval mode). There's otherwise no way for a
+// creator to discover a pending claim beyond the transient claim.pending
+// SSE event, e.g. after a page refresh.
+func (a *API) ListPendingClaims(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+
+	sess, err := a.store.GetSession(code)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session")
+		return
+	}
+
+	claims, err := a.store.ListPendingClaims(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load pending claims")
+		return
+	}
+
+	enriched := make([]pendingClaimResponse, len(claims))
+	for i, c := range claims {
+		enriched[i] = pendingClaimResponse{
+			ItemClaim:  c,
+			ItemName:   findItemName(sess, c.ItemID),
+			PersonName: findPersonName(sess, c.PersonID),
+		}
+	}
+
+	writeJSON(w, http.StatusOK, enriched)
+}
+
+// RejectClaim handles POST /api/sessions/{code}/claims/{id}/reject
+// (creator-only) — declines a pending claim, distinct from a joiner
+// cancelling their own pending claim via UnclaimItem.
+func (a *API) RejectClaim(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+	claimID := r.PathValue("id")
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+
+	sess, err := a.store.GetSession(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session")
+		return
+	}
+
+	itemID, personID, value, err := a.store.RejectClaim(code, claimID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "claim not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to reject claim")
+		return
+	}
+
+	a.recordClaimActivity(code, itemID, findItemName(sess, itemID), personID, findPersonName(sess, personID), "reject", -value, 0)
+	a.hub.Broadcast(code, sse.Event{Kind: "claim.rejected", ID: claimID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
+}
+
 // GetSettlement handles GET /api/sessions/{code}/settlement — server-computed
 // net who-owes-who, so all joiners see identical, server-arbitrated numbers.
 func (a *API) GetSettlement(w http.ResponseWriter, r *http.Request) {

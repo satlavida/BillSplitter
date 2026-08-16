@@ -108,7 +108,7 @@ const (
 
 type ItemClaim struct {
 	ID       string      `json:"id"`
-	ItemID   string      `json:"-"`
+	ItemID   string      `json:"itemId"`
 	PersonID string      `json:"personId"`
 	Value    float64     `json:"value"`
 	Status   ClaimStatus `json:"status"`

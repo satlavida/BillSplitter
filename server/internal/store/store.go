@@ -472,6 +472,57 @@ func (s *Store) ListItemActivity(sessionID string) ([]models.ItemActivity, error
 	return entries, rows.Err()
 }
 
+// ListPendingClaims returns every not-yet-approved item_claims row for a
+// session (claims_require_approval mode), scoped via items/bills since
+// item_claims itself has no session_id column.
+func (s *Store) ListPendingClaims(sessionID string) ([]models.ItemClaim, error) {
+	rows, err := s.db.Query(
+		`SELECT ic.id, ic.item_id, ic.person_id, ic.value, ic.status
+		 FROM item_claims ic
+		 JOIN items i ON i.id = ic.item_id
+		 JOIN bills b ON b.id = i.bill_id
+		 WHERE b.session_id = ? AND ic.status = 'pending'`,
+		sessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	claims := []models.ItemClaim{}
+	for rows.Next() {
+		var c models.ItemClaim
+		if err := rows.Scan(&c.ID, &c.ItemID, &c.PersonID, &c.Value, &c.Status); err != nil {
+			return nil, err
+		}
+		claims = append(claims, c)
+	}
+	return claims, rows.Err()
+}
+
+// RejectClaim removes a pending claim without approving it (creator
+// declining it, as opposed to the joiner cancelling their own pending claim
+// via UnclaimItem/CancelPendingClaim). Returns the deleted claim's fields
+// so the caller can log activity without a second query.
+func (s *Store) RejectClaim(sessionID, claimID string) (itemID, personID string, value float64, err error) {
+	err = s.db.QueryRow(`SELECT item_id, person_id, value FROM item_claims WHERE id = ? AND status = 'pending'`, claimID).
+		Scan(&itemID, &personID, &value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", 0, ErrNotFound
+	}
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	if _, err = s.db.Exec(`DELETE FROM item_claims WHERE id = ?`, claimID); err != nil {
+		return "", "", 0, err
+	}
+	if err = s.touchSession(sessionID); err != nil {
+		return "", "", 0, err
+	}
+	return itemID, personID, value, nil
+}
+
 // CreateJoiner registers a join request. In open_link mode it is
 // auto-approved; in approval_code mode it starts pending with a 2-digit
 // approval code shown to the joiner. When newPersonID is non-nil (the joiner

@@ -31,6 +31,8 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{code}/bills/{billId}/items/{itemId}/claims", a.ClaimItem)
 	mux.HandleFunc("DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}/claims/{personId}", a.UnclaimItem)
 	mux.HandleFunc("POST /api/sessions/{code}/claims/{id}/approve", a.ApproveClaim)
+	mux.HandleFunc("POST /api/sessions/{code}/claims/{id}/reject", a.RejectClaim)
+	mux.HandleFunc("GET /api/sessions/{code}/claims/pending", a.ListPendingClaims)
 	mux.HandleFunc("GET /api/sessions/{code}/activity", a.GetActivityLog)
 
 	mux.HandleFunc("POST /api/sessions/{code}/bills/{billId}/images", a.UploadImage)
