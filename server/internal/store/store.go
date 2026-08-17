@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"billsplitter/server/internal/models"
@@ -184,6 +185,67 @@ func (s *Store) GetSession(code string) (*models.Session, error) {
 	sess.Bills = bills
 
 	return sess, nil
+}
+
+// GetSessionsStatus is a lightweight batch companion to GetSession — a
+// client tracking several sessions it has joined only needs to know
+// active/settled/deleted for each, not the full people/bills payload, so
+// this does a single indexed lookup instead of N GetSession round trips.
+// Codes with no matching row (never existed, or purged by
+// PurgeStaleSessions/DeleteLiveSession) come back as "deleted" — the two
+// are indistinguishable from here, same as GetSession's ErrNotFound.
+func (s *Store) GetSessionsStatus(codes []string) ([]models.SessionStatus, error) {
+	result := make([]models.SessionStatus, len(codes))
+	for i, code := range codes {
+		result[i] = models.SessionStatus{Code: code, Status: "deleted"}
+	}
+	if len(codes) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(codes))
+	args := make([]any, len(codes))
+	for i, code := range codes {
+		placeholders[i] = "?"
+		args[i] = code
+	}
+	rows, err := s.db.Query(
+		`SELECT id, title, is_settled, settled_at FROM sessions WHERE id IN (`+strings.Join(placeholders, ",")+`)`,
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	found := make(map[string]models.SessionStatus, len(codes))
+	for rows.Next() {
+		var id, title string
+		var isSettled bool
+		var settledAt sql.NullString
+		if err := rows.Scan(&id, &title, &isSettled, &settledAt); err != nil {
+			return nil, err
+		}
+		status := "active"
+		if isSettled {
+			status = "settled"
+		}
+		entry := models.SessionStatus{Code: id, Title: title, Status: status}
+		if settledAt.Valid {
+			entry.SettledAt = &settledAt.String
+		}
+		found[id] = entry
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i, code := range codes {
+		if entry, ok := found[code]; ok {
+			result[i] = entry
+		}
+	}
+	return result, nil
 }
 
 func (s *Store) listPeople(sessionID string) ([]models.Person, error) {
@@ -487,9 +549,42 @@ func (s *Store) CreateJoiner(sessionID, id, name string, existingPersonID *strin
 		}
 	}
 
+	// A rejoin by a person who is already approved must not be demoted back
+	// to pending — otherwise every rejoin (lost token, new device, cleared
+	// storage) in approval_code mode would silently revoke an
+	// already-granted identity's access and force re-approval by the
+	// creator. The token is still rotated below and handed back to this
+	// caller directly, so the rejoining client ends up with a working token.
+	if personID != nil {
+		var existingStatus models.JoinerStatus
+		err := tx.QueryRow(`SELECT status FROM joiners WHERE session_id = ? AND person_id = ?`, sessionID, *personID).Scan(&existingStatus)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+		if err == nil && existingStatus == models.JoinerApproved {
+			status = models.JoinerApproved
+			approvalCode = ""
+		}
+	}
+
 	tokenRevealed := status == models.JoinerApproved
+	// Upsert on (session_id, person_id): a rejoin by a known person (e.g.
+	// after being disapproved, or re-requesting after their prior request
+	// went stale) replaces their earlier row instead of adding a second one
+	// that would double them up in the creator's approval list. Joiners
+	// without a resolvable person_id never collide since newPersonID is
+	// freshly generated per join.
 	if _, err := tx.Exec(
-		`INSERT INTO joiners (id, session_id, name, person_id, status, approval_code, created_at, joiner_token, token_revealed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO joiners (id, session_id, name, person_id, status, approval_code, created_at, joiner_token, token_revealed)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(session_id, person_id) WHERE person_id IS NOT NULL DO UPDATE SET
+		   id = excluded.id,
+		   name = excluded.name,
+		   status = excluded.status,
+		   approval_code = excluded.approval_code,
+		   created_at = excluded.created_at,
+		   joiner_token = excluded.joiner_token,
+		   token_revealed = excluded.token_revealed`,
 		id, sessionID, name, personID, status, approvalCode, ts, token, tokenRevealed,
 	); err != nil {
 		return nil, err

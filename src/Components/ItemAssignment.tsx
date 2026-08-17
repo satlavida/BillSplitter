@@ -52,7 +52,7 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
       case SPLIT_TYPES.PERCENTAGE:
         return 'Percentage Split';
       case SPLIT_TYPES.FRACTION:
-        return 'Fractional Split';
+        return 'Quantity Split';
       case SPLIT_TYPES.EQUAL:
       default:
         return 'Equal Split';

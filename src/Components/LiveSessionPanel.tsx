@@ -53,6 +53,18 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
         .then(setJoiners)
         .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load joiners'));
     }
+
+    // Fetched unconditionally (not gated on isSettled) — settlement is
+    // computed from claims regardless of settled state (server/internal/api
+    // /settlement.go), so "who pays whom" should stay visible whether or
+    // not the session has been settled, and survive a reload/remount
+    // instead of only appearing right after clicking Settle Up.
+    getLiveSettlement(code)
+      .then(setSettlement)
+      .catch(() => {
+        // Best-effort — the settle-up card just won't show a transaction
+        // list this refresh, retried on the next SSE event/poll.
+      });
   };
 
   useEffect(() => {
@@ -107,8 +119,7 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
       await settleLiveSession(code, creatorToken);
       setIsSettled(true);
       setConfirmingSettle(false);
-      const result = await getLiveSettlement(code);
-      setSettlement(result);
+      refreshRef.current();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to settle session');
     } finally {
@@ -130,40 +141,43 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
           )}
         </div>
 
-        {isSettled ? (
-          <>
-            <p className="text-sm text-green-700 dark:text-green-400 mb-2">This session has been settled.</p>
-            {settlement && settlement.transactions.length > 0 && (
-              <ul className="space-y-1">
-                {settlement.transactions.map((t, i) => (
-                  <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300">
-                    {nameFor(t.from)} owes {nameFor(t.to)} {t.amount.toFixed(2)}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {settlement && settlement.transactions.length === 0 && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Everyone's settled up — no transactions needed.</p>
-            )}
-          </>
-        ) : creatorToken ? (
-          confirmingSettle ? (
-            <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="danger" onClick={handleSettle} disabled={settling}>
-                {settling ? 'Settling…' : 'Confirm Settle'}
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setConfirmingSettle(false)} disabled={settling}>
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" onClick={() => setConfirmingSettle(true)}>
-              Settle Up
-            </Button>
-          )
-        ) : (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Not settled yet.</p>
+        {isSettled && <p className="text-sm text-green-700 dark:text-green-400 mb-2">This session has been settled.</p>}
+
+        {/* Who-pays-whom stays visible whether or not the session has been
+            settled — settlement is computed from claims either way (see
+            refreshRef.current above), it isn't something settling unlocks. */}
+        {settlement && settlement.transactions.length > 0 && (
+          <ul className="space-y-1 mb-2">
+            {settlement.transactions.map((t, i) => (
+              <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300">
+                {nameFor(t.from)} owes {nameFor(t.to)} {t.amount.toFixed(2)}
+              </li>
+            ))}
+          </ul>
         )}
+        {settlement && settlement.transactions.length === 0 && (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">Everyone's settled up — no transactions needed.</p>
+        )}
+
+        {!isSettled &&
+          (creatorToken ? (
+            confirmingSettle ? (
+              <div className="flex gap-2 mt-2">
+                <Button size="sm" variant="danger" onClick={handleSettle} disabled={settling}>
+                  {settling ? 'Settling…' : 'Confirm Settle'}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setConfirmingSettle(false)} disabled={settling}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" onClick={() => setConfirmingSettle(true)}>
+                Settle Up
+              </Button>
+            )
+          ) : (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Not settled yet.</p>
+          ))}
       </Card>
 
       <Card>

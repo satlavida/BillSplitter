@@ -35,6 +35,14 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
     }
   }, [item, people]);
 
+  // Custom splits need at least one person to configure shares for — if
+  // nobody was toggled on yet in the equal-split step (item.consumedBy is
+  // empty), selectedPeople is empty too, which used to leave
+  // Percentage/Quantity Split with nothing to render and Save permanently
+  // disabled (total was stuck at 0). Falling back to everyone in the bill
+  // gives the user something to actually configure.
+  const splitPeople = selectedPeople.length > 0 ? selectedPeople : people;
+
   // Get current allocations in the format expected by the input components
   const getAllocations = (): Allocation[] => {
     if (!item || !item.consumedBy || item.consumedBy.length === 0) return [];
@@ -113,7 +121,7 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
               options={[
                 { value: SPLIT_TYPES.EQUAL, label: 'Equal Split' },
                 { value: SPLIT_TYPES.PERCENTAGE, label: 'Percentage Split' },
-                { value: SPLIT_TYPES.FRACTION, label: 'Fractional Split' },
+                { value: SPLIT_TYPES.FRACTION, label: 'Quantity Split' },
               ]}
             />
           </div>
@@ -136,7 +144,7 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
                       clipRule="evenodd"
                     />
                   </svg>
-                  This item will be split equally among {selectedPeople.length} people.
+                  This item will be split equally among {splitPeople.length} people.
                 </p>
                 <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">The equal split has been automatically applied.</p>
               </div>
@@ -150,9 +158,9 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
               </div>
             </div>
           ) : splitType === SPLIT_TYPES.PERCENTAGE ? (
-            <PercentageSplitInput people={selectedPeople} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
+            <PercentageSplitInput people={splitPeople} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
           ) : (
-            <FractionalSplitInput people={selectedPeople} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
+            <FractionalSplitInput people={splitPeople} quantity={item.quantity} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
           )}
         </div>
       </div>

@@ -5,12 +5,19 @@ import type { Allocation } from '../billStore';
 
 interface FractionalSplitInputProps {
   people: Person[];
+  // The item's quantity (bill.schema.ts's Item.quantity) — used only to seed
+  // a sensible default split (parts sum to the item's actual quantity
+  // instead of an arbitrary "1 each") when there's no existing allocation to
+  // restore. These values stay pure ratio/weights after that (see
+  // ItemAssignment.tsx's isLive-gated fractionCorrectness comment) — editing
+  // them doesn't re-clamp to quantity.
+  quantity: number;
   allocations: Allocation[];
   onSave: (fractions: Allocation[]) => void;
   onCancel: () => void;
 }
 
-const FractionalSplitInput = ({ people, allocations, onSave, onCancel }: FractionalSplitInputProps) => {
+const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel }: FractionalSplitInputProps) => {
   // Initialize state with current allocations or default values
   const [fractions, setFractions] = useState<Allocation[]>(() => {
     // If we have allocations, use those values
@@ -21,10 +28,15 @@ const FractionalSplitInput = ({ people, allocations, onSave, onCancel }: Fractio
       }));
     }
 
-    // Otherwise, set equal fractions (all 1)
-    return people.map((person) => ({
+    // Otherwise, default to the item's own quantity split evenly across
+    // people (e.g. quantity 3 among 2 people -> 2 and 1) rather than a flat
+    // 1 each, so parts start out matching what's on the item.
+    const base = Math.max(1, Math.floor(quantity));
+    const share = Math.floor(base / people.length);
+    const remainder = base - share * people.length;
+    return people.map((person, index) => ({
       personId: person.id,
-      value: 1,
+      value: Math.max(share + (index < remainder ? 1 : 0), 1),
     }));
   });
 
@@ -62,7 +74,7 @@ const FractionalSplitInput = ({ people, allocations, onSave, onCancel }: Fractio
 
   return (
     <div className="p-4">
-      <h3 className="text-lg font-medium mb-4 text-zinc-800 dark:text-white">Fractional Split</h3>
+      <h3 className="text-lg font-medium mb-4 text-zinc-800 dark:text-white">Quantity Split</h3>
 
       <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
         Enter a number for each person representing their share. Higher numbers mean paying more.
@@ -105,6 +117,7 @@ const FractionalSplitInput = ({ people, allocations, onSave, onCancel }: Fractio
           }`}
         >
           Total parts: <span className="font-bold">{total}</span>
+          <span className="font-normal text-zinc-500 dark:text-zinc-400"> (item has {quantity})</span>
         </div>
 
         <div className="flex gap-2">

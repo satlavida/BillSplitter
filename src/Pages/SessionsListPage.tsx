@@ -1,9 +1,109 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
 import { Button, Card, Alert } from '../ui/components';
 import FileImport from '../Components/BillHistory/FileImport';
+import { listJoinedSessions, removeJoinedSession, type JoinedSession } from '../lib/joinedSessionsStorage';
+import { getSessionsStatus } from '../lib/liveApi';
+import type { SessionStatus } from '../schemas/live.schema';
+import { formatRelativeTime } from '../lib/formatRelativeTime';
+
+const STATUS_LABEL: Record<SessionStatus['status'], string> = {
+  active: 'Active',
+  settled: 'Settled',
+  deleted: 'No longer available',
+};
+
+const STATUS_BADGE_CLASS: Record<SessionStatus['status'], string> = {
+  active: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+  settled: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
+  deleted: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+};
+
+// "Sessions I've joined" section — separate from sessionStore's Session[]
+// (which is exclusively locally-created sessions this browser owns), backed
+// by joinedSessionsStorage.ts's local index and reconciled against the
+// server's batch status endpoint on mount.
+const JoinedSessionsSection = () => {
+  const [entries, setEntries] = useState<JoinedSession[]>([]);
+  const [statuses, setStatuses] = useState<Record<string, SessionStatus>>({});
+  const [loadingStatus, setLoadingStatus] = useState(false);
+
+  useEffect(() => {
+    const stored = listJoinedSessions();
+    setEntries(stored);
+    if (stored.length === 0) return;
+
+    let cancelled = false;
+    setLoadingStatus(true);
+    getSessionsStatus(stored.map((s) => s.code))
+      .then((results) => {
+        if (cancelled) return;
+        setStatuses(Object.fromEntries(results.map((r) => [r.code, r])));
+      })
+      .catch(() => {
+        // Status is a nice-to-have overlay — leave entries showing with no
+        // badge rather than failing the whole section.
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingStatus(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleRemove = (code: string) => {
+    removeJoinedSession(code);
+    setEntries((prev) => prev.filter((e) => e.code !== code));
+  };
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="mb-6">
+      <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2 transition-colors">Sessions You've Joined</h3>
+      <ul className="space-y-2">
+        {entries.map((entry) => {
+          const status = statuses[entry.code];
+          return (
+            <li key={entry.code}>
+              <Card className="mb-0">
+                <div className="flex justify-between items-center gap-2">
+                  <div className="min-w-0">
+                    {status?.status === 'deleted' ? (
+                      <span className="font-medium text-zinc-500 dark:text-zinc-400">{status.title || entry.title}</span>
+                    ) : (
+                      <Link to={`/join/${entry.code}`} className="font-medium text-zinc-800 dark:text-white hover:underline transition-colors">
+                        {status?.title || entry.title}
+                      </Link>
+                    )}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 transition-colors">
+                      Joined as {entry.myName} · {formatRelativeTime(entry.joinedAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {status && (
+                      <span className={`text-xs py-1 px-2 rounded-full transition-colors ${STATUS_BADGE_CLASS[status.status]}`}>
+                        {STATUS_LABEL[status.status]}
+                      </span>
+                    )}
+                    {!status && loadingStatus && <span className="text-xs text-zinc-400">Checking…</span>}
+                    <Button size="sm" variant="secondary" onClick={() => handleRemove(entry.code)}>
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
 
 const SessionsListPage = () => {
   const navigate = useNavigate();
@@ -66,6 +166,8 @@ const SessionsListPage = () => {
 
       {importError && <Alert type="error" className="mb-4">{importError}</Alert>}
       {importSuccess && <Alert type="success" className="mb-4">Session imported successfully!</Alert>}
+
+      <JoinedSessionsSection />
 
       {sessions.length === 0 ? (
         <p className="text-zinc-500 dark:text-zinc-400 mb-6">No sessions yet. Create one to get started.</p>

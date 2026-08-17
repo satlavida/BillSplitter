@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getLiveSession, joinLiveSession, getJoiner, LiveApiError } from '../lib/liveApi';
 import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId, getStoredJoinerToken, setStoredJoinerToken } from '../lib/joinerStorage';
+import { recordJoinedSession } from '../lib/joinedSessionsStorage';
 import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
 import { Button, Card, Alert, Dropdown } from '../ui/components';
@@ -105,6 +106,15 @@ const JoinPage = () => {
     }, 3000);
     return () => clearInterval(interval);
   }, [code, joiner]);
+
+  // Records/refreshes this browser's entry in the "sessions I've joined"
+  // index (joinedSessionsStorage.ts) whenever we know who we are here —
+  // covers a fresh join, a restored joiner on refresh, and the moment a
+  // pending request gets approved/renamed.
+  useEffect(() => {
+    if (!code || !session || !joiner || joiner.status === 'disapproved' || !joiner.personId) return;
+    recordJoinedSession({ code, title: session.title, myName: joiner.name, personId: joiner.personId });
+  }, [code, session, joiner]);
 
   if (!code) return null;
 

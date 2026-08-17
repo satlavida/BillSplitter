@@ -109,6 +109,17 @@ export function isFractionItemCorrect(item: LiveItem): boolean {
   return Math.abs(total - item.quantity) < FRACTION_EPSILON;
 }
 
+// Batch companion to LiveSessionSchema (see liveApi.ts's getSessionsStatus)
+// — a lightweight status per code instead of full session state, used to
+// reconcile joinedSessionsStorage.ts's locally-tracked list.
+export const SessionStatusSchema = z.object({
+  code: z.string(),
+  title: z.string().optional(),
+  status: z.enum(['active', 'settled', 'deleted']),
+  settledAt: z.string().nullable(),
+});
+export type SessionStatus = z.infer<typeof SessionStatusSchema>;
+
 export const LiveSettlementSchema = z.object({
   balances: z.array(z.object({ personId: z.string(), amount: z.number() })).default([]),
   transactions: z.array(z.object({ from: z.string(), to: z.string(), amount: z.number() })).default([]),

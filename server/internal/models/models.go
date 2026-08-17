@@ -88,6 +88,16 @@ type Session struct {
 	Bills           []Bill         `json:"bills"`
 }
 
+// SessionStatus is the lightweight per-code result of a batch status lookup
+// (store.GetSessionsStatus) — Status is one of "active", "settled", or
+// "deleted" (never existed or purged; the two are indistinguishable).
+type SessionStatus struct {
+	Code      string  `json:"code"`
+	Title     string  `json:"title,omitempty"`
+	Status    string  `json:"status"`
+	SettledAt *string `json:"settledAt"`
+}
+
 type JoinerStatus string
 
 const (

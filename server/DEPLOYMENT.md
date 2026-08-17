@@ -18,6 +18,13 @@ reverse-proxy/TLS note, and the full environment variable reference.
 All have working local-dev defaults (see `internal/config/config.go`); only
 `ALLOWED_ORIGINS` and `ADMIN_TOKEN` need attention for a real deployment.
 
+For local dev, drop overrides in `server/.env` (copy `server/.env.example`)
+instead of exporting real environment variables — `config.Load()` loads it
+automatically via `go run ./cmd/server` (run from `server/`, so it finds
+`./.env`) if present, and it's gitignored. A real environment variable
+always takes precedence over `.env`, so this has no effect on deployment,
+which should keep using real env vars / an `EnvironmentFile` as below.
+
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `8080` | The server listens on plain HTTP — put a TLS-terminating reverse proxy in front for anything public. |

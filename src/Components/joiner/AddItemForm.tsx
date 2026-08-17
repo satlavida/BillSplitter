@@ -107,7 +107,7 @@ const AddItemForm = ({ code, billId, joinerToken, disabled, onAdded }: AddItemFo
           options={[
             { value: 'equal', label: 'Split equally' },
             { value: 'percentage', label: 'Split by percentage' },
-            { value: 'fraction', label: 'Split by parts' },
+            { value: 'fraction', label: 'Quantity Split' },
           ]}
         />
         <div className="flex gap-2">

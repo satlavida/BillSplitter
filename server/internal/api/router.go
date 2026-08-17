@@ -12,6 +12,7 @@ func (a *API) Router() *http.ServeMux {
 	})
 
 	mux.HandleFunc("POST /api/sessions", a.CreateSession)
+	mux.HandleFunc("POST /api/sessions/status", a.GetSessionsStatus)
 	mux.HandleFunc("GET /api/sessions/{code}", a.GetSession)
 	mux.HandleFunc("DELETE /api/sessions/{code}", a.DeleteLiveSession)
 	mux.HandleFunc("GET /api/sessions/{code}/events", a.Events)

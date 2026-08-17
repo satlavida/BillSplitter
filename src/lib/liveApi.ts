@@ -7,6 +7,7 @@ import {
   LiveBillSchema,
   LiveItemSchema,
   LiveActivityEntrySchema,
+  SessionStatusSchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
@@ -14,8 +15,10 @@ import {
   type LiveBill,
   type LiveItem,
   type LiveActivityEntry,
+  type SessionStatus,
 } from '../schemas/live.schema';
 import type { Person, Item } from '../schemas/bill.schema';
+import { friendlyErrorMessage } from './errorMessages';
 
 // Base URL of the Go live-collaboration server (server/cmd/server), also
 // used by receiptScan.ts for POST /api/scan. Defaults to the local dev
@@ -39,14 +42,14 @@ async function request<T>(path: string, init: RequestInit, schema: { parse: (v: 
     headers: { 'Content-Type': 'application/json', ...init.headers },
   });
   if (!res.ok) {
-    let message = `Request failed (${res.status})`;
+    let rawMessage = `Request failed (${res.status})`;
     try {
       const body = await res.json();
-      if (body?.error) message = body.error;
+      if (body?.error) rawMessage = body.error;
     } catch {
       // ignore — use the generic message
     }
-    throw new LiveApiError(message, res.status);
+    throw new LiveApiError(friendlyErrorMessage(rawMessage), res.status);
   }
   return schema.parse(await res.json());
 }
@@ -69,6 +72,16 @@ export const createLiveSession = (
   );
 
 export const getLiveSession = (code: string): Promise<LiveSession> => request(`/api/sessions/${code}`, { method: 'GET' }, LiveSessionSchema);
+
+// Batch status for a joiner's client to reconcile joinedSessionsStorage.ts's
+// locally-tracked "sessions I've joined" list in one request instead of one
+// getLiveSession call per session.
+export const getSessionsStatus = (codes: string[]): Promise<SessionStatus[]> =>
+  request(
+    '/api/sessions/status',
+    { method: 'POST', body: JSON.stringify({ codes }) },
+    z.object({ statuses: z.array(SessionStatusSchema) })
+  ).then((r) => r.statuses);
 
 // Pushes a locally-created bill/item up to a live session, keeping the same
 // id on both sides (server accepts a client-supplied id) so sessionStore's

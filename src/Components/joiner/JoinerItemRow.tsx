@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { claimItem, unclaimItem, LiveApiError } from '../../lib/liveApi';
 import { Button } from '../../ui/components';
+import ClaimQuantityModal from './ClaimQuantityModal';
 import type { LiveItem } from '../../schemas/live.schema';
 
 interface JoinerItemRowProps {
@@ -15,13 +16,15 @@ interface JoinerItemRowProps {
   onChanged: () => void;
 }
 
-// One item row in a joiner's bill view. Non-fraction items get a plain
-// claim/unclaim toggle; fraction items get a +/- stepper on this joiner's
-// own share only — never anyone else's. A claim takes effect immediately
-// (req 6 — no approval queue), so there's no pending/awaiting-approval state.
+// One item row in a joiner's bill view. Equal-split items get a plain
+// claim/unclaim toggle; Quantity Split items open a number-grid modal to
+// pick how many of the item's units this joiner is claiming — own share
+// only, never anyone else's. A claim takes effect immediately (req 6 — no
+// approval queue), so there's no pending/awaiting-approval state.
 const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, nameFor, disabled, onChanged }: JoinerItemRowProps) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quantityModalOpen, setQuantityModalOpen] = useState(false);
 
   const myValue = item.consumedBy.find((c) => c.personId === myPersonId)?.value ?? 0;
   const claimedByMe = myValue > 0;
@@ -69,15 +72,27 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
       </div>
 
       {item.splitType === 'fraction' ? (
-        <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" variant="secondary" disabled={controlsDisabled || myValue <= 0} onClick={() => (myValue <= 1 ? runUnclaim() : runClaim(myValue - 1))}>
-            −
+        <>
+          <Button size="sm" variant={claimedByMe ? 'secondary' : 'primary'} disabled={controlsDisabled} onClick={() => setQuantityModalOpen(true)}>
+            {busy ? '…' : claimedByMe ? `Claimed ${myValue}` : 'Claim'}
           </Button>
-          <span className="w-6 text-center text-sm text-zinc-800 dark:text-white">{myValue}</span>
-          <Button size="sm" variant="secondary" disabled={controlsDisabled} onClick={() => runClaim(myValue + 1)}>
-            +
-          </Button>
-        </div>
+          <ClaimQuantityModal
+            isOpen={quantityModalOpen}
+            onClose={() => setQuantityModalOpen(false)}
+            itemName={item.name}
+            quantity={Math.max(1, Math.floor(item.quantity))}
+            selected={myValue}
+            busy={busy}
+            onSelect={(value) => {
+              setQuantityModalOpen(false);
+              runClaim(value);
+            }}
+            onUnclaim={() => {
+              setQuantityModalOpen(false);
+              runUnclaim();
+            }}
+          />
+        </>
       ) : (
         <Button
           size="sm"

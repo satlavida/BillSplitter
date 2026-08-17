@@ -35,6 +35,8 @@ dist-ssr
 
 # Go server
 /server/data
+/server/cmd/server/data
 /server/bin
 /server/*.db
 /server/*.db-*
+/server/.env

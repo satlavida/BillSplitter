@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -89,6 +90,44 @@ func (a *API) GetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sess)
+}
+
+type sessionsStatusRequest struct {
+	Codes []string `json:"codes"`
+}
+
+type sessionsStatusResponse struct {
+	Statuses []models.SessionStatus `json:"statuses"`
+}
+
+// maxSessionsStatusBatch bounds a single request's IN (...) query — well
+// above any realistic "sessions I've joined" list, just a sanity cap.
+const maxSessionsStatusBatch = 200
+
+// GetSessionsStatus handles POST /api/sessions/status — batch status lookup
+// so a joiner's client can reconcile its locally-tracked "sessions I've
+// joined" list (which the server has no other record of — see
+// joinedSessionsStorage.ts) against current server state in one request
+// instead of one GetSession call per session. No auth: callers already know
+// the codes, and the response reveals nothing beyond what GET
+// /api/sessions/{code} already exposes per-code.
+func (a *API) GetSessionsStatus(w http.ResponseWriter, r *http.Request) {
+	var req sessionsStatusRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.Codes) > maxSessionsStatusBatch {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("too many codes (max %d)", maxSessionsStatusBatch))
+		return
+	}
+
+	statuses, err := a.store.GetSessionsStatus(req.Codes)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session statuses")
+		return
+	}
+	writeJSON(w, http.StatusOK, sessionsStatusResponse{Statuses: statuses})
 }
 
 type joinRequest struct {

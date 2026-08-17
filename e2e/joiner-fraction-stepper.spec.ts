@@ -29,7 +29,7 @@ async function seedFractionItem(request: APIRequestContext, code: string): Promi
   return { billId: bill.id, itemId: item.id };
 }
 
-test('two joiners increment their own fraction shares and the totals sum correctly', async ({ page, context, request, browser }: { page: Page; context: BrowserContext; request: APIRequestContext; browser: Browser }) => {
+test('two joiners pick their own Quantity Split shares and the totals sum correctly', async ({ page, context, request, browser }: { page: Page; context: BrowserContext; request: APIRequestContext; browser: Browser }) => {
   const code = await goLive(page);
   const { billId } = await seedFractionItem(request, code);
 
@@ -53,15 +53,14 @@ test('two joiners increment their own fraction shares and the totals sum correct
   await expect(joinerB.getByText("You're in!")).toBeVisible();
   await joinerB.goto(`/#/join/${code}/bills/${billId}/step/3`);
 
-  // Alice claims 2 slices.
+  // Alice claims 2 slices via the quantity-picker modal.
   await expect(joinerA.getByText('Pizza', { exact: true })).toBeVisible();
-  const aliceIncrement = joinerA.getByRole('button', { name: '+', exact: true });
-  await aliceIncrement.click();
-  await aliceIncrement.click();
+  await joinerA.getByRole('button', { name: 'Claim', exact: true }).click();
+  await joinerA.getByRole('button', { name: '2', exact: true }).click();
 
   // Bob claims 1 slice.
-  const bobIncrement = joinerB.getByRole('button', { name: '+', exact: true });
-  await bobIncrement.click();
+  await joinerB.getByRole('button', { name: 'Claim', exact: true }).click();
+  await joinerB.getByRole('button', { name: '1', exact: true }).click();
 
   // Server-side total across both joiners is now 3, matching quantity.
   await expect

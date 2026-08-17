@@ -26,7 +26,7 @@ test('a joiner cannot select the creator as their own identity when joining', as
   await joinerPage.locator('select').selectOption({ label: 'Ivy' });
   await joinerPage.getByRole('button', { name: 'Join' }).click();
 
-  await expect(joinerPage.getByText(/cannot join as the session creator/i)).toBeVisible({ timeout: 10000 });
+  await expect(joinerPage.getByText(/can't join using the host's own identity/i)).toBeVisible({ timeout: 10000 });
 
   await joinerPage.close();
 });

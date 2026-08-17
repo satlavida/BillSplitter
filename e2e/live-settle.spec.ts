@@ -25,21 +25,40 @@ test('creator settles a live session and a joiner sees it reflected live', async
   await expect(page.getByRole('heading', { name: 'Live' })).toBeVisible();
   const code = await page.locator('span.font-mono.font-semibold').first().innerText();
 
-  // Seed a bill/item and have Kim claim it, so settlement has a real
-  // transaction to show (Lee owes Kim half of the item).
-  const billRes = await request.post(`http://localhost:8080/api/sessions/${code}/bills`, { data: { title: 'Lunch', currency: 'USD' } });
-  const bill = await billRes.json();
-  const itemRes = await request.post(`http://localhost:8080/api/sessions/${code}/bills/${bill.id}/items`, { data: { name: 'Sandwich', price: 10, quantity: 1 } });
-  const item = await itemRes.json();
+  // Seed a bill Kim paid for, split equally between Kim and Lee, so
+  // settlement has a real transaction to show (Lee owes Kim half of the
+  // item) — a bill with no paidByPersonId contributes nothing to any
+  // balance (server/internal/settlement/settlement.go), so that must be set
+  // for this to produce a transaction at all.
   const sessRes = await request.get(`http://localhost:8080/api/sessions/${code}`);
   const sess = await sessRes.json();
   const kim = sess.people.find((p: { name: string }) => p.name === 'Kim');
-  await request.post(`http://localhost:8080/api/sessions/${code}/bills/${bill.id}/items/${item.id}/claims`, { data: { personId: kim.id } });
+  const lee = sess.people.find((p: { name: string }) => p.name === 'Lee');
 
+  const billRes = await request.post(`http://localhost:8080/api/sessions/${code}/bills`, { data: { title: 'Lunch', currency: 'USD' } });
+  const bill = await billRes.json();
+  await request.patch(`http://localhost:8080/api/sessions/${code}/bills/${bill.id}`, {
+    data: { title: 'Lunch', currency: 'USD', taxAmount: 0, paidByPersonId: kim.id },
+  });
+  const itemRes = await request.post(`http://localhost:8080/api/sessions/${code}/bills/${bill.id}/items`, { data: { name: 'Sandwich', price: 10, quantity: 1 } });
+  const item = await itemRes.json();
+  await request.post(`http://localhost:8080/api/sessions/${code}/bills/${bill.id}/items/${item.id}/claims`, { data: { personId: kim.id } });
+  await request.post(`http://localhost:8080/api/sessions/${code}/bills/${bill.id}/items/${item.id}/claims`, { data: { personId: lee.id } });
+
+  // The who-pays-whom list shows before settling too, not just after.
   await expect(page.getByRole('heading', { name: 'Settle Up' })).toBeVisible();
+  await expect(page.getByText('Lee owes Kim')).toBeVisible();
+
   await page.getByRole('button', { name: 'Settle Up' }).click();
   await page.getByRole('button', { name: 'Confirm Settle' }).click();
   await expect(page.getByText('This session has been settled.')).toBeVisible();
+  await expect(page.getByText('Lee owes Kim')).toBeVisible();
+
+  // Survives a reload too — the list must come from a real refetch on
+  // mount, not just leftover state from the settle action itself.
+  await page.reload();
+  await expect(page.getByText('This session has been settled.')).toBeVisible();
+  await expect(page.getByText('Lee owes Kim')).toBeVisible({ timeout: 10000 });
 
   // A joiner who opens the link after settling sees the read-only banner.
   const joinerPage = await context.newPage();

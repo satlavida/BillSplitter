@@ -3,9 +3,10 @@ import { test, expect, type Page, type Browser, type BrowserContext, type APIReq
 // Runs against the real Go backend (server/), started alongside the Vite
 // dev server via playwright.config.ts's webServer array. Verifies
 // ItemAssignment.tsx's fraction-correctness badge — added for the joiner
-// fraction stepper, never previously e2e-verified — actually renders and
-// flips from a warning to "Split complete" as joiners claim shares, while
-// the creator sits in the bill editor (relies on the live-refresh fix).
+// Quantity Split claim modal, never previously e2e-verified — actually
+// renders and flips from a warning to "Split complete" as joiners claim
+// shares, while the creator sits in the bill editor (relies on the
+// live-refresh fix).
 
 const LIVE_SERVER_URL = 'http://localhost:8080';
 
@@ -31,7 +32,7 @@ async function seedFractionItem(request: APIRequestContext, code: string): Promi
   return bill.id;
 }
 
-async function joinAndIncrement(browser: Browser, code: string, billId: string, name: string, times: number): Promise<{ page: Page; context: BrowserContext }> {
+async function joinAndClaimQuantity(browser: Browser, code: string, billId: string, name: string, quantity: number): Promise<{ page: Page; context: BrowserContext }> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(`/#/join/${code}`);
@@ -41,10 +42,8 @@ async function joinAndIncrement(browser: Browser, code: string, billId: string, 
   await page.goto(`/#/join/${code}/bills/${billId}/step/3`);
   await expect(page.getByText('Pizza', { exact: true })).toBeVisible({ timeout: 10000 });
 
-  const increment = page.getByRole('button', { name: '+', exact: true });
-  for (let i = 0; i < times; i++) {
-    await increment.click();
-  }
+  await page.getByRole('button', { name: 'Claim', exact: true }).click();
+  await page.getByRole('button', { name: String(quantity), exact: true }).click();
   return { page, context };
 }
 
@@ -69,10 +68,10 @@ test("the creator's fraction-correctness badge flips to 'Split complete' as join
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });
   await expect(pizzaCard.getByText(/Claimed parts total 0, item has 3/)).toBeVisible({ timeout: 10000 });
 
-  const alice = await joinAndIncrement(browser, code, billId, 'Alice', 2);
+  const alice = await joinAndClaimQuantity(browser, code, billId, 'Alice', 2);
   await expect(pizzaCard.getByText(/Claimed parts total 2, item has 3/)).toBeVisible({ timeout: 10000 });
 
-  const bob = await joinAndIncrement(browser, code, billId, 'Bob', 1);
+  const bob = await joinAndClaimQuantity(browser, code, billId, 'Bob', 1);
   await expect(pizzaCard.getByText('✓ Split complete')).toBeVisible({ timeout: 10000 });
 
   await alice.page.close();
