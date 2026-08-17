@@ -5,6 +5,7 @@ import { SessionStoreStateSchema, SessionSchema, SESSION_STORE_VERSION, type Ses
 import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schema';
 import type { LiveSession, LiveBill, LiveItem } from './schemas/live.schema';
 import { getImageBlob } from './lib/imageStore';
+import { trackPendingLiveWrite, isPendingLiveWrite } from './lib/pendingLiveWrites';
 
 // Dynamically imported (rather than a static import) so this module never
 // pulls in liveApi.ts's `import.meta.env` reference at parse time — Jest's
@@ -12,29 +13,68 @@ import { getImageBlob } from './lib/imageStore';
 // that never execute (see liveSync.ts's baseUrl-as-parameter workaround for
 // the same underlying issue). A dynamic import here is only ever resolved
 // when actually pushing to a live session, which no unit test does.
+//
+// Each push helper wraps its own promise in trackPendingLiveWrite so every
+// call site (updateBill, addBill, syncExistingBillsLive) gets pending-write
+// tracking for free — see pendingLiveWrites.ts and mergeLiveBill below for
+// what consumes it.
 const pushNewBillLive = (liveCode: string, bill: Pick<Bill, 'id' | 'title' | 'currency' | 'taxAmount'>) =>
-  import('./lib/liveApi').then(({ addLiveBill }) => addLiveBill(liveCode, bill));
+  trackPendingLiveWrite(`bill:${bill.id}:fields`, import('./lib/liveApi').then(({ addLiveBill }) => addLiveBill(liveCode, bill)));
 
 const pushNewItemLive = (liveCode: string, billId: string, item: Item) =>
-  import('./lib/liveApi').then(({ addLiveItem }) => addLiveItem(liveCode, billId, item));
+  trackPendingLiveWrite(`item:${item.id}:fields`, import('./lib/liveApi').then(({ addLiveItem }) => addLiveItem(liveCode, billId, item)));
 
 const pushBillFieldsLive = (liveCode: string, billId: string, bill: Pick<Bill, 'title' | 'currency' | 'taxAmount' | 'paidByPersonId'>) =>
-  import('./lib/liveApi').then(({ updateLiveBill }) => updateLiveBill(liveCode, billId, bill));
+  trackPendingLiveWrite(`bill:${billId}:fields`, import('./lib/liveApi').then(({ updateLiveBill }) => updateLiveBill(liveCode, billId, bill)));
 
 const pushItemFieldsLive = (liveCode: string, billId: string, item: Item) =>
-  import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item));
+  trackPendingLiveWrite(`item:${item.id}:fields`, import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item)));
+
+// Pushes consumedBy changes as creator-initiated (token-free) claims/
+// unclaims — see liveApi.ts's claimItem/unclaimItem dual-mode auth. This is
+// what keeps the creator's own item-assignment UI (ItemAssignment,
+// PassAndSplit — both write into billStore, which flows into updateBill
+// below) from being silently reverted by the next live-snapshot refresh:
+// consumedBy is server-authoritative, so a local consumedBy edit that never
+// reaches the server gets overwritten by mergeLiveSnapshot as soon as one
+// arrives.
+const pushClaimLive = (liveCode: string, billId: string, itemId: string, personId: string, value: number) =>
+  trackPendingLiveWrite(`item:${itemId}:consumedBy`, import('./lib/liveApi').then(({ claimItem }) => claimItem(liveCode, billId, itemId, personId, value)));
+
+const pushUnclaimLive = (liveCode: string, billId: string, itemId: string, personId: string) =>
+  trackPendingLiveWrite(`item:${itemId}:consumedBy`, import('./lib/liveApi').then(({ unclaimItem }) => unclaimItem(liveCode, billId, itemId, personId)));
+
+function syncConsumedByLive(liveCode: string, billId: string, itemId: string, previous: Item['consumedBy'], next: Item['consumedBy']) {
+  const previousByPerson = new Map(previous.map((c) => [c.personId, c.value]));
+  const nextByPerson = new Map(next.map((c) => [c.personId, c.value]));
+
+  for (const [personId, value] of nextByPerson) {
+    if (previousByPerson.get(personId) !== value) {
+      pushClaimLive(liveCode, billId, itemId, personId, value).catch(() => {});
+    }
+  }
+  for (const personId of previousByPerson.keys()) {
+    if (!nextByPerson.has(personId)) {
+      pushUnclaimLive(liveCode, billId, itemId, personId).catch(() => {});
+    }
+  }
+}
 
 // Uploads the bill's newly-set receipt image (local IndexedDB blob, keyed
 // by the *local* refKey) to the live server, which returns its own refKey —
 // distinct namespaces, joined only via LiveBillSchema's imageRefKey once the
 // next snapshot comes back. imageStore.ts has no import.meta.env reference,
 // so it's safe to import statically (unlike liveApi.ts above).
-const pushReceiptImageLive = async (liveCode: string, billId: string, receiptImage: { refKey: string; width: number; height: number }) => {
-  const blob = await getImageBlob(receiptImage.refKey);
-  if (!blob) return;
-  const { uploadLiveImage } = await import('./lib/liveApi');
-  await uploadLiveImage(liveCode, billId, blob, receiptImage.width, receiptImage.height);
-};
+const pushReceiptImageLive = (liveCode: string, billId: string, receiptImage: { refKey: string; width: number; height: number }) =>
+  trackPendingLiveWrite(
+    `bill:${billId}:receiptImage`,
+    (async () => {
+      const blob = await getImageBlob(receiptImage.refKey);
+      if (!blob) return;
+      const { uploadLiveImage } = await import('./lib/liveApi');
+      await uploadLiveImage(liveCode, billId, blob, receiptImage.width, receiptImage.height);
+    })()
+  );
 
 const BILL_FIELD_KEYS = ['title', 'currency', 'taxAmount', 'paidByPersonId'] as const;
 const ITEM_FIELD_KEYS = ['name', 'price', 'quantity', 'discount', 'discountType', 'splitType'] as const;
@@ -92,6 +132,7 @@ async function syncExistingBillsLive(liveCode: string, bills: Bill[]) {
       await pushNewBillLive(liveCode, { id: bill.id, title: bill.title, currency: bill.currency, taxAmount: bill.taxAmount }).catch(() => {});
       for (const item of bill.items) {
         await pushNewItemLive(liveCode, bill.id, item).catch(() => {});
+        syncConsumedByLive(liveCode, bill.id, item.id, [], item.consumedBy);
       }
       if (bill.paidByPersonId) {
         await pushBillFieldsLive(liveCode, bill.id, {
@@ -121,8 +162,12 @@ async function syncExistingBillsLive(liveCode: string, bills: Bill[]) {
       const remoteItem = remoteItemsById.get(item.id);
       if (!remoteItem) {
         await pushNewItemLive(liveCode, bill.id, item).catch(() => {});
-      } else if (localItemDiffersFromLive(item, remoteItem)) {
-        await pushItemFieldsLive(liveCode, bill.id, item).catch(() => {});
+        syncConsumedByLive(liveCode, bill.id, item.id, [], item.consumedBy);
+      } else {
+        if (localItemDiffersFromLive(item, remoteItem)) {
+          await pushItemFieldsLive(liveCode, bill.id, item).catch(() => {});
+        }
+        syncConsumedByLive(liveCode, bill.id, item.id, remoteItem.consumedBy, item.consumedBy);
       }
     }
 
@@ -215,29 +260,43 @@ function upsertById<T extends { id: string }>(local: T[], remote: T[]): T[] {
   return Array.from(localById.values());
 }
 
+// Per-item, per-field-group merge: fields and consumedBy each have their
+// own live push (pushItemFieldsLive vs pushClaimLive/pushUnclaimLive), so
+// each is gated independently — an in-flight consumedBy push shouldn't
+// block a concurrent field edit from picking up the remote value, and vice
+// versa.
+function mergeLiveItem(local: Item | undefined, remote: LiveItem): Item {
+  const remoteFields = {
+    name: remote.name,
+    price: remote.price,
+    quantity: remote.quantity,
+    discount: remote.discount,
+    discountType: remote.discountType as DiscountType,
+    splitType: remote.splitType as SplitType,
+  };
+  const fields = local && isPendingLiveWrite(`item:${remote.id}:fields`) ? local : remoteFields;
+  const consumedBy = local && isPendingLiveWrite(`item:${remote.id}:consumedBy`) ? local.consumedBy : remote.consumedBy;
+
+  return { id: remote.id, ...fields, consumedBy };
+}
+
 function mergeLiveBill(local: Bill | undefined, remote: LiveSession['bills'][number]): Bill {
-  const items: Item[] = upsertById<Item>(
-    local?.items ?? [],
-    remote.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      discount: item.discount,
-      discountType: item.discountType as DiscountType,
-      splitType: item.splitType as SplitType,
-      consumedBy: item.consumedBy,
-    }))
-  );
+  const localItemsById = new Map((local?.items ?? []).map((item) => [item.id, item]));
+  for (const remoteItem of remote.items) {
+    localItemsById.set(remoteItem.id, mergeLiveItem(localItemsById.get(remoteItem.id), remoteItem));
+  }
+  const items: Item[] = Array.from(localItemsById.values());
+
+  const billFieldsPending = isPendingLiveWrite(`bill:${remote.id}:fields`);
 
   return {
     id: remote.id,
-    title: remote.title,
+    title: billFieldsPending ? (local?.title ?? remote.title) : remote.title,
     date: remote.date,
     items,
-    taxAmount: remote.taxAmount,
-    currency: remote.currency,
-    paidByPersonId: remote.paidByPersonId,
+    taxAmount: billFieldsPending ? (local?.taxAmount ?? remote.taxAmount) : remote.taxAmount,
+    currency: billFieldsPending ? (local?.currency ?? remote.currency) : remote.currency,
+    paidByPersonId: billFieldsPending ? (local?.paidByPersonId ?? remote.paidByPersonId) : remote.paidByPersonId,
     receiptImage: local?.receiptImage ?? null,
     splitStateVersion: local?.splitStateVersion ?? SESSION_STORE_VERSION,
     scanStatus: local?.scanStatus ?? 'idle',
@@ -361,8 +420,12 @@ const useSessionStore = create<SessionStore>()(
             const previous = previousById.get(item.id);
             if (!previous) {
               pushNewItemLive(liveCode, billId, item).catch(() => {});
-            } else if (itemFieldsChanged(previous, item)) {
-              pushItemFieldsLive(liveCode, billId, item).catch(() => {});
+              syncConsumedByLive(liveCode, billId, item.id, [], item.consumedBy);
+            } else {
+              if (itemFieldsChanged(previous, item)) {
+                pushItemFieldsLive(liveCode, billId, item).catch(() => {});
+              }
+              syncConsumedByLive(liveCode, billId, item.id, previous.consumedBy, item.consumedBy);
             }
           }
         }

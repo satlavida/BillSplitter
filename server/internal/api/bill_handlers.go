@@ -370,14 +370,17 @@ func (a *API) recordClaimActivity(code, itemID, itemName, personID, personName, 
 }
 
 // UnclaimItem handles DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}/claims/{personId}.
-// Always requires X-Joiner-Token — no creator-editing flow needs to unclaim
-// on someone else's behalf server-side today.
+// Same dual-mode auth as ClaimItem: if X-Joiner-Token is present it must
+// authenticate the caller as personID (self-unclaim enforcement); if absent,
+// the request proceeds unauthenticated as the creator's own token-free
+// live-editing UI (ItemAssignment/PassAndSplit) unclaiming on behalf of
+// arbitrary people, mirroring ClaimItem's rationale.
 func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	itemID := r.PathValue("itemId")
 	personID := r.PathValue("personId")
 
-	if !a.requireJoiner(w, r, code, personID) {
+	if r.Header.Get("X-Joiner-Token") != "" && !a.requireJoiner(w, r, code, personID) {
 		return
 	}
 	if !a.requireNotSettled(w, r, code) {

@@ -1,4 +1,5 @@
 import useSessionStore from './sessionStore';
+import { beginPendingLiveWrite, endPendingLiveWrite } from './lib/pendingLiveWrites';
 
 // Mock localStorage for testing persistence
 const mockLocalStorageData: Record<string, string> = {};
@@ -268,5 +269,124 @@ describe('sessionStore - mergeLiveSnapshot', () => {
     expect(updated?.bills[0].taxAmount).toBe(9);
     // ...but local-only fields the server doesn't know about survive.
     expect(updated?.bills[0].receiptImage).toEqual({ refKey: 'local-ref', width: 100, height: 100 });
+  });
+});
+
+// Covers the "assignment reverted itself" bug: a snapshot merge that lands
+// while a push for the same field is still in flight (tracked via
+// pendingLiveWrites.ts) must not clobber the local value with stale remote
+// data — see sessionStore.ts's mergeLiveItem/mergeLiveBill.
+describe('sessionStore - mergeLiveSnapshot respects in-flight pending writes', () => {
+  const buildSnapshot = (session: ReturnType<typeof useSessionStore.getState>['sessions'][number], bill: { id: string; date: string }) => ({
+    id: session.id,
+    title: session.title,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    joinMode: 'open_link' as const,
+    permissionMode: 'edit' as const,
+    creatorPersonId: null,
+    isSettled: false,
+    settledAt: null,
+    people: [] as { id: string; name: string }[],
+    bills: [
+      {
+        id: bill.id,
+        title: 'Server title',
+        date: bill.date,
+        items: [
+          {
+            id: 'i1',
+            name: 'Server name',
+            price: 99,
+            quantity: 1,
+            discount: 0,
+            discountType: 'flat' as const,
+            splitType: 'equal' as const,
+            consumedBy: [{ personId: 'server-p', value: 1 }],
+          },
+        ],
+        taxAmount: 50,
+        currency: 'EUR',
+        paidByPersonId: 'server-p',
+        imageRefKey: null,
+        imageWidth: null,
+        imageHeight: null,
+      },
+    ],
+  });
+
+  test('a pending item:<id>:fields write blocks remote field data but not consumedBy', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, {
+      items: [{ id: 'i1', name: 'Local name', price: 10, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] }],
+    })!;
+
+    beginPendingLiveWrite('item:i1:fields');
+    try {
+      useSessionStore.getState().mergeLiveSnapshot(session.id, buildSnapshot(session, bill));
+    } finally {
+      endPendingLiveWrite('item:i1:fields');
+    }
+
+    const item = useSessionStore.getState().getBill(session.id, bill.id)?.items[0];
+    expect(item?.name).toBe('Local name');
+    expect(item?.price).toBe(10);
+    // consumedBy isn't gated by the fields key, so it still takes remote.
+    expect(item?.consumedBy).toEqual([{ personId: 'server-p', value: 1 }]);
+  });
+
+  test('a pending item:<id>:consumedBy write blocks remote consumedBy but not fields', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, {
+      items: [
+        { id: 'i1', name: 'Local name', price: 10, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [{ personId: 'local-p', value: 1 }] },
+      ],
+    })!;
+
+    beginPendingLiveWrite('item:i1:consumedBy');
+    try {
+      useSessionStore.getState().mergeLiveSnapshot(session.id, buildSnapshot(session, bill));
+    } finally {
+      endPendingLiveWrite('item:i1:consumedBy');
+    }
+
+    const item = useSessionStore.getState().getBill(session.id, bill.id)?.items[0];
+    expect(item?.consumedBy).toEqual([{ personId: 'local-p', value: 1 }]);
+    // fields aren't gated by the consumedBy key, so they still take remote.
+    expect(item?.name).toBe('Server name');
+  });
+
+  test('a pending bill:<id>:fields write blocks remote bill fields but not items', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Local title', taxAmount: 1, currency: 'INR' })!;
+
+    beginPendingLiveWrite(`bill:${bill.id}:fields`);
+    try {
+      useSessionStore.getState().mergeLiveSnapshot(session.id, buildSnapshot(session, bill));
+    } finally {
+      endPendingLiveWrite(`bill:${bill.id}:fields`);
+    }
+
+    const updatedBill = useSessionStore.getState().getBill(session.id, bill.id);
+    expect(updatedBill?.title).toBe('Local title');
+    expect(updatedBill?.taxAmount).toBe(1);
+    expect(updatedBill?.currency).toBe('INR');
+    // items aren't gated by the bill fields key, so they still take remote.
+    expect(updatedBill?.items[0].name).toBe('Server name');
+  });
+
+  test('once the guard is released, a subsequent merge does take the remote value', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, {
+      items: [{ id: 'i1', name: 'Local name', price: 10, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] }],
+    })!;
+
+    beginPendingLiveWrite('item:i1:fields');
+    useSessionStore.getState().mergeLiveSnapshot(session.id, buildSnapshot(session, bill));
+    expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].name).toBe('Local name');
+
+    endPendingLiveWrite('item:i1:fields');
+    useSessionStore.getState().mergeLiveSnapshot(session.id, buildSnapshot(session, bill));
+    expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].name).toBe('Server name');
   });
 });

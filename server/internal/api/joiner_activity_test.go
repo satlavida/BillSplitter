@@ -91,8 +91,9 @@ func TestOpenLinkJoinerGetsTokenOnceAndCanOnlyClaimForSelf(t *testing.T) {
 }
 
 // TestUnclaimRemovesAllocationAndRequiresOwnToken verifies DELETE .../claims/{personId}
-// removes the allocation, is rejected without a matching joiner token, and
-// that both the claim and unclaim are recorded in the activity log.
+// removes the allocation, is rejected when a joiner sends someone else's
+// token, allows a token-free (creator) unclaim, and that both the claim and
+// unclaim are recorded in the activity log.
 func TestUnclaimRemovesAllocationAndRequiresOwnToken(t *testing.T) {
 	srv, _ := newTestServer(t)
 
@@ -122,22 +123,18 @@ func TestUnclaimRemovesAllocationAndRequiresOwnToken(t *testing.T) {
 
 	unclaimPath := "/api/sessions/" + created.Code + "/bills/" + bill.ID + "/items/" + item.ID + "/claims/" + bobPersonID
 
-	// No token at all -> 401.
-	noAuth := deleteWithHeaders(t, srv, unclaimPath, nil)
-	if noAuth.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unclaim without a token: expected 401, got %d", noAuth.StatusCode)
-	}
-
-	// Wrong token -> 403.
+	// Wrong token -> 403, allocation untouched.
 	wrongAuth := deleteWithHeaders(t, srv, unclaimPath, map[string]string{"X-Joiner-Token": "not-the-real-token"})
 	if wrongAuth.StatusCode != http.StatusForbidden {
 		t.Fatalf("unclaim with a wrong token: expected 403, got %d", wrongAuth.StatusCode)
 	}
 
-	// Correct token -> removes the allocation.
-	okAuth := deleteWithHeaders(t, srv, unclaimPath, map[string]string{"X-Joiner-Token": joiner.Token})
-	if okAuth.StatusCode != http.StatusOK {
-		t.Fatalf("unclaim with the right token: expected 200, got %d", okAuth.StatusCode)
+	// No token at all -> 200: the creator's own token-free live-editing UI
+	// (ItemAssignment/PassAndSplit) unclaiming on someone's behalf, mirroring
+	// ClaimItem's dual-mode auth — see sessionStore.ts's syncConsumedByLive.
+	noAuth := deleteWithHeaders(t, srv, unclaimPath, nil)
+	if noAuth.StatusCode != http.StatusOK {
+		t.Fatalf("token-free (creator) unclaim: expected 200, got %d", noAuth.StatusCode)
 	}
 
 	sessResp := getJSON(t, srv, "/api/sessions/"+created.Code)

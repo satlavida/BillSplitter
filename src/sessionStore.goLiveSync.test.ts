@@ -10,6 +10,8 @@ const mockUpdateLiveBill = jest.fn().mockResolvedValue({});
 const mockUpdateLiveItem = jest.fn().mockResolvedValue({});
 const mockGetLiveSession = jest.fn();
 const mockUploadLiveImage = jest.fn().mockResolvedValue({});
+const mockClaimItem = jest.fn().mockResolvedValue({ status: 'approved' });
+const mockUnclaimItem = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('./lib/liveApi', () => ({
   addLiveBill: (...args: unknown[]) => mockAddLiveBill(...args),
@@ -18,6 +20,8 @@ jest.mock('./lib/liveApi', () => ({
   updateLiveItem: (...args: unknown[]) => mockUpdateLiveItem(...args),
   getLiveSession: (...args: unknown[]) => mockGetLiveSession(...args),
   uploadLiveImage: (...args: unknown[]) => mockUploadLiveImage(...args),
+  claimItem: (...args: unknown[]) => mockClaimItem(...args),
+  unclaimItem: (...args: unknown[]) => mockUnclaimItem(...args),
 }));
 
 import useSessionStore from './sessionStore';
@@ -118,5 +122,190 @@ describe('markSessionLive — existing-bills sync (req 5)', () => {
 
     expect(mockGetLiveSession).not.toHaveBeenCalled();
     expect(mockAddLiveBill).not.toHaveBeenCalled();
+  });
+});
+
+// Covers the "assignment reverted itself" bug: consumedBy is server-
+// authoritative (per claim endpoints), so a creator-side item assignment
+// that never reaches the server gets silently overwritten by the very next
+// live-snapshot refresh (mergeLiveSnapshot). updateBill must push consumedBy
+// changes as creator-initiated (token-free) claims/unclaims, same as any
+// other bill/item field.
+describe('updateBill — consumedBy pushes creator-initiated claims (live sync bug)', () => {
+  test('assigning a person to an item pushes a token-free claim', async () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Dinner' })!;
+    useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
+    await flushMicrotasks();
+
+    useSessionStore.getState().updateBill(session.id, bill.id, {
+      items: [
+        { id: 'item1', name: 'Pizza', price: 20, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] },
+      ],
+    });
+    await flushMicrotasks();
+    mockClaimItem.mockClear();
+
+    useSessionStore.getState().updateBill(session.id, bill.id, {
+      items: [
+        {
+          id: 'item1',
+          name: 'Pizza',
+          price: 20,
+          quantity: 1,
+          discount: 0,
+          discountType: 'flat',
+          splitType: 'equal',
+          consumedBy: [{ personId: 'p1', value: 1 }],
+        },
+      ],
+    });
+    await flushMicrotasks();
+
+    expect(mockClaimItem).toHaveBeenCalledWith('ABCDE', bill.id, 'item1', 'p1', 1);
+    expect(mockUnclaimItem).not.toHaveBeenCalled();
+  });
+
+  test('removing a person from an item pushes a token-free unclaim', async () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Dinner' })!;
+    useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
+    await flushMicrotasks();
+
+    useSessionStore.getState().updateBill(session.id, bill.id, {
+      items: [
+        {
+          id: 'item1',
+          name: 'Pizza',
+          price: 20,
+          quantity: 1,
+          discount: 0,
+          discountType: 'flat',
+          splitType: 'equal',
+          consumedBy: [{ personId: 'p1', value: 1 }],
+        },
+      ],
+    });
+    await flushMicrotasks();
+    mockUnclaimItem.mockClear();
+
+    useSessionStore.getState().updateBill(session.id, bill.id, {
+      items: [
+        { id: 'item1', name: 'Pizza', price: 20, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] },
+      ],
+    });
+    await flushMicrotasks();
+
+    expect(mockUnclaimItem).toHaveBeenCalledWith('ABCDE', bill.id, 'item1', 'p1');
+  });
+});
+
+// End-to-end regression for the actual race: a live-snapshot refresh lands
+// while the claim push it should reflect is still in flight (unresolved
+// fetch). Without the pendingLiveWrites guard, mergeLiveSnapshot would
+// overwrite the just-made assignment with the stale (pre-claim) remote
+// snapshot the instant it resolves.
+describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim', () => {
+  test('local consumedBy survives a snapshot merge that lands before the claim POST resolves', async () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Dinner' })!;
+    useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
+    await flushMicrotasks();
+
+    useSessionStore.getState().updateBill(session.id, bill.id, {
+      items: [{ id: 'item1', name: 'Pizza', price: 20, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] }],
+    });
+    await flushMicrotasks();
+
+    // The claim push never resolves during this test — simulates a
+    // snapshot refresh winning the race against a slow/in-flight POST.
+    let resolveClaim: () => void = () => {};
+    mockClaimItem.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveClaim = () => resolve({ status: 'approved' });
+        })
+    );
+
+    useSessionStore.getState().updateBill(session.id, bill.id, {
+      items: [
+        {
+          id: 'item1',
+          name: 'Pizza',
+          price: 20,
+          quantity: 1,
+          discount: 0,
+          discountType: 'flat',
+          splitType: 'equal',
+          consumedBy: [{ personId: 'p1', value: 1 }],
+        },
+      ],
+    });
+
+    // A stale snapshot (pre-claim, empty consumedBy) refreshes in while the
+    // claim above is still pending.
+    useSessionStore.getState().mergeLiveSnapshot(session.id, {
+      id: 'ABCDE',
+      title: 'Trip',
+      createdAt: '',
+      updatedAt: '',
+      joinMode: 'open_link',
+      permissionMode: 'edit',
+      creatorPersonId: null,
+      isSettled: false,
+      settledAt: null,
+      people: [],
+      bills: [
+        {
+          id: bill.id,
+          title: 'Dinner',
+          date: bill.date,
+          items: [{ id: 'item1', name: 'Pizza', price: 20, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] }],
+          taxAmount: 0,
+          currency: 'INR',
+          paidByPersonId: null,
+          imageRefKey: null,
+          imageWidth: null,
+          imageHeight: null,
+        },
+      ],
+    });
+
+    expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
+
+    // Once the claim finally acknowledges and a fresh snapshot reflects it,
+    // a subsequent merge continues to agree (guard released cleanly).
+    resolveClaim();
+    await flushMicrotasks();
+    useSessionStore.getState().mergeLiveSnapshot(session.id, {
+      id: 'ABCDE',
+      title: 'Trip',
+      createdAt: '',
+      updatedAt: '',
+      joinMode: 'open_link',
+      permissionMode: 'edit',
+      creatorPersonId: null,
+      isSettled: false,
+      settledAt: null,
+      people: [],
+      bills: [
+        {
+          id: bill.id,
+          title: 'Dinner',
+          date: bill.date,
+          items: [
+            { id: 'item1', name: 'Pizza', price: 20, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [{ personId: 'p1', value: 1 }] },
+          ],
+          taxAmount: 0,
+          currency: 'INR',
+          paidByPersonId: null,
+          imageRefKey: null,
+          imageWidth: null,
+          imageHeight: null,
+        },
+      ],
+    });
+
+    expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
   });
 });

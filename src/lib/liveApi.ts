@@ -172,12 +172,13 @@ export const claimItem = (code: string, billId: string, itemId: string, personId
   );
 
 // A joiner can only unclaim their own personId — the server enforces this
-// via joinerToken (X-Joiner-Token), required here (unlike claimItem, which
-// also allows the creator's own token-free live-editing calls).
-export const unclaimItem = (code: string, billId: string, itemId: string, personId: string, joinerToken: string): Promise<void> =>
+// via joinerToken (X-Joiner-Token) when one is sent. Omitting it (the
+// creator's own token-free live-editing calls) lets the creator unclaim on
+// behalf of arbitrary people, mirroring claimItem's dual-mode auth.
+export const unclaimItem = (code: string, billId: string, itemId: string, personId: string, joinerToken?: string): Promise<void> =>
   request(
     `/api/sessions/${code}/bills/${billId}/items/${itemId}/claims/${personId}`,
-    { method: 'DELETE', headers: { 'X-Joiner-Token': joinerToken } },
+    { method: 'DELETE', headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
     { parse: () => undefined }
   );
 
