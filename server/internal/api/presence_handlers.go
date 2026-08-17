@@ -7,7 +7,7 @@ type heartbeatRequest struct {
 }
 
 // PresenceHeartbeat handles POST /api/sessions/{code}/presence/heartbeat —
-// a joiner's client calls this every 500ms (see src/hooks/usePresenceHeartbeat.ts)
+// a joiner's client calls this every 1.5s (see src/hooks/usePresenceHeartbeat.ts)
 // while its view is mounted, so presence.Tracker knows they're still active.
 // Requires the caller's X-Joiner-Token to authenticate them as personId,
 // same as claim/unclaim — a joiner can only report their own presence.

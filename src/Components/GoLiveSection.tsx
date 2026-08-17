@@ -30,6 +30,7 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(Boolean(autoExpand));
   const [copied, setCopied] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -59,7 +60,15 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
         await deleteLiveSession(liveCode, creatorToken);
         unmarkSessionLive(session.id);
       } catch (err) {
-        setError(err instanceof LiveApiError ? err.message : 'Failed to delete the online session');
+        if (err instanceof LiveApiError && err.status === 404) {
+          // Already gone server-side (e.g. purged by the cleanup job) — treat
+          // it as deleted so the user isn't stuck unable to Go Live again.
+          unmarkSessionLive(session.id);
+          setExpanded(true);
+          setNotice('This session was not found online — it may have already been deleted. Your local data is intact and you can start a new live session.');
+        } else {
+          setError(err instanceof LiveApiError ? err.message : 'Failed to delete the online session');
+        }
       } finally {
         setDeleting(false);
         setConfirmingDelete(false);
@@ -108,6 +117,7 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const handleGoLive = async () => {
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       // Req 7: the creator can claim an existing person as themselves, or
       // add a brand new one on the spot — either way it must be included in
@@ -151,6 +161,7 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   return (
     <Card>
       <h3 className="font-medium mb-3 text-zinc-800 dark:text-white transition-colors">Go Live</h3>
+      {notice && <Alert type="info" className="mb-3">{notice}</Alert>}
       {error && <Alert type="error" className="mb-3">{error}</Alert>}
 
       <div className="mb-3">

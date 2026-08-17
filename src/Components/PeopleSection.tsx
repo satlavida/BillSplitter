@@ -11,13 +11,17 @@ interface PeopleSectionProps {
   session: Session;
 }
 
-// Req 3: while the session is live, poll every 500ms for which personIds
-// have a linked joiner (approved/pending — presence.Tracker doesn't care)
-// and which of those are currently online, so PeopleList can render a dot.
-// Two separate calls because "has a joiner at all" (listJoiners) and "is
-// currently online" (getPresence) come from different endpoints/tables —
-// joiners rarely change, but this polls both at the same interval for
-// simplicity rather than staggering them.
+// Req 3: while the session is live, poll for which personIds have a linked
+// joiner (approved/pending — presence.Tracker doesn't care) and which of
+// those are currently online, so PeopleList can render a dot. The two calls
+// are staggered on purpose: getPresence (online/offline) needs to track the
+// same ~1.5s cadence as the joiner's own heartbeat (usePresenceHeartbeat) to
+// stay responsive, but listJoiners rarely changes — it only needs to catch a
+// newly-approved/removed joiner — so it polls far less often to cut request
+// volume.
+const PRESENCE_POLL_MS = 1500;
+const JOINERS_POLL_MULTIPLE = 4; // ~6s between listJoiners calls
+
 function usePeoplePresence(liveCode: string | null, creatorToken: string | null) {
   const [linkedPersonIds, setLinkedPersonIds] = useState<Set<string>>(new Set());
   const [onlinePersonIds, setOnlinePersonIds] = useState<Set<string>>(new Set());
@@ -30,6 +34,7 @@ function usePeoplePresence(liveCode: string | null, creatorToken: string | null)
     }
 
     let cancelled = false;
+    let tickCount = 0;
 
     const tick = () => {
       getPresence(liveCode)
@@ -37,17 +42,18 @@ function usePeoplePresence(liveCode: string | null, creatorToken: string | null)
           if (!cancelled) setOnlinePersonIds(new Set(online));
         })
         .catch(() => {});
-      if (creatorToken) {
+      if (creatorToken && tickCount % JOINERS_POLL_MULTIPLE === 0) {
         listJoiners(liveCode, creatorToken)
           .then((joiners) => {
             if (!cancelled) setLinkedPersonIds(new Set(joiners.map((j) => j.personId).filter((id): id is string => Boolean(id))));
           })
           .catch(() => {});
       }
+      tickCount += 1;
     };
 
     tick();
-    const interval = setInterval(tick, 500);
+    const interval = setInterval(tick, PRESENCE_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);

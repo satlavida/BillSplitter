@@ -1,9 +1,9 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
 
 // Runs against the real Go backend (server/). Covers req 3: a joiner's
-// heartbeat (usePresenceHeartbeat.ts, every 500ms) drives an online/offline
+// heartbeat (usePresenceHeartbeat.ts, every 1.5s) drives an online/offline
 // dot next to their linked person in the creator's PeopleSection, polling
-// GET .../presence every 500ms (see presence.Tracker's 2s OnlineThreshold).
+// GET .../presence every 1.5s (see presence.Tracker's 4s OnlineThreshold).
 
 test('creator sees a joiner go online, then offline once their tab closes', async ({ page, browser }: { page: Page; browser: Browser }) => {
   await page.goto('/');
@@ -29,7 +29,7 @@ test('creator sees a joiner go online, then offline once their tab closes', asyn
   await expect(leoRow.locator('[aria-label="Online"]')).toBeVisible({ timeout: 10000 });
 
   // Once the joiner's tab (and its heartbeat loop) is gone, the dot flips to
-  // offline within a few seconds (2s OnlineThreshold + poll interval).
+  // offline within a few seconds (4s OnlineThreshold + poll interval).
   await joinerContext.close();
   await expect(leoRow.locator('[aria-label="Offline"]')).toBeVisible({ timeout: 10000 });
 });

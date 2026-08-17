@@ -21,8 +21,11 @@ const StaleAfter = 5 * time.Minute
 const FlushAfter = 10 * time.Minute
 
 // OnlineThreshold is how recently a person must have been seen to be shown
-// as currently online (the frontend polls/heartbeats every 500ms).
-const OnlineThreshold = 2 * time.Second
+// as currently online (the frontend heartbeats every 1.5s — see
+// HEARTBEAT_INTERVAL_MS in src/hooks/usePresenceHeartbeat.ts — this must
+// stay comfortably above that interval so a normal beat cadence doesn't
+// flicker offline).
+const OnlineThreshold = 4 * time.Second
 
 type Tracker struct {
 	mu   sync.RWMutex
