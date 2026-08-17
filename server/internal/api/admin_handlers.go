@@ -1,95 +1,33 @@
 package api
 
 import (
-	"html/template"
+	"crypto/subtle"
 	"net/http"
 	"os"
+	"time"
 )
 
-var adminSessionsTemplate = template.Must(template.New("admin_sessions").Parse(`<!doctype html>
-<html>
-<head><title>BillSplitter Admin — Sessions</title></head>
-<body>
-<h1>Sessions</h1>
-<p><a href="/admin/stats">Stats</a> | <a href="/admin/bill-processor">Bill Scanner</a></p>
-<table border="1" cellpadding="6">
-<tr><th>Code</th><th>Title</th><th>Created</th><th>Last Access</th><th>Settled</th><th></th></tr>
-{{range .Sessions}}
-<tr>
-<td>{{.ID}}</td>
-<td>{{.Title}}</td>
-<td>{{.CreatedAt}}</td>
-<td>{{.LastAccessAt}}</td>
-<td>{{if .IsSettled}}yes{{else}}no{{end}}</td>
-<td>
-<form method="post" action="/admin/sessions/{{.ID}}/purge" style="display:inline">
-<input type="hidden" name="token" value="{{$.Token}}">
-<button type="submit">Purge</button>
-</form>
-</td>
-</tr>
-{{end}}
-</table>
-</body>
-</html>`))
-
-var adminStatsTemplate = template.Must(template.New("admin_stats").Parse(`<!doctype html>
-<html>
-<head><title>BillSplitter Admin — Stats</title></head>
-<body>
-<h1>Stats</h1>
-<p><a href="/admin">Sessions</a> | <a href="/admin/bill-processor">Bill Scanner</a></p>
-<ul>
-<li>Sessions: {{.SessionCount}}</li>
-<li>Bills: {{.BillCount}}</li>
-<li>Avg bills/session: {{printf "%.2f" .AvgBillsPerSession}}</li>
-<li>Images: {{.ImageCount}}</li>
-</ul>
-</body>
-</html>`))
-
-var adminScanTemplate = template.Must(template.New("admin_scan").Parse(`<!doctype html>
-<html>
-<head><title>BillSplitter Admin — Bill Scanner</title></head>
-<body>
-<h1>Bill Scanner</h1>
-<p><a href="/admin">Sessions</a> | <a href="/admin/stats">Stats</a></p>
-<h2>Last 30 days</h2>
-<ul>
-<li>Requests: {{.Last30Days.RequestCount}}</li>
-<li>Prompt tokens: {{.Last30Days.PromptTokens}}</li>
-<li>Completion tokens: {{.Last30Days.CompletionTokens}}</li>
-<li>Total tokens: {{.Last30Days.TotalTokens}}</li>
-</ul>
-<h2>All-time</h2>
-<ul>
-<li>Successful: {{.SuccessCount}}</li>
-<li>Failed: {{.FailureCount}}</li>
-</ul>
-<h2>Recent requests</h2>
-<table border="1" cellpadding="6">
-<tr><th>Requested At</th><th>Model</th><th>Success</th><th>Prompt</th><th>Completion</th><th>Total</th></tr>
-{{range .RecentRequests}}
-<tr>
-<td>{{.RequestedAt}}</td>
-<td>{{.Model}}</td>
-<td>{{if .Success}}yes{{else}}no{{end}}</td>
-<td>{{.PromptTokens}}</td>
-<td>{{.CompletionTokens}}</td>
-<td>{{.TotalTokens}}</td>
-</tr>
-{{end}}
-</table>
-</body>
-</html>`))
+const adminCookieName = "admin_token"
 
 // requireAdminToken gates admin routes with a static bearer token/password
 // from config, on top of the allowlist middleware wrapping every route.
+//
+// Auth is checked in order: cookie (steady-state visits), then
+// header/query/form (bootstrap). A valid bootstrap token mints the cookie so
+// future requests don't need it; a GET carrying ?token= is then redirected
+// to the clean path so the token doesn't linger in the address bar/history.
 func (a *API) requireAdminToken(w http.ResponseWriter, r *http.Request) bool {
 	if a.adminToken == "" {
 		http.Error(w, "admin panel disabled: ADMIN_TOKEN not configured", http.StatusForbidden)
 		return false
 	}
+
+	if c, err := r.Cookie(adminCookieName); err == nil {
+		if subtle.ConstantTimeCompare([]byte(c.Value), []byte(a.adminToken)) == 1 {
+			return true
+		}
+	}
+
 	token := r.Header.Get("X-Admin-Token")
 	if token == "" {
 		token = r.URL.Query().Get("token")
@@ -97,11 +35,29 @@ func (a *API) requireAdminToken(w http.ResponseWriter, r *http.Request) bool {
 	if token == "" {
 		token = r.FormValue("token")
 	}
-	if token != a.adminToken {
+	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(a.adminToken)) != 1 {
 		http.Error(w, "invalid admin token", http.StatusForbidden)
 		return false
 	}
+
+	a.setAdminCookie(w, r)
+	if r.Method == http.MethodGet && r.URL.Query().Get("token") != "" {
+		http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
+		return false
+	}
 	return true
+}
+
+func (a *API) setAdminCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     adminCookieName,
+		Value:    a.adminToken,
+		Path:     "/admin",
+		HttpOnly: true,
+		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int((24 * time.Hour).Seconds()),
+	})
 }
 
 func (a *API) AdminSessionsPage(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +69,7 @@ func (a *API) AdminSessionsPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load sessions", http.StatusInternalServerError)
 		return
 	}
-	_ = adminSessionsTemplate.Execute(w, map[string]any{"Sessions": sessions, "Token": a.adminToken})
+	_ = adminSessionsTemplate.ExecuteTemplate(w, "layout", map[string]any{"Sessions": sessions})
 }
 
 func (a *API) AdminStatsPage(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +81,7 @@ func (a *API) AdminStatsPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load stats", http.StatusInternalServerError)
 		return
 	}
-	_ = adminStatsTemplate.Execute(w, stats)
+	_ = adminStatsTemplate.ExecuteTemplate(w, "layout", stats)
 }
 
 func (a *API) AdminScanPage(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +93,7 @@ func (a *API) AdminScanPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load scan analytics", http.StatusInternalServerError)
 		return
 	}
-	_ = adminScanTemplate.Execute(w, summary)
+	_ = adminScanTemplate.ExecuteTemplate(w, "layout", summary)
 }
 
 func (a *API) AdminPurgeSession(w http.ResponseWriter, r *http.Request) {
@@ -153,5 +109,5 @@ func (a *API) AdminPurgeSession(w http.ResponseWriter, r *http.Request) {
 	for _, p := range paths {
 		_ = os.Remove(p)
 	}
-	http.Redirect(w, r, "/admin?token="+a.adminToken, http.StatusSeeOther)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
