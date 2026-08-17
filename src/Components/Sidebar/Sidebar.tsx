@@ -102,7 +102,7 @@ const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: Sidebar
           </nav>
 
           <div className={`mt-auto text-center transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
-            <p className="text-xs text-zinc-500">Version 1.1.0</p>
+            <p className="text-xs text-zinc-500">Version 3.0.0 Beta K7XQP</p>
           </div>
         </div>
       </aside>
