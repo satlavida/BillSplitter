@@ -15,7 +15,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "deploy:beta": "vite build && npx wrangler pages deploy docs --project-name=billsplitter-beta --branch=beta",
+    "deploy:server": "./scripts/deploy-server.sh"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.10",
