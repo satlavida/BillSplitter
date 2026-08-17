@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import useBillStore, { useDocumentTitle } from '../billStore';
 import { getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
-import { connectLiveSync } from '../lib/liveSync';
+import { connectLiveSync, createStaleResponseGuard } from '../lib/liveSync';
 import StepIndicator from '../Components/StepIndicator';
 import PeopleInput from '../Components/PeopleInput';
 import ItemsInput from '../Components/ItemsInput';
@@ -99,20 +99,25 @@ const BillEditorPage = () => {
   useEffect(() => {
     if (!sessionId || !billId || !liveCode) return;
 
+    // See createStaleResponseGuard's comment: a single edit here (e.g. an
+    // item's split-type change) can trigger several SSE events in quick
+    // succession, each kicking off its own refresh — guard against an
+    // earlier-triggered-but-slower-to-resolve refresh clobbering the
+    // result of a later one that already applied.
+    const applyIfLatest = createStaleResponseGuard();
+
     const refresh = () => {
-      getLiveSession(liveCode)
-        .then((liveSession) => {
-          useSessionStore.getState().mergeLiveSnapshot(sessionId, liveSession);
-          const updatedSession = useSessionStore.getState().getSession(sessionId);
-          const updatedBill = useSessionStore.getState().getBill(sessionId, billId);
-          if (updatedBill && updatedSession) {
-            useBillStore.getState().syncItemsFromLive(billId, updatedBill.items, updatedSession.people);
-          }
-        })
-        .catch(() => {
-          // Transient refresh failures aren't worth surfacing here — the
-          // next poll/event will retry, matching LiveSessionPanel/JoinerSessionView.
-        });
+      applyIfLatest(getLiveSession(liveCode), (liveSession) => {
+        useSessionStore.getState().mergeLiveSnapshot(sessionId, liveSession);
+        const updatedSession = useSessionStore.getState().getSession(sessionId);
+        const updatedBill = useSessionStore.getState().getBill(sessionId, billId);
+        if (updatedBill && updatedSession) {
+          useBillStore.getState().syncItemsFromLive(billId, updatedBill.items, updatedSession.people);
+        }
+      }).catch(() => {
+        // Transient refresh failures aren't worth surfacing here — the
+        // next poll/event will retry, matching LiveSessionPanel/JoinerSessionView.
+      });
     };
 
     const handle = connectLiveSync(liveCode, {

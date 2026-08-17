@@ -15,6 +15,32 @@ export interface LiveSyncHandle {
   disconnect: () => void;
 }
 
+// connectLiveSync's onEvent fires once per SSE event, and a single local
+// edit can generate several server-side writes in quick succession (e.g.
+// ItemAssignment's split-type change: one item-fields PATCH plus one
+// claim/unclaim call per person) — each broadcasting its own event, so a
+// single edit can trigger multiple concurrent getLiveSession() refreshes.
+// Those requests can resolve out of order: a refresh kicked off by an
+// earlier event (capturing the session before all writes had landed) can
+// still be in flight when a later refresh's response — reflecting the
+// fully-settled state — is applied. Without ordering, that late, stale
+// response then clobbers the fresh one. Wrap every refresh call's apply
+// step in the same guard instance (one per subscription) so only the
+// most-recently-issued call's result is ever applied.
+export function createStaleResponseGuard() {
+  let latestApplied = 0;
+  let nextSeq = 0;
+  return function guard<T>(promise: Promise<T>, apply: (result: T) => void): Promise<void> {
+    const seq = ++nextSeq;
+    return promise.then((result) => {
+      if (seq > latestApplied) {
+        latestApplied = seq;
+        apply(result);
+      }
+    });
+  };
+}
+
 interface ConnectOptions {
   // Base URL of the live server, e.g. LIVE_SERVER_URL from liveApi.ts.
   // Threaded through as an explicit parameter (rather than importing it

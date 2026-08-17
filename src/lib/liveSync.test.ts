@@ -1,4 +1,4 @@
-import { connectLiveSync } from './liveSync';
+import { connectLiveSync, createStaleResponseGuard } from './liveSync';
 
 // Minimal fake EventSource: lets tests drive onopen/onerror/dispatchEvent
 // directly instead of depending on a real network connection.
@@ -130,5 +130,40 @@ describe('connectLiveSync', () => {
 
     handle.disconnect();
     expect(fake.closed).toBe(true);
+  });
+});
+
+describe('createStaleResponseGuard', () => {
+  test('drops a slower, earlier-issued response that resolves after a later one already applied', async () => {
+    const guard = createStaleResponseGuard();
+    const applied: string[] = [];
+
+    // Call #1 is issued first but resolves last (simulates an SSE-triggered
+    // refresh that was kicked off before all of an edit's writes had
+    // landed, and is slow to come back).
+    let resolveFirst!: (v: string) => void;
+    const first = new Promise<string>((resolve) => (resolveFirst = resolve));
+    const firstApplied = guard(first, (v) => applied.push(v));
+
+    // Call #2 is issued second but resolves first (the refresh triggered
+    // once everything had actually settled).
+    const secondApplied = guard(Promise.resolve('second'), (v) => applied.push(v));
+    await secondApplied;
+
+    // Now the stale first response finally arrives.
+    resolveFirst('first');
+    await firstApplied;
+
+    expect(applied).toEqual(['second']);
+  });
+
+  test('applies in-order responses normally', async () => {
+    const guard = createStaleResponseGuard();
+    const applied: string[] = [];
+
+    await guard(Promise.resolve('first'), (v) => applied.push(v));
+    await guard(Promise.resolve('second'), (v) => applied.push(v));
+
+    expect(applied).toEqual(['first', 'second']);
   });
 });

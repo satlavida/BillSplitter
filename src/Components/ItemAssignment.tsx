@@ -214,7 +214,7 @@ const ItemAssignment = () => {
   const isLive = useSessionStore((s) => s.getCurrentSession()?.isLive ?? false);
   const [splitDrawerItem, setSplitDrawerItem] = useState<Item | null>(null);
 
-  const { assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople, setSplitType, nextStep, prevStep, getUnassignedItems } =
+  const { assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople, nextStep, prevStep, getUnassignedItems } =
     useBillStore(
       useShallow((state) => ({
         assignItemEqual: state.assignItemEqual,
@@ -222,7 +222,6 @@ const ItemAssignment = () => {
         assignItemFraction: state.assignItemFraction,
         assignAllPeopleEqual: state.assignAllPeopleEqual,
         removeAllPeople: state.removeAllPeople,
-        setSplitType: state.setSplitType,
         nextStep: state.nextStep,
         prevStep: state.prevStep,
         getUnassignedItems: state.getUnassignedItems,
@@ -317,8 +316,14 @@ const ItemAssignment = () => {
 
   const handleSaveSplit = useCallback(
     (itemId: string, splitType: SplitType, allocations: Person[] | Allocation[]) => {
-      setSplitType(itemId, splitType);
-
+      // Each assignItem* action below already sets both splitType and
+      // consumedBy atomically (billStore.ts) — calling the store's
+      // setSplitType first was redundant and briefly reset consumedBy to
+      // [] between the two set() calls, a state the billStore subscription
+      // in BillEditorPage.tsx picks up and commits to sessionStore. In a
+      // live session that momentary [] triggered spurious unclaim-then-
+      // reclaim pushes via syncConsumedByLive, which could race and drop a
+      // person from the item.
       switch (splitType) {
         case SPLIT_TYPES.PERCENTAGE:
           assignItemPercentage(itemId, allocations as Allocation[]);
@@ -334,7 +339,7 @@ const ItemAssignment = () => {
         }
       }
     },
-    [setSplitType, assignItemPercentage, assignItemFraction, assignItemEqual]
+    [assignItemPercentage, assignItemFraction, assignItemEqual]
   );
 
   const handlePrev = useCallback(() => {

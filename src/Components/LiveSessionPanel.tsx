@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import { getLiveSession, listJoiners, approveJoiner, disapproveJoiner, settleLiveSession, getLiveSettlement, LIVE_SERVER_URL } from '../lib/liveApi';
-import { connectLiveSync, type LiveSyncStatus } from '../lib/liveSync';
+import { connectLiveSync, createStaleResponseGuard, type LiveSyncStatus } from '../lib/liveSync';
 import { Button, Card } from '../ui/components';
 import type { Session } from '../schemas/session.schema';
 import type { LiveJoiner, LiveSettlement } from '../schemas/live.schema';
@@ -39,14 +39,17 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
   // Avoids stale closures inside connectLiveSync's callbacks without
   // re-subscribing every render.
   const refreshRef = useRef<() => void>(() => {});
+  // See createStaleResponseGuard's comment: a burst of SSE events from a
+  // single edit can trigger overlapping getLiveSession() calls that
+  // resolve out of order — this guard keeps only the latest-issued one's
+  // result. One instance for the component's lifetime, not per-render.
+  const staleGuardRef = useRef(createStaleResponseGuard());
   refreshRef.current = () => {
     if (!code) return;
-    getLiveSession(code)
-      .then((liveSession) => {
-        mergeLiveSnapshot(sessionId, liveSession);
-        setIsSettled(liveSession.isSettled);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to sync live session'));
+    staleGuardRef.current(getLiveSession(code), (liveSession) => {
+      mergeLiveSnapshot(sessionId, liveSession);
+      setIsSettled(liveSession.isSettled);
+    }).catch((err) => setError(err instanceof Error ? err.message : 'Failed to sync live session'));
 
     if (creatorToken) {
       listJoiners(code, creatorToken)
