@@ -12,15 +12,19 @@ import { test, expect, type Page, type BrowserContext, type APIRequestContext } 
 const LIVE_SERVER_URL = 'http://localhost:8080';
 
 test('a second joiner cannot join as a person another joiner is actively using', async ({ request }: { request: APIRequestContext }) => {
+  // Person ids are unique across the whole (shared, parallel-test) DB, not
+  // just within one session — a hardcoded 'bob' collides with any other
+  // spec/run that also hardcodes it, causing POST /api/sessions to 500.
+  const bobId = `bob-${test.info().workerIndex}-${Date.now()}`;
   const createRes = await request.post(`${LIVE_SERVER_URL}/api/sessions`, {
-    data: { title: 'Trip', people: [{ id: 'bob', name: 'Bob' }], joinMode: 'open_link' },
+    data: { title: 'Trip', people: [{ id: bobId, name: 'Bob' }], joinMode: 'open_link' },
   });
   const created = await createRes.json();
 
-  const firstJoin = await request.post(`${LIVE_SERVER_URL}/api/sessions/${created.code}/join`, { data: { existingPersonId: 'bob' } });
+  const firstJoin = await request.post(`${LIVE_SERVER_URL}/api/sessions/${created.code}/join`, { data: { existingPersonId: bobId } });
   expect(firstJoin.status()).toBe(201);
 
-  const secondJoin = await request.post(`${LIVE_SERVER_URL}/api/sessions/${created.code}/join`, { data: { existingPersonId: 'bob' } });
+  const secondJoin = await request.post(`${LIVE_SERVER_URL}/api/sessions/${created.code}/join`, { data: { existingPersonId: bobId } });
   expect(secondJoin.status()).toBe(409);
 });
 

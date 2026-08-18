@@ -9,10 +9,14 @@ import { test, expect } from '@playwright/test';
 const LIVE_SERVER_URL = 'http://localhost:8080';
 
 test('a joiner cannot claim an item on behalf of another person', async ({ request }) => {
+  // Person ids are unique across the whole (shared, parallel-test) DB, not
+  // just within one session — a hardcoded 'alice' collides with any other
+  // run/repeat that also hardcodes it (POST /api/sessions 500s).
+  const aliceId = `alice-${test.info().workerIndex}-${Date.now()}`;
   const createRes = await request.post(`${LIVE_SERVER_URL}/api/sessions`, {
     data: {
       title: 'Trip',
-      people: [{ id: 'alice', name: 'Alice' }],
+      people: [{ id: aliceId, name: 'Alice' }],
       joinMode: 'open_link',
       claimMode: 'free_select',
     },
@@ -41,19 +45,25 @@ test('a joiner cannot claim an item on behalf of another person', async ({ reque
   // Bob's token does NOT authenticate a claim on Alice's behalf.
   const otherClaim = await request.post(`${LIVE_SERVER_URL}/api/sessions/${created.code}/bills/${bill.id}/items/${item.id}/claims`, {
     headers: { 'X-Joiner-Token': joiner.token },
-    data: { personId: 'alice' },
+    data: { personId: aliceId },
   });
   expect(otherClaim.status()).toBe(403);
 
   // Bob's token also can't unclaim on Alice's behalf.
-  const otherUnclaim = await request.delete(`${LIVE_SERVER_URL}/api/sessions/${created.code}/bills/${bill.id}/items/${item.id}/claims/alice`, {
+  const otherUnclaim = await request.delete(`${LIVE_SERVER_URL}/api/sessions/${created.code}/bills/${bill.id}/items/${item.id}/claims/${aliceId}`, {
     headers: { 'X-Joiner-Token': joiner.token },
   });
   expect(otherUnclaim.status()).toBe(403);
 
-  // No token at all is rejected on unclaim.
+  // No token at all is the creator's own token-free editing flow (see
+  // sessionStore.ts's syncConsumedByLive, commit 9a3c349) — it's allowed to
+  // unclaim on anyone's behalf, unlike a *mismatched* token above (403).
+  // bill_handlers.go's UnclaimItem only calls requireJoiner when a
+  // X-Joiner-Token header is present at all; see the equivalent Go
+  // integration test, TestUnclaimRemovesAllocationAndRequiresOwnToken in
+  // server/internal/api/joiner_activity_test.go.
   const noTokenUnclaim = await request.delete(
     `${LIVE_SERVER_URL}/api/sessions/${created.code}/bills/${bill.id}/items/${item.id}/claims/${joiner.personId}`
   );
-  expect(noTokenUnclaim.status()).toBe(401);
+  expect(noTokenUnclaim.status()).toBe(200);
 });
