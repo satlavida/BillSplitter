@@ -116,6 +116,8 @@ const SessionsListPage = () => {
       importSession: s.importSession,
     }))
   );
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const currentSession = sessions.find((s) => s.id === currentSessionId);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
 
@@ -163,6 +165,20 @@ const SessionsListPage = () => {
         <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Sessions</h2>
         <Button onClick={handleCreate}>New Session</Button>
       </div>
+
+      {currentSession && (
+        <Link
+          to={`/session/${currentSession.id}`}
+          className="mb-4 flex items-center justify-between gap-2 p-3 rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+        >
+          <span className="text-sm text-blue-700 dark:text-blue-300">
+            Continue current session: <span className="font-medium">{currentSession.title}</span>
+          </span>
+          <span className="text-blue-600 dark:text-blue-400" aria-hidden="true">
+            →
+          </span>
+        </Link>
+      )}
 
       {importError && <Alert type="error" className="mb-4">{importError}</Alert>}
       {importSuccess && <Alert type="success" className="mb-4">Session imported successfully!</Alert>}

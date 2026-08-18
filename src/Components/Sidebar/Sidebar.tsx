@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import SidebarItem from './SidebarItem';
+import { APP_VERSION, BUILD_CODE } from '../../version';
 
 interface SidebarItemData {
   id: string | number;
@@ -63,7 +64,7 @@ const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: Sidebar
       {/* Sidebar */}
       <aside
         id="sidebar"
-        className={`fixed top-0 left-0 h-full bg-white dark:bg-zinc-900 shadow-lg z-30 transition-all duration-300 ease-in-out dark:text-white ${
+        className={`fixed top-0 left-0 h-full bg-zinc-50 dark:bg-zinc-800 shadow-lg z-30 transition-all duration-300 ease-in-out dark:text-white ${
           isOpen ? 'w-64' : 'w-0 md:w-18'
         } ${isOpen ? 'visible' : 'invisible md:visible'} overflow-hidden`}
       >
@@ -102,7 +103,9 @@ const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: Sidebar
           </nav>
 
           <div className={`mt-auto text-center transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
-            <p className="text-xs text-zinc-500">Version 3.0.0 Beta K7XQP</p>
+            <p className="text-xs text-zinc-500">
+              Version {APP_VERSION} {BUILD_CODE}
+            </p>
           </div>
         </div>
       </aside>

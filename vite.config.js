@@ -47,6 +47,15 @@ export default defineConfig({
   build: {
     outDir: 'docs/'
   },
+  server: {
+    watch: {
+      // The Go backend (server/) writes its SQLite DB/WAL/SHM files and
+      // scan-receipt scratch images inside this repo while `npm run e2e` or
+      // a local `go run ./cmd/server` runs alongside `vite dev` — without
+      // this, every write triggers an unwanted full-page HMR reload.
+      ignored: ['**/server/**'],
+    },
+  },
   resolve: {
     alias: {
       src: "/src",

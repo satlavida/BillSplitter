@@ -131,6 +131,11 @@ const ScanReceiptButton = () => {
 
   const isOnline = useOnlineStatus();
 
+  const isScanning = useSessionStore((state) => {
+    if (!sessionId || !billId) return false;
+    return state.getBill(sessionId, billId)?.scanStatus === 'processing';
+  });
+
   // Single file input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -253,9 +258,16 @@ const ScanReceiptButton = () => {
 
   return (
     <>
-      <Button variant="primary" onClick={openModal} className="mb-4">
+      <Button variant="primary" onClick={openModal} className="mb-2" disabled={isScanning}>
         Scan Receipt
       </Button>
+
+      {isScanning && (
+        <div className="flex items-center gap-2 mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+          <Spinner size="sm" />
+          Receipt is being scanned…
+        </div>
+      )}
 
       <Modal isOpen={isModalOpen} onClose={closeModal} title="Upload Receipt">
         <ReceiptUploadForm

@@ -6,6 +6,7 @@ import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schem
 import type { LiveSession, LiveBill, LiveItem } from './schemas/live.schema';
 import { getImageBlob } from './lib/imageStore';
 import { trackPendingLiveWrite, isPendingLiveWrite } from './lib/pendingLiveWrites';
+import useSettingsStore from './settingsStore';
 
 // Dynamically imported (rather than a static import) so this module never
 // pulls in liveApi.ts's `import.meta.env` reference at parse time — Jest's
@@ -323,13 +324,15 @@ const useSessionStore = create<SessionStore>()(
       ...initialState,
 
       createSession: (title) => {
+        const { autoAddSelf, selfName } = useSettingsStore.getState();
+        const trimmedSelfName = selfName.trim();
         const now = new Date().toISOString();
         const newSession: Session = {
           id: generateId(),
           title: title || 'Untitled Session',
           createdAt: now,
           updatedAt: now,
-          people: [],
+          people: autoAddSelf && trimmedSelfName ? [{ id: generateId(), name: trimmedSelfName }] : [],
           bills: [],
           currentBillId: null,
           isLive: false,

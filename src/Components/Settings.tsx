@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import useCurrencyStore from '../currencyStore';
+import useSettingsStore from '../settingsStore';
 import { useShallow } from 'zustand/shallow';
-import { Dropdown } from '../ui/components';
+import { SearchSelect } from '../ui/components';
 
 const getCurrencySymbol = (code: string): string => {
   try {
@@ -36,6 +37,15 @@ const Settings = () => {
     }))
   );
 
+  const { autoAddSelf, selfName, setAutoAddSelf, setSelfName } = useSettingsStore(
+    useShallow((state) => ({
+      autoAddSelf: state.autoAddSelf,
+      selfName: state.selfName,
+      setAutoAddSelf: state.setAutoAddSelf,
+      setSelfName: state.setSelfName,
+    }))
+  );
+
   const currencyOptions = useMemo(() => {
     return getCurrencyCodes()
       .map((code) => ({ code, symbol: getCurrencySymbol(code) }))
@@ -48,11 +58,38 @@ const Settings = () => {
 
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Currency</label>
-        <Dropdown
+        <SearchSelect
           value={currency}
-          onChange={(e) => changeCurrency(e.target.value)}
+          onChange={changeCurrency}
+          searchPlaceholder="Search currency..."
           options={currencyOptions.map(({ code, symbol }) => ({ value: code, label: `${code} (${symbol})` }))}
         />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          <input
+            type="checkbox"
+            checked={autoAddSelf}
+            onChange={(e) => setAutoAddSelf(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500"
+          />
+          Add yourself to bill automatically
+        </label>
+        {autoAddSelf && (
+          <input
+            type="text"
+            value={selfName}
+            onChange={(e) => setSelfName(e.target.value)}
+            placeholder="Your name"
+            className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600
+              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+              transition-colors"
+          />
+        )}
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">This name will be added automatically to any new session you create.</p>
       </div>
     </div>
   );
