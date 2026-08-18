@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import useCurrencyStore from '../currencyStore';
 import useSettingsStore from '../settingsStore';
 import { useShallow } from 'zustand/shallow';
-import { SearchSelect } from '../ui/components';
+import { Checkbox, SearchSelect } from '../ui/components';
 
 const getCurrencySymbol = (code: string): string => {
   try {
@@ -67,15 +67,12 @@ const Settings = () => {
       </div>
 
       <div>
-        <label className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          <input
-            type="checkbox"
-            checked={autoAddSelf}
-            onChange={(e) => setAutoAddSelf(e.target.checked)}
-            className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-blue-500"
-          />
-          Add yourself to bill automatically
-        </label>
+        <Checkbox
+          id="auto-add-self"
+          checked={autoAddSelf}
+          onChange={(e) => setAutoAddSelf(e.target.checked)}
+          label="Add yourself to bill automatically"
+        />
         {autoAddSelf && (
           <input
             type="text"

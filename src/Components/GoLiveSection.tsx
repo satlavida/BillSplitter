@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import useSessionStore from '../sessionStore';
+import useSettingsStore from '../settingsStore';
 import { createLiveSession, deleteLiveSession, LiveApiError, LIVE_SERVER_URL } from '../lib/liveApi';
 import { Button, Card, Alert, Dropdown } from '../ui/components';
 import type { Session } from '../schemas/session.schema';
@@ -26,7 +27,17 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const addPerson = useSessionStore((s) => s.addPerson);
   const [joinMode, setJoinMode] = useState<'approval_code' | 'open_link'>('approval_code');
   const [permissionMode, setPermissionMode] = useState<'edit' | 'read_only'>('edit');
-  const [creatorPersonId, setCreatorPersonId] = useState<string>('');
+  const [creatorPersonId, setCreatorPersonId] = useState<string>(() => {
+    // If auto-add-self is on (Settings.tsx) and this session already has a
+    // matching person (added via that same setting when the session was
+    // created — see sessionStore.ts), preselect them instead of defaulting
+    // to "I'm not in the list".
+    const { autoAddSelf, selfName } = useSettingsStore.getState();
+    const trimmedSelfName = selfName.trim();
+    if (!autoAddSelf || !trimmedSelfName) return '';
+    const match = session.people.find((p) => p.name.trim().toLowerCase() === trimmedSelfName.toLowerCase());
+    return match?.id ?? '';
+  });
   const [newPersonName, setNewPersonName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

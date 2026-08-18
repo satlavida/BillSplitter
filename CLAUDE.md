@@ -11,6 +11,36 @@ There is no other CLAUDE.md in this repo. `AGENTS.md` is a pre-v3 snapshot
 treat it as current**. `V3_PROGRESS.md` and `planv3.md` are the design/progress
 docs for the v3 rewrite this file summarizes.
 
+## Feature documentation (`architecture/`)
+
+`architecture/` (not `docs/` — that's the gitignored Vite build output, see
+Directory map below) holds one Markdown doc per feature, each covering its
+frontend files, backend files, a brief of what it does, and a Notes section
+for decisions/quirks/TODOs/omitted specs. Start at `architecture/README.md`
+for the full feature list and a route → doc index.
+
+- **Before implementing or reasoning about a feature**, read its doc in
+  `architecture/` first to get the full frontend+backend picture.
+- **Whenever a feature or its behavior changes**, update the corresponding
+  `architecture/*.md` doc (files touched, behavior, Notes) as part of the
+  same piece of work, not as a follow-up.
+- **New features** get a new `architecture/*.md` doc following the existing
+  template (see any current doc), plus an entry in `architecture/README.md`.
+
+## Workflow rules
+
+- **Commit in small, independently verifiable phases.** Each commit should
+  be a working, reviewable slice, not one large batch of unrelated changes.
+- **Run tests before committing.** `npm test` for frontend changes,
+  `cd server && go test ./...` for backend changes, and relevant Playwright
+  specs (`npm run e2e`) when touching live-collaboration flows. Don't commit
+  on faith.
+- **Prefer simpler, data-correct, data-oriented code** over clever or
+  heavily-abstracted solutions — matches the existing hand-written-SQL,
+  no-ORM, no-premature-abstraction style already used in this repo.
+- **Check `src/ui/components.tsx` for an existing generic component before
+  building a new one-off** (see UI kit note under Stack below).
+
 ## Stack
 
 - **Frontend**: React 19 + TypeScript (`.tsx`), Vite 6, Tailwind CSS 4,
@@ -154,7 +184,8 @@ server/
     cleanup/        background job purging stale/settled sessions (48h)
     config/         env var loading
 e2e/                Playwright specs (run against the real Go backend)
-docs/               build output (GitHub Pages deploy target)
+architecture/       feature-by-feature reference docs (see above) — committed, not build output
+docs/               build output (GitHub Pages deploy target, gitignored)
 changes/            dated changelog-style notes
 V3_PROGRESS.md      v3 rewrite progress log (kept up to date)
 planv3.md           v3 rewrite design doc

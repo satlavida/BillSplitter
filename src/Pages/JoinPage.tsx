@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getLiveSession, joinLiveSession, getJoiner, LiveApiError } from '../lib/liveApi';
 import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId, getStoredJoinerToken, setStoredJoinerToken } from '../lib/joinerStorage';
 import { recordJoinedSession } from '../lib/joinedSessionsStorage';
+import useSettingsStore from '../settingsStore';
 import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
 import { Button, Card, Alert, SearchSelect } from '../ui/components';
@@ -42,6 +43,20 @@ const JoinPage = () => {
         if (cancelled) return;
         setSession(sess);
         setLoadState('ready');
+
+        // If the user has opted into auto-add-self (Settings.tsx), and this
+        // session already has a person matching that name (e.g. the creator
+        // added themself the same way), preselect that identity instead of
+        // defaulting to "Someone new" — mirrors the auto-add-self behavior
+        // sessionStore.ts uses for local session creation.
+        const { autoAddSelf, selfName } = useSettingsStore.getState();
+        const trimmedSelfName = selfName.trim();
+        if (autoAddSelf && trimmedSelfName) {
+          const match = sess.people.find(
+            (p) => p.id !== sess.creatorPersonId && p.name.trim().toLowerCase() === trimmedSelfName.toLowerCase()
+          );
+          if (match) setSelectedPersonId(match.id);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
