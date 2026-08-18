@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import useBillStore, { useBillPersons } from '../billStore';
+import useSessionStore from '../sessionStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card } from '../ui/components';
 import EditableTitle from './EditableTitle';
@@ -11,6 +13,9 @@ import type { Person } from '../schemas/bill.schema';
 const PeopleInput = () => {
   // Use Zustand store with specialized hooks and useShallow
   const people = useBillPersons();
+
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const creatorPersonId = useSessionStore((state) => (sessionId ? (state.getSession(sessionId)?.creatorPersonId ?? null) : null));
 
   const { title, addPerson, removePerson, updatePerson, nextStep, setTitle } = useBillStore(
     useShallow((state) => ({
@@ -93,7 +98,7 @@ const PeopleInput = () => {
         <>
           <h3 className="text-lg font-medium mb-2 text-zinc-800 dark:text-zinc-200 transition-colors">People</h3>
           <div className="mb-6">
-            <PeopleList people={people} onRemove={handleRemovePerson} onEdit={handleEditPerson} />
+            <PeopleList people={people} onRemove={handleRemovePerson} onEdit={handleEditPerson} creatorPersonId={creatorPersonId} />
           </div>
         </>
       )}

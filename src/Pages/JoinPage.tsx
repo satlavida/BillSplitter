@@ -5,7 +5,7 @@ import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId, getStoredJoi
 import { recordJoinedSession } from '../lib/joinedSessionsStorage';
 import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
-import { Button, Card, Alert, Dropdown } from '../ui/components';
+import { Button, Card, Alert, SearchSelect } from '../ui/components';
 
 // Captures a joiner's secret token into storage the moment it's observed —
 // the server only ever includes it once (see live.schema.ts's LiveJoiner
@@ -221,16 +221,25 @@ const JoinPage = () => {
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
 
       <Card>
-        {session.people.length > 0 && (
+        {session.people.some((p) => p.id !== session.creatorPersonId) && (
           <div className="mb-3">
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">I am…</label>
-            <Dropdown
+            <SearchSelect
               value={selectedPersonId}
-              onChange={(e) => {
-                setSelectedPersonId(e.target.value);
-                if (e.target.value) setName('');
+              onChange={(value) => {
+                setSelectedPersonId(value);
+                if (value) setName('');
               }}
-              options={[{ value: '', label: 'Someone new' }, ...session.people.map((p) => ({ value: p.id, label: p.name }))]}
+              placeholder="Someone new"
+              searchPlaceholder="Search people..."
+              options={[
+                { value: '', label: 'Someone new' },
+                // Never present the creator's identity as claimable —
+                // joining "as" them would let a joiner masquerade as the
+                // session owner (creator-only actions gate on
+                // creatorPersonId, see GoLiveSection/LiveSessionPanel).
+                ...session.people.filter((p) => p.id !== session.creatorPersonId).map((p) => ({ value: p.id, label: p.name })),
+              ]}
             />
           </div>
         )}

@@ -55,7 +55,18 @@ interface PersonListItemProps {
   onRemove: (id: string) => void;
   onEdit: (person: Person) => void;
   presence?: PresenceStatus;
+  isCreator?: boolean;
 }
+
+// Req 2: badge marking which person is the session's creator/maker —
+// shown wherever people are listed (session home page and the bill
+// wizard's People step) so it's obvious who holds creator-only privileges
+// (approve joiners, edit paid-by, etc.).
+const CreatorBadge = () => (
+  <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+    Creator
+  </span>
+);
 
 const PresenceDot = ({ status }: { status: PresenceStatus }) => {
   if (!status) return null;
@@ -68,7 +79,7 @@ const PresenceDot = ({ status }: { status: PresenceStatus }) => {
   );
 };
 
-const PersonListItem = memo(({ person, onRemove, onEdit, presence }: PersonListItemProps) => {
+const PersonListItem = memo(({ person, onRemove, onEdit, presence, isCreator }: PersonListItemProps) => {
   const handleRemove = useCallback(() => {
     onRemove(person.id);
   }, [onRemove, person.id]);
@@ -82,6 +93,7 @@ const PersonListItem = memo(({ person, onRemove, onEdit, presence }: PersonListI
       <span className="flex items-center gap-2 dark:text-white cursor-pointer hover:underline" onClick={handleEdit}>
         <PresenceDot status={presence} />
         {person.name}
+        {isCreator && <CreatorBadge />}
       </span>
       <div className="flex items-center space-x-2">
         <button
@@ -117,15 +129,23 @@ interface PeopleListProps {
   onEdit: (person: Person) => void;
   emptyState?: React.ReactNode;
   presenceFor?: (personId: string) => PresenceStatus;
+  creatorPersonId?: string | null;
 }
 
-export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presenceFor }: PeopleListProps) => {
+export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presenceFor, creatorPersonId }: PeopleListProps) => {
   if (people.length === 0) return emptyState ?? null;
 
   return (
     <ul className="space-y-2">
       {people.map((person) => (
-        <PersonListItem key={person.id} person={person} onRemove={onRemove} onEdit={onEdit} presence={presenceFor?.(person.id)} />
+        <PersonListItem
+          key={person.id}
+          person={person}
+          onRemove={onRemove}
+          onEdit={onEdit}
+          presence={presenceFor?.(person.id)}
+          isCreator={Boolean(creatorPersonId) && person.id === creatorPersonId}
+        />
       ))}
     </ul>
   );

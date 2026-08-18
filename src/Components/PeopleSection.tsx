@@ -124,6 +124,7 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
         onEdit={handleEditPerson}
         emptyState={<p className="text-sm text-zinc-500 dark:text-zinc-400">No one added yet — add the people splitting this session's bills.</p>}
         presenceFor={presenceFor}
+        creatorPersonId={session.creatorPersonId}
       />
 
       <EditPersonModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} person={currentPerson} onSave={handleSavePerson} />
