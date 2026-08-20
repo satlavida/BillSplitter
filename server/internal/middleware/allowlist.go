@@ -8,10 +8,13 @@ import (
 )
 
 // Allowlist rejects requests whose Origin header isn't localhost/127.0.0.1
-// (always allowed, for local dev) or an exact match against the configured
-// allowed origins. Requests with no Origin header (e.g. curl, server-to-server)
-// are allowed through — this guards browser cross-origin access, not general
-// network access.
+// (always allowed, for local dev), the request's own Host (see isSameOrigin
+// — covers the server-rendered admin panel, which submits POSTs back to
+// itself and so is same-origin regardless of ALLOWED_ORIGINS, which is
+// configured for the separately-hosted frontend), or an exact match against
+// the configured allowed origins. Requests with no Origin header (e.g. curl,
+// server-to-server) are allowed through — this guards browser cross-origin
+// access, not general network access.
 //
 // It also answers CORS: the frontend's fetch() calls (liveApi.ts) send a
 // JSON body, which makes the browser send a preflight OPTIONS request first.
@@ -33,7 +36,7 @@ func Allowlist(allowedOrigins []string, next http.Handler) http.Handler {
 		}
 
 		_, explicitlyAllowed := allowed[origin]
-		if !isLocalhost(origin) && !explicitlyAllowed {
+		if !isLocalhost(origin) && !explicitlyAllowed && !isSameOrigin(origin, r) {
 			http.Error(w, "origin not allowed", http.StatusForbidden)
 			return
 		}
@@ -50,6 +53,22 @@ func Allowlist(allowedOrigins []string, next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isSameOrigin reports whether origin's host (host:port) matches the
+// incoming request's own Host header — i.e. the request is the server
+// talking to itself (the admin panel's HTML forms/fetches, served by this
+// same process, POSTing back to it). Browsers already treat that as
+// same-origin and wouldn't apply CORS restrictions to it client-side; this
+// just avoids this middleware second-guessing that with a 403 an admin
+// operator can't work around via ALLOWED_ORIGINS (which is for the
+// separately-hosted, cross-origin frontend, not this server's own pages).
+func isSameOrigin(origin string, r *http.Request) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
 }
 
 func isLocalhost(origin string) bool {

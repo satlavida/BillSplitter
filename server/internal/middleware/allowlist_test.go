@@ -46,6 +46,24 @@ func TestAllowlist_ConfiguredOriginPasses(t *testing.T) {
 	}
 }
 
+// TestAllowlist_SameOriginAsRequestHostPasses guards against a regression
+// where the server-rendered admin panel (e.g. its settings-page POST/fetch
+// calls) got rejected in production: the browser sends an Origin header
+// matching the server's own public host, which isn't in ALLOWED_ORIGINS
+// (that's configured for the separately-hosted frontend) and isn't
+// localhost — but it *is* the request's own Host, so it must still pass.
+func TestAllowlist_SameOriginAsRequestHostPasses(t *testing.T) {
+	h := Allowlist([]string{"https://frontend.example"}, okHandler())
+	req := httptest.NewRequest(http.MethodPost, "/admin/settings/model", nil)
+	req.Host = "billsplitter-api.example.com"
+	req.Header.Set("Origin", "https://billsplitter-api.example.com")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
 func TestAllowlist_UnconfiguredOriginRejected(t *testing.T) {
 	h := Allowlist([]string{"https://example.com"}, okHandler())
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
