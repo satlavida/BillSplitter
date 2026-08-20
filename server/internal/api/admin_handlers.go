@@ -48,6 +48,34 @@ func (a *API) requireAdminToken(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// requireAdminTokenAPI gates JSON API admin routes (as opposed to
+// server-rendered pages) behind the same static ADMIN_TOKEN, but without
+// requireAdminToken's cookie-minting/redirect side effects — those exist for
+// browser navigation and would surprise a plain HTTP client (e.g. a
+// ?token=... GET silently 303-redirecting instead of returning JSON).
+func (a *API) requireAdminTokenAPI(w http.ResponseWriter, r *http.Request) bool {
+	if a.adminToken == "" {
+		writeError(w, http.StatusForbidden, "admin panel disabled: ADMIN_TOKEN not configured")
+		return false
+	}
+
+	if c, err := r.Cookie(adminCookieName); err == nil {
+		if subtle.ConstantTimeCompare([]byte(c.Value), []byte(a.adminToken)) == 1 {
+			return true
+		}
+	}
+
+	token := r.Header.Get("X-Admin-Token")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
+	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(a.adminToken)) != 1 {
+		writeError(w, http.StatusForbidden, "invalid admin token")
+		return false
+	}
+	return true
+}
+
 func (a *API) setAdminCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     adminCookieName,
@@ -94,6 +122,20 @@ func (a *API) AdminScanPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = adminScanTemplate.ExecuteTemplate(w, "layout", summary)
+}
+
+// AdminJobsPage shows recent background-job run history (session purge, log
+// retention) — see internal/cleanup.
+func (a *API) AdminJobsPage(w http.ResponseWriter, r *http.Request) {
+	if !a.requireAdminToken(w, r) {
+		return
+	}
+	runs, err := a.store.ListRecentJobRuns(100)
+	if err != nil {
+		http.Error(w, "failed to load job runs", http.StatusInternalServerError)
+		return
+	}
+	_ = adminJobsTemplate.ExecuteTemplate(w, "layout", map[string]any{"Runs": runs})
 }
 
 func (a *API) AdminPurgeSession(w http.ResponseWriter, r *http.Request) {

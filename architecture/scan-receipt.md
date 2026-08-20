@@ -18,10 +18,15 @@ upload modal closes immediately and progress surfaces elsewhere in the UI.
 
 ## Backend
 - `server/internal/api/scan_handlers.go`
-  - `POST /api/scan` — calls OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) with a vision-capable model (`OPENROUTER_MODEL`, default `google/gemini-3.1-flash-lite`) and a fixed extraction prompt (`analysisPrompt`, ported verbatim from the pre-migration Cloudflare Worker's `prompt.js`).
+  - `POST /api/scan` — calls OpenRouter (`https://openrouter.ai/api/v1/chat/completions`) with a vision-capable model and a fixed extraction prompt (`analysisPrompt`, ported verbatim from the pre-migration Cloudflare Worker's `prompt.js`). On failure, logs an `openrouter_request`-category error via `logging.Reporter` (see [infrastructure.md](infrastructure.md)) in addition to recording the failed scan usage row.
   - `GET /api/scan/usage` — daily/monthly scan usage stats.
-- `server/internal/store/store.go` — `RecordScanRequest`, `ScanUsageDaily`, `ScanUsageMonthly`, `ScanAnalyticsSummary`.
+  - `api.resolveOpenRouterModel()` — the model actually sent to OpenRouter: the `openrouter_model` row in the `settings` table if set, otherwise falls back to the `OPENROUTER_MODEL` env var/default (`google/gemini-3.1-flash-lite`). Checked fresh on every scan request (no restart needed to pick up an admin change).
+- `server/internal/api/admin_settings_handlers.go` — admin-only model management, surfaced at `/admin/settings` (see [admin-panel.md](admin-panel.md)):
+  - `GET /admin/settings/models` — proxies OpenRouter's `GET /models` catalog for the settings page's dropdown (keeps `OPENROUTER_API_KEY` server-side).
+  - `POST /admin/settings/model` — sets (or, with an empty value, clears) the `openrouter_model` setting.
+- `server/internal/store/store.go` — `RecordScanRequest`, `ScanUsageDaily`, `ScanUsageMonthly`, `ScanAnalyticsSummary`, `GetSetting`/`SetSetting` (generic settings KV, used here for `openrouter_model`).
 - `server/internal/db/migrations/0002_scan_usage.sql` — `scan_requests`, `scan_usage_daily`, `scan_usage_monthly` tables (replaced the Worker's Cloudflare KV storage with atomic `INSERT ... ON CONFLICT` upserts).
+- `server/internal/db/migrations/0008_settings_and_jobs.sql` — `settings` table backing the model override (also used by unrelated features — see [infrastructure.md](infrastructure.md)).
 - Receipt image upload/serving (used regardless of whether scanning succeeds):
   - `server/internal/api/image_handlers.go` — `POST /api/sessions/{code}/bills/{billId}/images` (store a client-resized image), `GET /api/images/{refKey}` (serve it).
   - `server/internal/store/store.go` — `SaveImageMeta`, `ImageFilePath`.

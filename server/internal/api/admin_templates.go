@@ -31,6 +31,7 @@ table th { color:var(--muted); font-weight:600; font-size:12px; text-transform:u
 .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
 .badge-yes { background:#dcfce7; color:#15803d; }
 .badge-no  { background:#f1f5f9; color:var(--muted); }
+.badge-fail { background:#fee2e2; color:#b91c1c; }
 .admin-search { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px;
                 margin-bottom:8px; width:280px; }
 button { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 12px;
@@ -43,6 +44,8 @@ button:hover { opacity:.9; }
 <a href="/admin">Sessions</a>
 <a href="/admin/stats">Stats</a>
 <a href="/admin/bill-processor">Bill Scanner</a>
+<a href="/admin/settings">Settings</a>
+<a href="/admin/jobs">Jobs</a>
 </nav>
 <main>
 {{template "content" .}}
@@ -133,8 +136,79 @@ const adminScanContentHTML = `{{define "content"}}
 </div>
 {{end}}`
 
+const adminSettingsContentHTML = `{{define "content"}}
+<h1>Settings</h1>
+<h2>Receipt-scan model</h2>
+<div class="card">
+<p style="margin-top:0;color:var(--muted);font-size:13px">
+Current: <strong>{{.CurrentModel}}</strong>
+{{if .Overridden}}(admin override){{else}}(from OPENROUTER_MODEL env, default "{{.EnvDefaultModel}}"){{end}}
+</p>
+<form method="post" action="/admin/settings/model">
+<select name="model" id="model-select" style="min-width:320px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+<option value="">(use OPENROUTER_MODEL env default)</option>
+<option value="{{.CurrentModel}}" selected>{{.CurrentModel}}</option>
+</select>
+<button type="submit">Save</button>
+</form>
+<p id="model-load-status" style="color:var(--muted);font-size:12px;margin-bottom:0">Loading available models…</p>
+</div>
+<script>
+(function () {
+  var select = document.getElementById('model-select');
+  var status = document.getElementById('model-load-status');
+  // The admin_token cookie is HttpOnly and scoped to /admin, so a
+  // same-origin fetch under /admin/settings/models sends it automatically —
+  // no need to read/forward it from JS.
+  fetch('/admin/settings/models')
+    .then(function (r) { if (!r.ok) throw new Error('failed'); return r.json(); })
+    .then(function (models) {
+      var current = select.value;
+      select.length = 1;
+      models.forEach(function (m) {
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name ? (m.name + ' (' + m.id + ')') : m.id;
+        if (m.id === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+      status.textContent = models.length + ' models available.';
+    })
+    .catch(function () {
+      status.textContent = 'Could not load the model list from OpenRouter — you can still type/save a model id above by editing this page\'s selected option value.';
+    });
+})();
+</script>
+{{end}}`
+
+const adminJobsContentHTML = `{{define "content"}}
+<h1>Background Jobs</h1>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Job</th><th>Status</th><th>Started</th><th>Finished</th><th>Message</th></tr></thead>
+<tbody>
+{{range .Runs}}
+<tr>
+<td>{{.JobName}}</td>
+<td>
+{{if eq .Status "success"}}<span class="badge badge-yes">success</span>
+{{else if eq .Status "failed"}}<span class="badge badge-fail">failed</span>
+{{else}}<span class="badge badge-no">{{.Status}}</span>{{end}}
+</td>
+<td>{{.StartedAt}}</td>
+<td>{{if .FinishedAt}}{{.FinishedAt}}{{else}}—{{end}}</td>
+<td>{{if .Message}}{{.Message}}{{else}}—{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}`
+
 var adminBaseTemplate = template.Must(template.New("layout").Parse(adminLayoutHTML))
 
 var adminSessionsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminSessionsContentHTML))
 var adminStatsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminStatsContentHTML))
 var adminScanTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminScanContentHTML))
+var adminSettingsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminSettingsContentHTML))
+var adminJobsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminJobsContentHTML))

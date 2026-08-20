@@ -10,6 +10,7 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": a.Version})
 	})
+	mux.HandleFunc("GET /adminhealth", a.AdminHealth)
 
 	mux.HandleFunc("POST /api/sessions", a.CreateSession)
 	mux.HandleFunc("POST /api/sessions/status", a.GetSessionsStatus)
@@ -46,6 +47,10 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("GET /admin/stats", a.AdminStatsPage)
 	mux.HandleFunc("GET /admin/bill-processor", a.AdminScanPage)
 	mux.HandleFunc("POST /admin/sessions/{code}/purge", a.AdminPurgeSession)
+	mux.HandleFunc("GET /admin/settings", a.AdminSettingsPage)
+	mux.HandleFunc("GET /admin/settings/models", a.AdminOpenRouterModels)
+	mux.HandleFunc("POST /admin/settings/model", a.AdminSetOpenRouterModel)
+	mux.HandleFunc("GET /admin/jobs", a.AdminJobsPage)
 
 	return mux
 }
