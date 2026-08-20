@@ -35,8 +35,17 @@ table th { color:var(--muted); font-weight:600; font-size:12px; text-transform:u
 .admin-search { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px;
                 margin-bottom:8px; width:280px; }
 button { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 12px;
-         font-size:13px; cursor:pointer; }
+         font-size:13px; cursor:pointer; margin-right:8px; }
 button:hover { opacity:.9; }
+button[type="button"] { background:#fff; color:var(--text); border:1px solid var(--border); }
+.combobox { position:relative; display:block; margin-bottom:4px; }
+.combobox-options { position:absolute; top:100%; left:0; width:380px; max-height:280px; overflow-y:auto;
+                     background:#fff; border:1px solid var(--border); border-top:none; border-radius:0 0 8px 8px;
+                     box-shadow:0 4px 10px rgba(0,0,0,.08); z-index:20; }
+.combobox-option { padding:6px 10px; cursor:pointer; }
+.combobox-option:hover { background:var(--bg); }
+.combobox-option .id { font-size:13px; font-weight:600; }
+.combobox-option .name { font-size:11px; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -138,44 +147,143 @@ const adminScanContentHTML = `{{define "content"}}
 
 const adminSettingsContentHTML = `{{define "content"}}
 <h1>Settings</h1>
+
 <h2>Receipt-scan model</h2>
 <div class="card">
 <p style="margin-top:0;color:var(--muted);font-size:13px">
 Current: <strong>{{.CurrentModel}}</strong>
 {{if .Overridden}}(admin override){{else}}(from OPENROUTER_MODEL env, default "{{.EnvDefaultModel}}"){{end}}
 </p>
-<form method="post" action="/admin/settings/model">
-<select name="model" id="model-select" style="min-width:320px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
-<option value="">(use OPENROUTER_MODEL env default)</option>
-<option value="{{.CurrentModel}}" selected>{{.CurrentModel}}</option>
-</select>
-<button type="submit">Save</button>
-</form>
-<p id="model-load-status" style="color:var(--muted);font-size:12px;margin-bottom:0">Loading available models…</p>
+<form method="post" action="/admin/settings/model" id="model-form">
+<div class="combobox" id="model-combobox">
+<input type="text" id="model-search" class="admin-search" autocomplete="off" placeholder="Search models by id or name…" value="{{.CurrentModel}}" style="width:380px;margin-bottom:0">
+<input type="hidden" name="model" id="model-hidden" value="{{.CurrentModel}}">
+<div id="model-options" class="combobox-options" hidden></div>
 </div>
+<div style="margin:8px 0">
+<label style="font-size:12px;color:var(--muted);margin-right:14px">
+<input type="checkbox" id="model-filter-image" checked style="vertical-align:middle"> Image input only (needed for receipt scanning)
+</label>
+<label style="font-size:12px;color:var(--muted)">
+<input type="checkbox" id="model-filter-text" style="vertical-align:middle"> Text-only
+</label>
+</div>
+<button type="submit">Save</button>
+<button type="button" id="model-clear">Use env default</button>
+<p id="model-load-status" style="color:var(--muted);font-size:12px;margin-bottom:0;margin-top:8px">Loading available models…</p>
+</form>
+</div>
+
+<h2>Session &amp; log retention</h2>
+<div class="stat-grid">
+<div class="card"><div class="value">{{.IdleRetentionDays}}</div><div class="label">Idle session retention (days)</div></div>
+<div class="card"><div class="value">{{.SettledRetentionDays}}</div><div class="label">Settled session retention (days)</div></div>
+<div class="card"><div class="value">{{.LogRetentionDays}}</div><div class="label">Log &amp; error retention (days)</div></div>
+</div>
+<p style="color:var(--muted);font-size:12px">
+Set via IDLE_SESSION_RETENTION_DAYS / SETTLED_SESSION_RETENTION_DAYS / LOG_RETENTION_DAYS env vars — not editable from this page.
+</p>
+
 <script>
 (function () {
-  var select = document.getElementById('model-select');
+  var searchInput = document.getElementById('model-search');
+  var hiddenInput = document.getElementById('model-hidden');
+  var optionsBox = document.getElementById('model-options');
   var status = document.getElementById('model-load-status');
+  var imageFilter = document.getElementById('model-filter-image');
+  var textFilter = document.getElementById('model-filter-text');
+  var clearBtn = document.getElementById('model-clear');
+  var allModels = [];
+  var activeIndex = -1;
+
+  function modalities(m) {
+    return (m.architecture && m.architecture.input_modalities) || [];
+  }
+  function isImageCapable(m) { return modalities(m).indexOf('image') !== -1; }
+  function isTextOnly(m) {
+    var mods = modalities(m);
+    return mods.indexOf('image') === -1;
+  }
+  function capabilityBadge(m) {
+    return isImageCapable(m) ? '📷 image+text' : '📝 text only';
+  }
+
+  function filteredModels() {
+    var q = searchInput.value.trim().toLowerCase();
+    return allModels.filter(function (m) {
+      if (imageFilter.checked && !isImageCapable(m)) return false;
+      if (textFilter.checked && !isTextOnly(m)) return false;
+      if (!q) return true;
+      return m.id.toLowerCase().indexOf(q) !== -1 || (m.name || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function renderOptions() {
+    var matches = filteredModels().slice(0, 50);
+    optionsBox.innerHTML = '';
+    activeIndex = -1;
+    if (matches.length === 0) {
+      optionsBox.hidden = true;
+      return;
+    }
+    matches.forEach(function (m, i) {
+      var row = document.createElement('div');
+      row.className = 'combobox-option';
+      row.dataset.id = m.id;
+      row.innerHTML = '<div class="id">' + m.id + '</div><div class="name">' + (m.name || '') + ' &middot; ' + capabilityBadge(m) + '</div>';
+      row.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        selectModel(m.id);
+      });
+      optionsBox.appendChild(row);
+    });
+    optionsBox.hidden = false;
+  }
+
+  function selectModel(id) {
+    hiddenInput.value = id;
+    searchInput.value = id;
+    optionsBox.hidden = true;
+  }
+
+  searchInput.addEventListener('input', function () {
+    hiddenInput.value = searchInput.value;
+    renderOptions();
+  });
+  searchInput.addEventListener('focus', renderOptions);
+  searchInput.addEventListener('blur', function () {
+    setTimeout(function () { optionsBox.hidden = true; }, 100);
+  });
+  imageFilter.addEventListener('change', function () {
+    if (imageFilter.checked) textFilter.checked = false;
+    renderOptions();
+  });
+  textFilter.addEventListener('change', function () {
+    if (textFilter.checked) imageFilter.checked = false;
+    renderOptions();
+  });
+  clearBtn.addEventListener('click', function () {
+    hiddenInput.value = '';
+    searchInput.value = '';
+    searchInput.placeholder = '(use OPENROUTER_MODEL env default)';
+  });
+
   // The admin_token cookie is HttpOnly and scoped to /admin, so a
   // same-origin fetch under /admin/settings/models sends it automatically —
   // no need to read/forward it from JS.
   fetch('/admin/settings/models')
     .then(function (r) { if (!r.ok) throw new Error('failed'); return r.json(); })
     .then(function (models) {
-      var current = select.value;
-      select.length = 1;
-      models.forEach(function (m) {
-        var opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.name ? (m.name + ' (' + m.id + ')') : m.id;
-        if (m.id === current) opt.selected = true;
-        select.appendChild(opt);
-      });
-      status.textContent = models.length + ' models available.';
+      allModels = models;
+      var current = hiddenInput.value;
+      var currentIsImage = models.some(function (m) { return m.id === current && isImageCapable(m); });
+      // Don't hide the currently-saved model behind the image-only filter if
+      // it isn't actually image-capable (e.g. picked before this filter existed).
+      if (current && !currentIsImage) imageFilter.checked = false;
+      status.textContent = models.length + ' models available (' + models.filter(isImageCapable).length + ' image-capable).';
     })
     .catch(function () {
-      status.textContent = 'Could not load the model list from OpenRouter — you can still type/save a model id above by editing this page\'s selected option value.';
+      status.textContent = 'Could not load the model list from OpenRouter — you can still type/save a model id above.';
     });
 })();
 </script>

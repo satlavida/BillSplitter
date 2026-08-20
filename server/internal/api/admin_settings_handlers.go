@@ -15,8 +15,18 @@ import (
 const openRouterModelListURL = "https://openrouter.ai/api/v1/models"
 
 type openRouterModelInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID           string                      `json:"id"`
+	Name         string                      `json:"name"`
+	Architecture openRouterModelArchitecture `json:"architecture"`
+}
+
+// openRouterModelArchitecture is the subset of OpenRouter's per-model
+// "architecture" object the settings page's capability filter needs — which
+// input modalities (e.g. "text", "image") the model accepts. Receipt
+// scanning requires an image-capable model, so the settings page defaults
+// to filtering the dropdown down to those.
+type openRouterModelArchitecture struct {
+	InputModalities []string `json:"input_modalities"`
 }
 
 type openRouterModelListResponse struct {
@@ -37,9 +47,12 @@ func (a *API) AdminSettingsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = adminSettingsTemplate.ExecuteTemplate(w, "layout", map[string]any{
-		"CurrentModel":    current,
-		"EnvDefaultModel": a.openRouterModel,
-		"Overridden":      overridden,
+		"CurrentModel":         current,
+		"EnvDefaultModel":      a.openRouterModel,
+		"Overridden":           overridden,
+		"IdleRetentionDays":    a.idleRetentionDays,
+		"SettledRetentionDays": a.settledRetentionDays,
+		"LogRetentionDays":     a.logRetentionDays,
 	})
 }
 
