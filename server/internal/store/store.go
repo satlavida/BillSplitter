@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -733,16 +734,17 @@ func (s *Store) touchSession(sessionID string) error {
 	return err
 }
 
-// PurgeStaleSessions deletes settled sessions past their 48h grace period
-// and unsettled-but-idle sessions past 48h since last access. Returns the
-// ids of purged sessions and their associated image file paths (so the
-// caller can remove image files *before* the cascading SQL delete — see
-// planv3.md 3.8).
-func (s *Store) PurgeStaleSessions() (purgedSessionIDs []string, imagePaths []string, err error) {
+// PurgeStaleSessions deletes settled sessions past settledRetentionDays
+// since settled_at, and unsettled-but-idle sessions past idleRetentionDays
+// since last access. Returns the ids of purged sessions and their
+// associated image file paths (so the caller can remove image files
+// *before* the cascading SQL delete — see planv3.md 3.8).
+func (s *Store) PurgeStaleSessions(idleRetentionDays, settledRetentionDays int) (purgedSessionIDs []string, imagePaths []string, err error) {
 	rows, err := s.db.Query(
 		`SELECT id FROM sessions
-		 WHERE (is_settled = 1 AND settled_at <= datetime('now', '-48 hours'))
-		    OR (is_settled = 0 AND last_access_at <= datetime('now', '-48 hours'))`,
+		 WHERE (is_settled = 1 AND settled_at <= datetime('now', ? || ' days'))
+		    OR (is_settled = 0 AND last_access_at <= datetime('now', ? || ' days'))`,
+		fmt.Sprintf("-%d", settledRetentionDays), fmt.Sprintf("-%d", idleRetentionDays),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -1043,4 +1045,226 @@ func (s *Store) ScanAnalyticsSummary() (ScanAnalyticsSummary, error) {
 	summary.RecentRequests = entries
 
 	return summary, nil
+}
+
+// ---- Settings (admin-configurable key/value store) ----
+
+// GetSetting returns a setting's value and whether it was found.
+func (s *Store) GetSetting(key string) (string, bool, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return value, true, nil
+}
+
+// SetSetting upserts a setting's value.
+func (s *Store) SetSetting(key, value string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		key, value, now(),
+	)
+	return err
+}
+
+// ---- Background job run tracking ----
+
+const (
+	JobStatusStarted = "started"
+	JobStatusSuccess = "success"
+	JobStatusFailed  = "failed"
+)
+
+// JobRun is a single row from job_runs, shown on the admin jobs page and
+// summarized by /adminhealth.
+type JobRun struct {
+	ID         int64   `json:"id"`
+	JobName    string  `json:"jobName"`
+	Status     string  `json:"status"`
+	StartedAt  string  `json:"startedAt"`
+	FinishedAt *string `json:"finishedAt"`
+	Message    *string `json:"message,omitempty"`
+}
+
+// StartJobRun records that a background job has begun; pass the returned id
+// to FinishJobRun once it completes.
+func (s *Store) StartJobRun(jobName string) (int64, error) {
+	res, err := s.db.Exec(
+		`INSERT INTO job_runs (job_name, status, started_at) VALUES (?, ?, ?)`,
+		jobName, JobStatusStarted, now(),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// FinishJobRun records a started job's terminal status (success/failed) and
+// an optional message (e.g. purged-count summary or error text).
+func (s *Store) FinishJobRun(runID int64, status, message string) error {
+	var msg sql.NullString
+	if message != "" {
+		msg = sql.NullString{String: message, Valid: true}
+	}
+	_, err := s.db.Exec(
+		`UPDATE job_runs SET status = ?, finished_at = ?, message = ? WHERE id = ?`,
+		status, now(), msg, runID,
+	)
+	return err
+}
+
+// LatestJobRuns returns the most recent run of every distinct job_name seen,
+// used for /adminhealth's per-job status summary.
+func (s *Store) LatestJobRuns() ([]JobRun, error) {
+	rows, err := s.db.Query(
+		`SELECT jr.id, jr.job_name, jr.status, jr.started_at, jr.finished_at, jr.message
+		 FROM job_runs jr
+		 JOIN (SELECT job_name, MAX(id) AS max_id FROM job_runs GROUP BY job_name) latest
+		   ON latest.job_name = jr.job_name AND latest.max_id = jr.id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJobRuns(rows)
+}
+
+// ListRecentJobRuns returns the most recent job_runs rows across all jobs,
+// newest first, for the admin jobs page.
+func (s *Store) ListRecentJobRuns(limit int) ([]JobRun, error) {
+	rows, err := s.db.Query(
+		`SELECT id, job_name, status, started_at, finished_at, message FROM job_runs ORDER BY id DESC LIMIT ?`, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanJobRuns(rows)
+}
+
+func scanJobRuns(rows *sql.Rows) ([]JobRun, error) {
+	runs := []JobRun{}
+	for rows.Next() {
+		var jr JobRun
+		var finishedAt, message sql.NullString
+		if err := rows.Scan(&jr.ID, &jr.JobName, &jr.Status, &jr.StartedAt, &finishedAt, &message); err != nil {
+			return nil, err
+		}
+		if finishedAt.Valid {
+			jr.FinishedAt = &finishedAt.String
+		}
+		if message.Valid {
+			jr.Message = &message.String
+		}
+		runs = append(runs, jr)
+	}
+	return runs, rows.Err()
+}
+
+// ---- Error events + simple lifetime counters ----
+
+// RecordErrorEvent inserts a timestamped error occurrence (used for
+// /adminhealth's windowed 24h/7d counts) and bumps a simple cumulative
+// counter for the same category in the settings table (key
+// "error_count:<category>"), per the admin requirement to keep basic
+// lifetime counters alongside the log file.
+func (s *Store) RecordErrorEvent(category, message string) error {
+	if _, err := s.db.Exec(
+		`INSERT INTO error_events (category, occurred_at, message) VALUES (?, ?, ?)`,
+		category, now(), message,
+	); err != nil {
+		return err
+	}
+	return s.incrementCounterSetting("error_count:" + category)
+}
+
+func (s *Store) incrementCounterSetting(key string) error {
+	current, ok, err := s.GetSetting(key)
+	if err != nil {
+		return err
+	}
+	n := 0
+	if ok {
+		n, _ = strconv.Atoi(current)
+	}
+	return s.SetSetting(key, strconv.Itoa(n+1))
+}
+
+// ErrorCounters returns the simple lifetime error counters recorded via
+// RecordErrorEvent, keyed by category.
+func (s *Store) ErrorCounters() (map[string]int, error) {
+	rows, err := s.db.Query(`SELECT key, value FROM settings WHERE key LIKE 'error_count:%'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counters := map[string]int{}
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		category := strings.TrimPrefix(key, "error_count:")
+		n, _ := strconv.Atoi(value)
+		counters[category] = n
+	}
+	return counters, rows.Err()
+}
+
+// ErrorCountsSince returns error_events counts grouped by category since
+// the given SQLite datetime modifier (e.g. "-24 hours", "-7 days").
+func (s *Store) ErrorCountsSince(sinceModifier string) (map[string]int, error) {
+	rows, err := s.db.Query(
+		`SELECT category, COUNT(*) FROM error_events WHERE occurred_at >= datetime('now', ?) GROUP BY category`,
+		sinceModifier,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := map[string]int{}
+	for rows.Next() {
+		var category string
+		var n int
+		if err := rows.Scan(&category, &n); err != nil {
+			return nil, err
+		}
+		counts[category] = n
+	}
+	return counts, rows.Err()
+}
+
+// PruneErrorEvents deletes error_events rows older than retentionDays,
+// mirroring the log file's own retention window.
+func (s *Store) PruneErrorEvents(retentionDays int) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM error_events WHERE occurred_at < datetime('now', ? || ' days')`, fmt.Sprintf("-%d", retentionDays))
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// ---- Admin health (GET /adminhealth) ----
+
+// SessionsActiveSince counts sessions with last_access_at at or after the
+// given SQLite datetime modifier.
+func (s *Store) SessionsActiveSince(sinceModifier string) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE last_access_at >= datetime('now', ?)`, sinceModifier).Scan(&n)
+	return n, err
+}
+
+// ScanRequestsSince counts scan_requests at or after the given SQLite
+// datetime modifier.
+func (s *Store) ScanRequestsSince(sinceModifier string) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM scan_requests WHERE requested_at >= datetime('now', ?)`, sinceModifier).Scan(&n)
+	return n, err
 }

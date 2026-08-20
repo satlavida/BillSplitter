@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	appdb "billsplitter/server/internal/db"
+	"billsplitter/server/internal/logging"
 	"billsplitter/server/internal/models"
 	"billsplitter/server/internal/store"
 )
@@ -55,7 +56,7 @@ func TestPurgeOnce_RemovesBackdatedSettledSessionAndItsImageFile(t *testing.T) {
 		t.Fatalf("backdate session: %v", err)
 	}
 
-	PurgeOnce(st)
+	PurgeOnce(st, logging.NewReporter(st), 2, 2)
 
 	if _, err := st.GetSession(sess.ID); err != store.ErrNotFound {
 		t.Fatalf("expected session to be purged, got err=%v", err)
@@ -74,7 +75,7 @@ func TestPurgeOnce_LeavesRecentSessionsAlone(t *testing.T) {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
-	PurgeOnce(st)
+	PurgeOnce(st, logging.NewReporter(st), 14, 21)
 
 	if _, err := st.GetSession(sess.ID); err != nil {
 		t.Fatalf("expected recent session to survive purge, got err=%v", err)

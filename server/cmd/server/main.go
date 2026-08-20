@@ -13,6 +13,7 @@ import (
 	"billsplitter/server/internal/api"
 	"billsplitter/server/internal/config"
 	"billsplitter/server/internal/db"
+	"billsplitter/server/internal/logging"
 	"billsplitter/server/internal/middleware"
 	"billsplitter/server/internal/presence"
 	"billsplitter/server/internal/sse"
@@ -31,6 +32,12 @@ var version = "dev"
 func main() {
 	cfg := config.Load()
 
+	closeLogging, err := logging.Init(cfg.LogDir)
+	if err != nil {
+		log.Fatalf("failed to init logging: %v", err)
+	}
+	defer closeLogging()
+
 	database, err := db.Open(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
@@ -38,13 +45,26 @@ func main() {
 	defer database.Close()
 
 	st := store.New(database)
+	reporter := logging.NewReporter(st)
 	hub := sse.NewHub()
-	a := api.New(st, hub, cfg.ImageDir, cfg.AdminToken, cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+	a := api.New(st, hub, reporter, api.Config{
+		ImageDir:                    cfg.ImageDir,
+		AdminToken:                  cfg.AdminToken,
+		OpenRouterAPIKey:            cfg.OpenRouterAPIKey,
+		OpenRouterModel:             cfg.OpenRouterModel,
+		LogRetentionDays:            cfg.LogRetentionDays,
+		IdleSessionRetentionDays:    cfg.IdleSessionRetentionDays,
+		SettledSessionRetentionDays: cfg.SettledSessionRetentionDays,
+	})
 	a.Version = version
 
 	stopCleanup := make(chan struct{})
-	go appcleanup.Run(st, time.Duration(cfg.CleanupEvery)*time.Minute, stopCleanup)
+	go appcleanup.Run(st, reporter, cfg.IdleSessionRetentionDays, cfg.SettledSessionRetentionDays, time.Duration(cfg.CleanupEvery)*time.Minute, stopCleanup)
 	defer close(stopCleanup)
+
+	stopLogRetention := make(chan struct{})
+	go appcleanup.RunLogRetention(st, reporter, cfg.LogDir, cfg.LogRetentionDays, 24*time.Hour, stopLogRetention)
+	defer close(stopLogRetention)
 
 	stopPresenceSweep := make(chan struct{})
 	go a.RunPresenceSweeper(presence.FlushAfter, stopPresenceSweep)

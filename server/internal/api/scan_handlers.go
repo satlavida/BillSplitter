@@ -161,14 +161,16 @@ func (a *API) Scan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, usage, err := a.callOpenRouter(body.Image.Base64Data, body.Image.MimeType)
+	model := a.resolveOpenRouterModel()
+	content, usage, err := a.callOpenRouter(model, body.Image.Base64Data, body.Image.MimeType)
 	if err != nil {
-		a.recordScanUsage(false, nil)
+		a.reporter.Error("openrouter_request", "scan request failed (model=%s): %v", model, err)
+		a.recordScanUsage(model, false, nil)
 		http.Error(w, fmt.Sprintf("Error processing request: %s", err), http.StatusInternalServerError)
 		return
 	}
 
-	a.recordScanUsage(true, usage)
+	a.recordScanUsage(model, true, usage)
 
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write([]byte(content))
@@ -203,12 +205,14 @@ func (a *API) ScanUsageQuery(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, usage)
 }
 
-func (a *API) recordScanUsage(success bool, usage *openRouterUsage) {
+func (a *API) recordScanUsage(model string, success bool, usage *openRouterUsage) {
 	prompt, completion, total := 0, 0, 0
 	if usage != nil {
 		prompt, completion, total = usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens
 	}
-	_ = a.store.RecordScanRequest(a.openRouterModel, success, prompt, completion, total)
+	if err := a.store.RecordScanRequest(model, success, prompt, completion, total); err != nil {
+		a.reporter.Warn("openrouter_request", "failed to record scan usage: %v", err)
+	}
 }
 
 // callOpenRouter sends the image + prompt to OpenRouter and returns the
@@ -217,9 +221,9 @@ func (a *API) recordScanUsage(success bool, usage *openRouterUsage) {
 // {raw_response, error} object (still a 200, matching the Worker's
 // graceful-degrade behavior — see stringifyParsedResponse in
 // bill-processor/src/index.js).
-func (a *API) callOpenRouter(base64Image, mimeType string) (string, *openRouterUsage, error) {
+func (a *API) callOpenRouter(model, base64Image, mimeType string) (string, *openRouterUsage, error) {
 	reqBody := openRouterRequest{
-		Model: a.openRouterModel,
+		Model: model,
 		Messages: []openRouterMessage{
 			{
 				Role: "user",

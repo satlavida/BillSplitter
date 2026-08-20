@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	appdb "billsplitter/server/internal/db"
+	"billsplitter/server/internal/logging"
 	"billsplitter/server/internal/models"
 	"billsplitter/server/internal/sse"
 	"billsplitter/server/internal/store"
@@ -26,7 +27,15 @@ func newTestServer(t *testing.T) (*httptest.Server, *sql.DB) {
 
 	st := store.New(database)
 	hub := sse.NewHub()
-	a := New(st, hub, t.TempDir(), "test-admin-token", "", "google/gemini-3.1-flash-lite")
+	reporter := logging.NewReporter(st)
+	a := New(st, hub, reporter, Config{
+		ImageDir:                    t.TempDir(),
+		AdminToken:                  "test-admin-token",
+		OpenRouterModel:             "google/gemini-3.1-flash-lite",
+		LogRetentionDays:            30,
+		IdleSessionRetentionDays:    14,
+		SettledSessionRetentionDays: 21,
+	})
 
 	srv := httptest.NewServer(a.Router())
 	t.Cleanup(srv.Close)
