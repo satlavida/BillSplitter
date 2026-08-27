@@ -5,6 +5,7 @@ import ThemeSwitcher from './Components/ThemeSwitcher';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
 import { Spinner } from './ui/components';
 import useSessionStore from './sessionStore';
+import { useIsMobile } from './hooks/useIsMobile';
 import Settings from './Components/Settings';
 import ServiceWorkerPrompt from './Components/Prompts/ServiceWorkerPrompt';
 import OnboardingModal from './Components/Prompts/OnboardingModal';
@@ -53,6 +54,7 @@ const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
 // Top-level app shell: sidebar + header, with routed page content in the middle
 const AppShell = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();
   const activeItemId = location.pathname.startsWith('/settings') ? 'settings' : location.pathname.startsWith('/sessions') ? 'sessions' : null;
@@ -105,7 +107,7 @@ const AppShell = () => {
   const handleSidebarItemClick = (itemId: string | number) => {
     if (itemId === 'sessions') navigate('/sessions');
     else if (itemId === 'settings') navigate('/settings');
-    if (window.innerWidth < 768) setIsSidebarOpen(false);
+    if (isMobile) setIsSidebarOpen(false);
   };
 
   return (

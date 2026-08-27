@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import SidebarItem from './SidebarItem';
 import { APP_VERSION, BUILD_CODE } from '../../version';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface SidebarItemData {
   id: string | number;
@@ -17,6 +18,8 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: SidebarProps) => {
+  const isMobile = useIsMobile();
+
   // Handle Escape key to close sidebar
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -33,7 +36,7 @@ const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: Sidebar
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       // Only apply this behavior on mobile
-      if (window.innerWidth < 768 && isOpen) {
+      if (isMobile && isOpen) {
         // Check if click is outside sidebar and not on the hamburger button
         const sidebar = document.getElementById('sidebar');
         const hamburgerBtn = document.getElementById('hamburger-btn');
@@ -46,12 +49,12 @@ const Sidebar = ({ isOpen, onToggle, items, activeItemId, onItemClick }: Sidebar
 
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [isOpen, onToggle]);
+  }, [isOpen, onToggle, isMobile]);
 
   const handleItemClick = (itemId: string | number) => {
     onItemClick(itemId);
     // Close sidebar on mobile after navigation
-    if (window.innerWidth < 768) {
+    if (isMobile) {
       onToggle();
     }
   };
