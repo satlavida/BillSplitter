@@ -72,7 +72,7 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
       <JoinerBillList code={code} bills={session.bills} />
 
       <div className="mt-4">
-        <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} />
+        <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} bills={session.bills} people={session.people} />
       </div>
     </div>
   );

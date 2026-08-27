@@ -35,7 +35,7 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
  * rounding happens only where amounts are actually settled/displayed (see
  * simplifyDebts).
  */
-export const calculateBillBalances = (bill: Bill, people: Person[]): Balance[] => {
+export const calculateBillBalances = (bill: Pick<Bill, 'items' | 'taxAmount' | 'paidByPersonId'>, people: Person[]): Balance[] => {
   const balances: Record<string, number> = {};
   people.forEach((p) => {
     balances[p.id] = 0;

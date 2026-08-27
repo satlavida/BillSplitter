@@ -20,7 +20,7 @@ claim/unclaim history.
 - `JoinerItemRow.tsx` — claim/unclaim a live item.
 - `ClaimQuantityModal.tsx` — quantity picker for claiming.
 - `AddItemForm.tsx` — joiner adds a new item to a live bill.
-- `JoinerSettlementSummary.tsx` — personal-view settlement lines (see [settlement.md](settlement.md)).
+- `JoinerSettlementSummary.tsx` — personal-view settlement lines (see [settlement.md](settlement.md)); Basic/Detailed toggle mirroring the creator's `SessionSettlementPage.tsx`, Detailed using `src/lib/liveBillBalances.ts`'s `calculateLiveBillBalances` (a `LiveBill`/`LivePerson`-typed adapter around `settlement.ts`'s `calculateBillBalances`, since the server's loosely-typed `discountType`/`splitType` strings don't structurally match this app's narrower literal unions).
 - `src/Pages/JoinPage.tsx` — route `/join/:code`; pick/enter identity, pending-approval or immediate admission.
 - `src/Pages/JoinerBillEditorPage.tsx` — route `/join/:code/bills/:billId/step/:step`; joiner-facing mirror of the bill wizard using live data instead of `billStore`.
 
