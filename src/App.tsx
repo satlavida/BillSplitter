@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation, 
 import { ThemeProvider } from './ThemeContext';
 import ThemeSwitcher from './Components/ThemeSwitcher';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
-import { RightPanel } from './Components/RightPanel';
+import { RightPanel, MobileRightPanel, RightPanelToggleButton } from './Components/RightPanel';
 import { Spinner } from './ui/components';
 import useSessionStore from './sessionStore';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -23,10 +23,13 @@ import './App.css';
 interface HeaderProps {
   toggleSidebar: () => void;
   isSidebarOpen: boolean;
+  toggleRightPanel: () => void;
+  isRightPanelOpen: boolean;
+  showRightPanelToggle: boolean;
 }
 
 // Header with theme switcher and hamburger button
-const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
+const Header = memo(({ toggleSidebar, isSidebarOpen, toggleRightPanel, isRightPanelOpen, showRightPanelToggle }: HeaderProps) => {
   // Count of bills in the current session still being scanned in the
   // background (see receiptScan.ts) — shown as a spinner here so progress
   // is visible even after the upload modal that started the scan has
@@ -37,7 +40,7 @@ const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
   });
 
   return (
-    <div className="flex justify-between items-center mb-6">
+    <div className="relative z-40 flex justify-between items-center mb-6">
       <div className="flex items-center gap-3">
         <HamburgerButton onClick={toggleSidebar} isOpen={isSidebarOpen} />
         <h1 className="text-2xl font-bold text-zinc-800 dark:text-white">Bill Splitter</h1>
@@ -47,7 +50,10 @@ const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
           </span>
         )}
       </div>
-      <ThemeSwitcher />
+      <div className="flex items-center gap-2">
+        <ThemeSwitcher />
+        {showRightPanelToggle && <RightPanelToggleButton onClick={toggleRightPanel} isOpen={isRightPanelOpen} />}
+      </div>
     </div>
   );
 });
@@ -55,6 +61,7 @@ const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
 // Top-level app shell: sidebar + header, with routed page content in the middle
 const AppShell = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const isMobile = useIsMobile();
   const hasLiveSession = useSessionStore((s) => Boolean(s.sessions.find((sess) => sess.id === s.currentSessionId)?.isLive));
   const navigate = useNavigate();
@@ -72,7 +79,17 @@ const AppShell = () => {
     localStorage.setItem('sidebarOpen', JSON.stringify(isSidebarOpen));
   }, [isSidebarOpen]);
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const toggleSidebar = () => {
+    // Only one of the two mobile panels open at a time, to avoid squeezing
+    // the content column to nothing on a small screen.
+    if (isMobile && !isSidebarOpen) setIsRightPanelOpen(false);
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const toggleRightPanel = () => {
+    if (isMobile && !isRightPanelOpen) setIsSidebarOpen(false);
+    setIsRightPanelOpen(!isRightPanelOpen);
+  };
 
   const sidebarItems = [
     {
@@ -121,13 +138,20 @@ const AppShell = () => {
       >
         <div className="py-8 px-4">
           <div className="max-w-lg mx-auto bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg ring-1 ring-zinc-200/50 dark:ring-zinc-700/50 transition-colors duration-200">
-            <Header toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+            <Header
+              toggleSidebar={toggleSidebar}
+              isSidebarOpen={isSidebarOpen}
+              toggleRightPanel={toggleRightPanel}
+              isRightPanelOpen={isRightPanelOpen}
+              showRightPanelToggle={hasLiveSession}
+            />
             <Outlet />
           </div>
         </div>
       </div>
 
       <RightPanel className="hidden lg:block fixed top-0 right-0 h-full w-72 overflow-y-auto p-4 border-l border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 transition-colors" />
+      <MobileRightPanel isOpen={isRightPanelOpen} onClose={() => setIsRightPanelOpen(false)} />
     </div>
   );
 };
