@@ -9,6 +9,12 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    // Pre-seeds settingsStore's completedOnboarding flag so OnboardingModal
+    // (src/Components/Prompts/OnboardingModal.tsx) doesn't pop up and block
+    // the first interaction on every fresh test context — every spec here
+    // starts from a blank profile, so without this every test would need to
+    // dismiss the modal itself.
+    storageState: './e2e/.setup/onboarding-completed.json',
   },
   projects: [
     {

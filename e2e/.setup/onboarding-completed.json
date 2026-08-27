@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "billSplitterSettings",
+          "value": "{\"state\":{\"autoAddSelf\":false,\"selfName\":\"\",\"completedOnboarding\":{\"onboarding_v1\":true}},\"version\":0}"
+        }
+      ]
+    }
+  ]
+}
