@@ -37,6 +37,15 @@ routes documented in [live-collaboration.md](live-collaboration.md).
 - [settlement.md](settlement.md) — shares `personTotals.ts` logic.
 
 ## Notes
+- Print (`BillSummary.tsx`'s Print button): `PrintWrapper` (`src/ui/components.tsx`)
+  is the single source of truth for `@media print` rules — a duplicate,
+  competing block used to live in `src/App.css` (different technique:
+  `display:none` vs `PrintWrapper`'s `visibility:hidden/visible`), which
+  raced depending on stylesheet/DOM insertion order and was the likely
+  cause of inconsistent/blank print output; removed. The scanned receipt
+  image (`ReceiptImagePreview`) now renders inside `#printable-bill` (was
+  previously in a separate `no-print`-wrapped section entirely outside
+  `PrintWrapper`'s `.print-content`, so it never printed at all).
 - `billStore` is a scratch/derived store, not persisted — see the
   `CLAUDE.md` warning about writing to it from outside `BillEditorPage`
   (only safe if `useBillStore.getState().billId === billId`).

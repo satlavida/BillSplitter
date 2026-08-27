@@ -42,22 +42,12 @@ html {
     display: none; /* Chrome, Safari, Opera */
   }
   
-  /* Print styles */
-  @media print {
-    .no-print {
-      display: none !important;
-    }
-    
-    .print-content {
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    
-    #sidebar {
-      display: none !important;
-    }
-  }
-  
+  /* Print styles live entirely in PrintWrapper (src/ui/components.tsx) —
+     having a second @media print block here, using a different technique
+     (display:none vs PrintWrapper's visibility:hidden/visible), raced with
+     it depending on DOM/stylesheet insertion order and was the likely cause
+     of inconsistent/blank print output. */
+
   /* Focus styles for accessibility */
   :focus-visible {
     outline: 2px solid #3b82f6;

@@ -58,7 +58,7 @@ const ReceiptImagePreview = memo(({ receiptImage }: ReceiptImagePreviewProps) =>
   if (!objectUrl) return null;
 
   return (
-    <div className="no-print">
+    <div>
       <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Receipt</h3>
       <img src={objectUrl} alt="Scanned receipt" className="max-w-full rounded-md border border-zinc-200 dark:border-zinc-700" />
     </div>
@@ -335,16 +335,12 @@ const BillSummary = () => {
           ))}
 
           <BillTotalsSummary subtotal={subtotal} taxAmount={parseFloat(String(taxAmount)) || 0} grandTotal={grandTotal} formatCurrency={formatCurrency} className="mb-6" />
+
+          {receiptImage && <ReceiptImagePreview receiptImage={receiptImage} />}
         </div>
       </PrintWrapper>
 
       <div className="no-print space-y-6">
-        {receiptImage && (
-          <div>
-            <ReceiptImagePreview receiptImage={receiptImage} />
-          </div>
-        )}
-
         <div>
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Edit</h3>
           <EditButtons onEdit={handleEdit} />

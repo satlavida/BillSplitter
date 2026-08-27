@@ -252,12 +252,17 @@ export const PrintWrapper = memo(({ children }: PrintWrapperProps) => {
             left: 0;
             top: 0;
             width: 100%;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           .no-print {
             display: none !important;
           }
           .page-break {
             page-break-after: always;
+          }
+          #sidebar {
+            display: none !important;
           }
         }
       `}</style>
