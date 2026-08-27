@@ -6,7 +6,7 @@ import { calculateSettlement, calculateBillBalances } from '../lib/settlement';
 import { getDiscountedItemPrice } from '../lib/personTotals';
 import { getImageBlob } from '../lib/imageStore';
 import { useFormatCurrency } from '../currencyStore';
-import { Card, Button, Modal } from '../ui/components';
+import { Card, Button, Modal, PrintWrapper } from '../ui/components';
 import type { Bill } from '../schemas/session.schema';
 import type { Person } from '../schemas/bill.schema';
 
@@ -102,84 +102,102 @@ const SessionSettlementPage = () => {
           <Button size="sm" variant={viewMode === 'detailed' ? 'primary' : 'secondary'} onClick={() => setViewMode('detailed')}>
             Detailed
           </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              // Print output always uses the detailed per-bill breakdown,
+              // regardless of which view the creator was looking at on
+              // screen — same PrintWrapper technique BillSummary.tsx uses,
+              // so there's no separate print-only DOM to keep in sync.
+              setViewMode('detailed');
+              setTimeout(() => window.print(), 0);
+            }}
+          >
+            Print Summary PDF
+          </Button>
         </div>
       </div>
 
-      <Card>
-        <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Balances</h3>
-        {balances.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">No people in this session yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {balances.map((b) => (
-              <li key={b.personId} className="flex justify-between text-sm">
-                <span className="text-zinc-700 dark:text-zinc-300 transition-colors">{nameFor(b.personId)}</span>
-                <span
-                  className={
-                    b.amount > 0.005
-                      ? 'text-green-600 dark:text-green-400'
-                      : b.amount < -0.005
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-zinc-500 dark:text-zinc-400'
-                  }
-                >
-                  {b.amount > 0.005 ? `is owed ${formatCurrency(b.amount)}` : b.amount < -0.005 ? `owes ${formatCurrency(-b.amount)}` : 'settled up'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      <PrintWrapper>
+        <div id="printable-settlement">
+          <Card>
+            <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Balances</h3>
+            {balances.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">No people in this session yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {balances.map((b) => (
+                  <li key={b.personId} className="flex justify-between text-sm">
+                    <span className="text-zinc-700 dark:text-zinc-300 transition-colors">{nameFor(b.personId)}</span>
+                    <span
+                      className={
+                        b.amount > 0.005
+                          ? 'text-green-600 dark:text-green-400'
+                          : b.amount < -0.005
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-zinc-500 dark:text-zinc-400'
+                      }
+                    >
+                      {b.amount > 0.005 ? `is owed ${formatCurrency(b.amount)}` : b.amount < -0.005 ? `owes ${formatCurrency(-b.amount)}` : 'settled up'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
 
-      <Card>
-        <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Who pays whom</h3>
-        {transactions.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">Everyone is settled up.</p>
-        ) : (
-          <ul className="space-y-1">
-            {transactions.map((t, i) => (
-              <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 transition-colors">
-                <span className="font-medium">{nameFor(t.from)}</span> pays <span className="font-medium">{nameFor(t.to)}</span>{' '}
-                {formatCurrency(t.amount)}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+          <Card>
+            <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Who pays whom</h3>
+            {transactions.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">Everyone is settled up.</p>
+            ) : (
+              <ul className="space-y-1">
+                {transactions.map((t, i) => (
+                  <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 transition-colors">
+                    <span className="font-medium">{nameFor(t.from)}</span> pays <span className="font-medium">{nameFor(t.to)}</span>{' '}
+                    {formatCurrency(t.amount)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
 
-      <Card>
-        <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Bills</h3>
-        {session.bills.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">No bills yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {session.bills.map((bill) => (
-              <li key={bill.id} className="flex justify-between items-center text-sm">
-                <div>
-                  <span className="text-zinc-800 dark:text-white transition-colors">{bill.title}</span>
-                  <span className="block text-xs text-zinc-500 dark:text-zinc-400">{new Date(bill.date).toLocaleDateString()}</span>
-                  {viewMode === 'detailed' && (
-                    <>
-                      <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                        Paid by {bill.paidByPersonId ? nameFor(bill.paidByPersonId) : 'no one yet'}
-                      </span>
-                      <BillBreakdown bill={bill} people={session.people} nameFor={nameFor} formatCurrency={formatCurrency} />
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-zinc-700 dark:text-zinc-300">{formatCurrency(billTotal(bill))}</span>
-                  {bill.receiptImage && (
-                    <Button size="sm" variant="secondary" onClick={() => setViewingReceiptFor(bill.receiptImage!.refKey)}>
-                      View Receipt
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+          <Card>
+            <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Bills</h3>
+            {session.bills.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 transition-colors">No bills yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {session.bills.map((bill) => (
+                  <li key={bill.id} className="flex justify-between items-center text-sm">
+                    <div>
+                      <span className="text-zinc-800 dark:text-white transition-colors">{bill.title}</span>
+                      <span className="block text-xs text-zinc-500 dark:text-zinc-400">{new Date(bill.date).toLocaleDateString()}</span>
+                      {viewMode === 'detailed' && (
+                        <>
+                          <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                            Paid by {bill.paidByPersonId ? nameFor(bill.paidByPersonId) : 'no one yet'}
+                          </span>
+                          <BillBreakdown bill={bill} people={session.people} nameFor={nameFor} formatCurrency={formatCurrency} />
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">{formatCurrency(billTotal(bill))}</span>
+                      {bill.receiptImage && (
+                        <Button size="sm" variant="secondary" className="no-print" onClick={() => setViewingReceiptFor(bill.receiptImage!.refKey)}>
+                          View Receipt
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </PrintWrapper>
 
       {viewingReceiptFor && <ReceiptModal refKey={viewingReceiptFor} onClose={() => setViewingReceiptFor(null)} />}
     </div>

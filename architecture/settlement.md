@@ -7,7 +7,7 @@ locally (offline use) and on the server (for live sessions, so every device
 sees the same numbers).
 
 ## Frontend
-- `src/Pages/SessionSettlementPage.tsx` — route `/session/:sessionId/settlement`; who-owes-who view, per-bill totals list, receipt image viewer modal, Basic/Detailed toggle (Detailed adds each bill's own `calculateBillBalances` breakdown via `BillBreakdown`, e.g. "Bob owes Alice ₹500").
+- `src/Pages/SessionSettlementPage.tsx` — route `/session/:sessionId/settlement`; who-owes-who view, per-bill totals list, receipt image viewer modal, Basic/Detailed toggle (Detailed adds each bill's own `calculateBillBalances` breakdown via `BillBreakdown`, e.g. "Bob owes Alice ₹500"). "Print Summary PDF" (creator-only — this page has no joiner-facing route) forces Detailed mode then calls `window.print()`; the whole settlement section is wrapped in `PrintWrapper`/`#printable-settlement` (same technique as `BillSummary.tsx` — reuses the on-screen DOM for print rather than a separate print-only component, which would otherwise duplicate text nodes on screen).
 - `src/lib/settlement.ts` — debt-simplification/settlement calculation, built on `personTotals.ts`. `calculateBalances` (session-wide) is `calculateBillBalances` (single bill) summed over every bill — a pure decomposition, not a behavior change, so it didn't need mirroring into the Go package (see Notes).
 - `src/lib/personTotals.ts` — core per-person total calculation (discounts, splits); shared by `billStore` ([bill-editing.md](bill-editing.md)) and `settlement.ts`.
 - `src/Components/joiner/JoinerSettlementSummary.tsx` — personal-view settlement lines for a joiner ([live-collaboration.md](live-collaboration.md)).

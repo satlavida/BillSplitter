@@ -47,4 +47,7 @@ test('Detailed toggle shows a per-bill who-owes-whom breakdown', async ({ page }
 
   await page.getByRole('button', { name: 'Basic' }).click();
   await expect(page.getByText('Bob owes')).not.toBeVisible();
+
+  // Print Summary PDF is a creator-only action, present on this page.
+  await expect(page.getByRole('button', { name: 'Print Summary PDF' })).toBeVisible();
 });
