@@ -24,12 +24,12 @@ test("creator watching live sees a joiner's rapid re-claims on a Quantity Split 
   // list (rendered straight off the merged session.bills) rather than
   // racing a fixed timeout before navigating to it.
   await expect(page.getByText('Pizza Night')).toBeVisible({ timeout: 10000 });
-  await page.goto(`/#/session/${sessionId}/bill/${billId}/step/3`);
+  await page.goto(`/#/session/${sessionId}/bill/${billId}/step/2`);
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });
 
   const alice = await joinAsNewPerson(browser, code, 'Alice');
-  await alice.page.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await alice.page.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await expect(alice.page.getByText('Pizza', { exact: true })).toBeVisible({ timeout: 10000 });
 
   // 1 -> 2 -> 3 -> 4, reopening the number-grid modal each time (there's no

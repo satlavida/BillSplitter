@@ -35,7 +35,7 @@ test('edit session: joiner can add an item and claim it', async ({
   await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   // Step 2: Items — where a joiner can add a new item (req 4/6).
-  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/2`);
+  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/1`);
   await joinerPage.getByRole('button', { name: '+ Add item' }).click();
   await joinerPage.getByPlaceholder('Item name').fill('Salad');
   await joinerPage.getByPlaceholder('Price').fill('8.50');
@@ -43,7 +43,7 @@ test('edit session: joiner can add an item and claim it', async ({
   await expect(joinerPage.getByText('Salad')).toBeVisible({ timeout: 10000 });
 
   // Step 3: Assign — claim it.
-  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/2`);
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Claimed by Frank')).toBeVisible({ timeout: 10000 });
 

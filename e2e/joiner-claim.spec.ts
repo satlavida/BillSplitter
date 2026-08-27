@@ -50,7 +50,7 @@ test('open_link + edit: a new-name joiner claims an item and it shows up immedia
   await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
   // Step 3: Assign — where a joiner claims their own share (req 4).
-  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await expect(joinerPage.getByText('Chips')).toBeVisible();
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
 

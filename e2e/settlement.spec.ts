@@ -11,10 +11,14 @@ async function addItem(page: Page, name: string, price: string) {
   await page.getByRole('button', { name: 'Add Item' }).click();
 }
 
-async function createSessionAndEnterFirstBill(page: Page): Promise<string> {
+async function createSessionWithPeopleAndEnterFirstBill(page: Page, names: string[]): Promise<string> {
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
+  for (const name of names) {
+    await addPerson(page, name);
+    await expect(page.getByText(name)).toBeVisible();
+  }
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
   return sessionId;
@@ -22,11 +26,7 @@ async function createSessionAndEnterFirstBill(page: Page): Promise<string> {
 
 test.describe('Settlement view', () => {
   test('shows correct net balances across a single bill paid by one person', async ({ page }) => {
-    const sessionId = await createSessionAndEnterFirstBill(page);
-
-    await addPerson(page, 'Alice');
-    await addPerson(page, 'Bob');
-    await page.getByRole('button', { name: 'Next' }).click();
+    const sessionId = await createSessionWithPeopleAndEnterFirstBill(page, ['Alice', 'Bob']);
 
     await addItem(page, 'Dinner', '40');
     await page.getByRole('button', { name: 'Next' }).click();

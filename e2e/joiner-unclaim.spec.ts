@@ -37,7 +37,7 @@ test('a joiner can unclaim an item they claimed, making it claimable again', asy
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in!")).toBeVisible();
 
-  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Claimed by Dana')).toBeVisible({ timeout: 10000 });
 

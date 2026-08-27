@@ -17,7 +17,7 @@ async function joinAndClaim(browser: Browser, code: string, billId: string, name
   await page.getByPlaceholder('Enter your name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText("You're in!")).toBeVisible();
-  await page.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await page.goto(`/#/join/${code}/bills/${billId}/step/2`);
 
   await expect(page.getByText(itemName, { exact: true })).toBeVisible({ timeout: 10000 });
   await page
@@ -42,7 +42,7 @@ test('creator sitting in the bill editor sees multiple claimers update live, wit
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
   const billId = page.url().match(/\/bill\/([^/]+)\/step\/1$/)![1];
-  await page.getByRole('button', { name: 'Go to step 2: Items' }).click();
+  await page.getByRole('button', { name: 'Go to step 1: Items' }).click();
 
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza');
   await page.getByPlaceholder('0.00').first().fill('20');
@@ -51,7 +51,7 @@ test('creator sitting in the bill editor sees multiple claimers update live, wit
   await page.getByPlaceholder('0.00').first().fill('10');
   await page.getByRole('button', { name: 'Add Item' }).click();
 
-  await page.getByRole('button', { name: 'Go to step 3: Assign' }).click();
+  await page.getByRole('button', { name: 'Go to step 2: Assign' }).click();
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
 
   // Each item renders as its own Card (ItemAssignment.tsx's ItemCard) —

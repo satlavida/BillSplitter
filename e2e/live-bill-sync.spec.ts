@@ -28,7 +28,7 @@ test('a bill and item added locally after going live show up for a joiner', asyn
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
   const billId = page.url().match(/\/bill\/([^/]+)\/step\/1$/)![1];
-  await page.getByRole('button', { name: 'Go to step 2: Items' }).click();
+  await page.getByRole('button', { name: 'Go to step 1: Items' }).click();
   await page.getByPlaceholder('e.g., Pizza').fill('Nachos');
   await page.getByPlaceholder('0.00').first().fill('12.50');
   await page.getByRole('button', { name: 'Add Item' }).click();
@@ -42,7 +42,7 @@ test('a bill and item added locally after going live show up for a joiner', asyn
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in! Add items or claim what's yours.")).toBeVisible();
 
-  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await expect(joinerPage.getByText('Nachos')).toBeVisible({ timeout: 10000 });
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Claimed by Frank')).toBeVisible({ timeout: 10000 });

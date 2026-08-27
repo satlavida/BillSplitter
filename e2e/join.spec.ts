@@ -21,15 +21,11 @@ test.describe('Join flow', () => {
   test('open_link mode: joining as an existing person admits immediately', async ({ page }) => {
     await page.goto('/');
     await page.waitForURL(/#\/session\/[^/]+$/);
-    const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
 
-    // Seed a person on the session before going live, via the bill editor
-    // (people live on the shared pool, only editable from within a bill).
-    await page.getByRole('button', { name: 'Add Bill' }).click();
-    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
+    // Seed a person on the session before going live (people are
+    // session-scoped, added from the session home page's PeopleSection).
     await addPerson(page, 'Alice');
-    await page.getByRole('link', { name: '← Back to Session' }).click();
-    await page.waitForURL(`http://localhost:5173/#/session/${sessionId}`);
+    await expect(page.getByText('Alice')).toBeVisible();
 
     const code = await goLive(page, 'Open link (anyone with the link joins instantly)');
 

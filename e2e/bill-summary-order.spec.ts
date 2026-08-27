@@ -7,11 +7,12 @@ test('Who Paid appears above the split breakdown on the summary step', async ({ 
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
 
-  await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
   await page.getByPlaceholder('Enter name').fill('Alice');
   await page.getByPlaceholder('Enter name').press('Enter');
-  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByText('Alice')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add Bill' }).click();
+  await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
 
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza');
   await page.getByPlaceholder('0.00').first().fill('20');

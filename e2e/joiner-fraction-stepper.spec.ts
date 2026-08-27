@@ -38,7 +38,7 @@ test('two joiners pick their own Quantity Split shares and the totals sum correc
   await joinerA.getByPlaceholder('Enter your name').fill('Alice');
   await joinerA.getByRole('button', { name: 'Join' }).click();
   await expect(joinerA.getByText("You're in!")).toBeVisible();
-  await joinerA.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await joinerA.goto(`/#/join/${code}/bills/${billId}/step/2`);
 
   // joinerB needs its own browser context, not just a new page in the
   // creator's/joinerA's context — joinerStorage.ts keys the stored joiner
@@ -51,7 +51,7 @@ test('two joiners pick their own Quantity Split shares and the totals sum correc
   await joinerB.getByPlaceholder('Enter your name').fill('Bob');
   await joinerB.getByRole('button', { name: 'Join' }).click();
   await expect(joinerB.getByText("You're in!")).toBeVisible();
-  await joinerB.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await joinerB.goto(`/#/join/${code}/bills/${billId}/step/2`);
 
   // Alice claims 2 slices via the quantity-picker modal.
   await expect(joinerA.getByText('Pizza', { exact: true })).toBeVisible();

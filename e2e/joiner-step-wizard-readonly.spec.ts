@@ -1,9 +1,9 @@
 import { test, expect, type Page, type BrowserContext, type APIRequestContext } from '@playwright/test';
 
-// Covers req 4: in a read-only session, the joiner's step wizard still
-// renders every step (People/Items/Assign/Summary) but with no edit
-// controls — same permission gate as joiner-read-only-permission.spec.ts,
-// exercised through the step-wizard's own People/Summary steps this time.
+// In a read-only session, the joiner's step wizard still renders every step
+// (Items/Assign/Summary) but with no edit controls — same permission gate as
+// joiner-read-only-permission.spec.ts, exercised through the step-wizard's
+// own Items/Summary steps this time.
 
 const LIVE_SERVER_URL = 'http://localhost:8080';
 
@@ -40,7 +40,7 @@ test('read-only session: joiner can step through the wizard but sees no edit con
   await joinerPage.waitForURL(new RegExp(`#/join/${code}/bills/${bill.id}/step/1$`));
   await expect(joinerPage.getByText('The host has this session set to view-only.')).toBeVisible();
 
-  await joinerPage.getByRole('button', { name: 'Go to step 4: Summary' }).click();
+  await joinerPage.getByRole('button', { name: 'Go to step 3: Summary' }).click();
   await expect(joinerPage.getByRole('heading', { name: 'Bill Summary' })).toBeVisible();
   await expect(joinerPage.getByText('Milk')).toBeVisible();
   await expect(joinerPage.getByText(/Total: USD 4\.00/)).toBeVisible();

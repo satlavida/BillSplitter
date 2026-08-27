@@ -27,11 +27,10 @@ test("creator rapidly toggling one person's claim on/off/on converges to the fin
 
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
-  await page.getByRole('button', { name: 'Go to step 2: Items' }).click();
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza');
   await page.getByPlaceholder('0.00').first().fill('20');
   await page.getByRole('button', { name: 'Add Item' }).click();
-  await page.getByRole('button', { name: 'Go to step 3: Assign' }).click();
+  await page.getByRole('button', { name: 'Go to step 2: Assign' }).click();
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
 
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });

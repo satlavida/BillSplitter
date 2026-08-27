@@ -11,14 +11,16 @@ test('switching an unassigned item to Quantity Split defaults parts to the item 
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
-  await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
 
   await page.getByPlaceholder('Enter name').fill('Alice');
   await page.getByPlaceholder('Enter name').press('Enter');
   await page.getByPlaceholder('Enter name').fill('Bob');
   await page.getByPlaceholder('Enter name').press('Enter');
-  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByText('Alice')).toBeVisible();
+  await expect(page.getByText('Bob')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add Bill' }).click();
+  await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
 
   await expect(page.getByRole('heading', { name: 'What items are you splitting?' })).toBeVisible();
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza Slices');
@@ -27,7 +29,7 @@ test('switching an unassigned item to Quantity Split defaults parts to the item 
   await page.getByRole('button', { name: 'Add Item' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
 
-  // Step 3: nobody has been toggled on for this item yet — go straight to
+  // Step 2: nobody has been toggled on for this item yet — go straight to
   // configuring the split without clicking Alice/Bob first.
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
   await page.getByLabel('Configure Split').click();

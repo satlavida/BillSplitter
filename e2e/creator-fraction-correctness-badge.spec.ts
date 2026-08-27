@@ -39,7 +39,7 @@ async function joinAndClaimQuantity(browser: Browser, code: string, billId: stri
   await page.getByPlaceholder('Enter your name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText("You're in!")).toBeVisible();
-  await page.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await page.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await expect(page.getByText('Pizza', { exact: true })).toBeVisible({ timeout: 10000 });
 
   await page.getByRole('button', { name: 'Claim', exact: true }).click();
@@ -62,7 +62,7 @@ test("the creator's fraction-correctness badge flips to 'Split complete' as join
   await page.getByText('Pizza Night', { exact: true }).click();
   await page.waitForURL(new RegExp(`#/session/[^/]+/bill/[^/]+/step/1$`));
 
-  await page.getByRole('button', { name: 'Go to step 3: Assign' }).click();
+  await page.getByRole('button', { name: 'Go to step 2: Assign' }).click();
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
 
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });

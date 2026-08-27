@@ -16,9 +16,11 @@ test('creator sees a pending joiner appear live and can approve them', async ({ 
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
 
+  await addPerson(page, 'Alice');
+  await expect(page.getByText('Alice')).toBeVisible();
+
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
-  await addPerson(page, 'Alice');
   await page.getByRole('link', { name: '← Back to Session' }).click();
   await page.waitForURL(`http://localhost:5173/#/session/${sessionId}`);
 

@@ -17,7 +17,7 @@ test('three joiners claiming and unclaiming concurrently converge to the correct
   const { itemId } = await seedItem(request, code, billId, { name: 'Cabin', price: 300 });
 
   await expect(page.getByText('Trip')).toBeVisible({ timeout: 10000 });
-  await page.goto(`/#/session/${sessionId}/bill/${billId}/step/3`);
+  await page.goto(`/#/session/${sessionId}/bill/${billId}/step/2`);
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
   const cabinCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Cabin' });
 
@@ -25,7 +25,7 @@ test('three joiners claiming and unclaiming concurrently converge to the correct
   const bob = await joinAsNewPerson(browser, code, 'Bob');
   const carol = await joinAsNewPerson(browser, code, 'Carol');
   for (const joiner of [alice, bob, carol]) {
-    await joiner.page.goto(`/#/join/${code}/bills/${billId}/step/3`);
+    await joiner.page.goto(`/#/join/${code}/bills/${billId}/step/2`);
     await expect(joiner.page.getByText('Cabin', { exact: true })).toBeVisible({ timeout: 10000 });
   }
 

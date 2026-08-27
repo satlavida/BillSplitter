@@ -66,24 +66,24 @@ test('two bills in a live session stay independent, and settlement nets balances
 
   // Cross-consumption: Eli claims Dana's Bread (bill1), Dana claims Eli's
   // Tickets (bill2) — each on that bill's own step-3 (Assign) page (req 4).
-  await eliPage.goto(`/#/join/${code}/bills/${bill1.id}/step/3`);
+  await eliPage.goto(`/#/join/${code}/bills/${bill1.id}/step/2`);
   const eliBreadRow = eliPage.locator('li', { hasText: 'Bread' });
   await expect(eliBreadRow).toBeVisible({ timeout: 10000 });
   await eliBreadRow.getByRole('button', { name: 'Claim', exact: true }).click();
 
-  await danaPage.goto(`/#/join/${code}/bills/${bill2.id}/step/3`);
+  await danaPage.goto(`/#/join/${code}/bills/${bill2.id}/step/2`);
   const danaTicketsRow = danaPage.locator('li', { hasText: 'Tickets' });
   await expect(danaTicketsRow).toBeVisible({ timeout: 10000 });
   await danaTicketsRow.getByRole('button', { name: 'Claim', exact: true }).click();
 
   // No cross-bill leakage: Bread (bill1, which Dana did NOT claim) shows
   // Eli, not her; Tickets (bill2, which she DID claim) shows her.
-  await danaPage.goto(`/#/join/${code}/bills/${bill1.id}/step/3`);
+  await danaPage.goto(`/#/join/${code}/bills/${bill1.id}/step/2`);
   const danaBreadRow = danaPage.locator('li', { hasText: 'Bread' });
   await expect(danaBreadRow).toContainText('Claimed by Eli', { timeout: 10000 });
   await expect(danaBreadRow).not.toContainText('Claimed by Dana');
 
-  await danaPage.goto(`/#/join/${code}/bills/${bill2.id}/step/3`);
+  await danaPage.goto(`/#/join/${code}/bills/${bill2.id}/step/2`);
   await expect(danaTicketsRow).toContainText('Claimed by Dana', { timeout: 10000 });
   await expect(danaTicketsRow).not.toContainText('Claimed by Eli');
 

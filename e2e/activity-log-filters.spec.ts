@@ -25,7 +25,7 @@ test('activity log filters entries by person and action', async ({ page, context
   await joinerPage.getByPlaceholder('Enter your name').fill('Pat');
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in!")).toBeVisible();
-  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/2`);
   await joinerPage.getByRole('button', { name: 'Claim', exact: true }).click();
   await expect(joinerPage.getByText('Claimed by Pat')).toBeVisible({ timeout: 10000 });
 

@@ -22,13 +22,13 @@ test.describe('Sessions list', () => {
     await page.getByRole('button', { name: 'New Session' }).click();
     const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
 
-    // Add a bill with a person so the export isn't empty (people live on the
-    // shared session pool, but are only editable from within a bill).
-    await page.getByRole('button', { name: 'Add Bill' }).click();
-    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
+    // Add a person and a bill so the export isn't empty (people live on the
+    // shared, session-scoped pool, added from this session home page).
     await page.getByPlaceholder('Enter name').fill('Alice');
     await page.getByPlaceholder('Enter name').press('Enter');
     await expect(page.getByText('Alice')).toBeVisible();
+    await page.getByRole('button', { name: 'Add Bill' }).click();
+    await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
 
     await page.goto('/#/sessions');
     await expect(page.getByText('1 bill · 1 people')).toBeVisible();

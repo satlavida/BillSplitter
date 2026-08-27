@@ -1,9 +1,10 @@
 import { test, expect, type Page, type BrowserContext, type APIRequestContext } from '@playwright/test';
 
-// Covers req 4: a joiner gets the same step-wise wizard shape as the
-// creator (People/Items/Assign/Summary, real routes — mirroring Phase 5's
-// BillEditorPage), reached by clicking a bill from JoinerSessionView's bill
-// list rather than the old single continuous inline view.
+// A joiner gets the same step-wise wizard shape as the creator
+// (Items/Assign/Summary, real routes — mirroring BillEditorPage), reached by
+// clicking a bill from JoinerSessionView's bill list rather than the old
+// single continuous inline view. People are session-scoped and shown on the
+// session view, not as a wizard step.
 
 const LIVE_SERVER_URL = 'http://localhost:8080';
 
@@ -41,17 +42,13 @@ test('clicking a bill from the joiner session view opens its step wizard', async
   await joinerPage.getByText('Road Trip Gas').click();
   await joinerPage.waitForURL(new RegExp(`#/join/${code}/bills/${bill.id}/step/1$`));
 
-  // Step 1: People.
-  await expect(joinerPage.getByRole('heading', { name: "Who's splitting this bill?" })).toBeVisible();
-  await expect(joinerPage.getByText('Nate')).toBeVisible();
-
-  // Step indicator navigates like the creator's (req 4/14).
-  await joinerPage.getByRole('button', { name: 'Go to step 2: Items' }).click();
-  await joinerPage.waitForURL(new RegExp(`\\/step\\/2$`));
+  // Step 1: Items.
+  await expect(joinerPage.getByRole('heading', { name: 'What items are you splitting?' })).toBeVisible();
   await expect(joinerPage.getByText('Fuel')).toBeVisible();
 
-  await joinerPage.getByRole('button', { name: 'Go to step 4: Summary' }).click();
-  await joinerPage.waitForURL(new RegExp(`\\/step\\/4$`));
+  // Step indicator navigates like the creator's.
+  await joinerPage.getByRole('button', { name: 'Go to step 3: Summary' }).click();
+  await joinerPage.waitForURL(new RegExp(`\\/step\\/3$`));
   await expect(joinerPage.getByRole('heading', { name: 'Bill Summary' })).toBeVisible();
   await expect(joinerPage.getByText(/Total: USD 40\.00/)).toBeVisible();
 

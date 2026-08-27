@@ -10,14 +10,12 @@ test('creator settles a live session and a joiner sees it reflected live', async
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
 
-  await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(/#\/session\/[^/]+\/bill\/[^/]+\/step\/1$/);
   await page.getByPlaceholder('Enter name').fill('Kim');
   await page.getByPlaceholder('Enter name').press('Enter');
   await page.getByPlaceholder('Enter name').fill('Lee');
   await page.getByPlaceholder('Enter name').press('Enter');
-  await page.getByRole('link', { name: '← Back to Session' }).click();
-  await page.waitForURL(/#\/session\/[^/]+$/);
+  await expect(page.getByText('Kim')).toBeVisible();
+  await expect(page.getByText('Lee')).toBeVisible();
 
   await page.getByRole('button', { name: 'Go Live' }).click();
   await page.locator('select').first().selectOption({ label: 'Open link (anyone with the link joins instantly)' });
@@ -67,7 +65,7 @@ test('creator settles a live session and a joiner sees it reflected live', async
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText('The host has settled this session — items are read-only now.')).toBeVisible({ timeout: 10000 });
 
-  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/2`);
   await expect(joinerPage.getByText('This session has been settled — items are read-only.')).toBeVisible({ timeout: 10000 });
   await expect(joinerPage.getByRole('button', { name: 'Claim', exact: true }).first()).toBeDisabled();
 

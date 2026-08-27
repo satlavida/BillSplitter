@@ -26,17 +26,17 @@ test('creator rapidly toggling multiple people fans out several SSE events, and 
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
   const billId = page.url().match(/\/bill\/([^/]+)\/step\/1$/)![1];
-  await page.getByRole('button', { name: 'Go to step 2: Items' }).click();
+  await page.getByRole('button', { name: 'Go to step 1: Items' }).click();
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza');
   await page.getByPlaceholder('0.00').first().fill('30');
   await page.getByRole('button', { name: 'Add Item' }).click();
-  await page.getByRole('button', { name: 'Go to step 3: Assign' }).click();
+  await page.getByRole('button', { name: 'Go to step 2: Assign' }).click();
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
 
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });
 
   const dan = await joinAsNewPerson(browser, code, 'Dan');
-  await dan.page.goto(`/#/join/${code}/bills/${billId}/step/3`);
+  await dan.page.goto(`/#/join/${code}/bills/${billId}/step/2`);
   await expect(dan.page.getByText('Pizza', { exact: true })).toBeVisible({ timeout: 10000 });
   const danPizzaRow = dan.page.locator('li', { hasText: 'Pizza' });
 

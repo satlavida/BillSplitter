@@ -8,12 +8,12 @@ test('settlement page lists bills with their totals', async ({ page }) => {
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
 
-  await page.getByRole('button', { name: 'Add Bill' }).click();
-  await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
   await page.getByPlaceholder('Enter name').fill('Alice');
   await page.getByPlaceholder('Enter name').press('Enter');
-  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByText('Alice')).toBeVisible();
 
+  await page.getByRole('button', { name: 'Add Bill' }).click();
+  await page.waitForURL(/\/bill\/[^/]+\/step\/1$/);
   await page.getByPlaceholder('e.g., Pizza').fill('Pizza');
   await page.getByPlaceholder('0.00').first().fill('20');
   await page.getByRole('button', { name: 'Add Item' }).click();

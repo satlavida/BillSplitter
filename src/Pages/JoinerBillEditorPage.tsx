@@ -10,19 +10,20 @@ import { Alert, Card } from '../ui/components';
 import type { LiveSession } from '../schemas/live.schema';
 
 const STEPS = [
-  { number: 1, title: 'People' },
-  { number: 2, title: 'Items' },
-  { number: 3, title: 'Assign' },
-  { number: 4, title: 'Summary' },
+  { number: 1, title: 'Items' },
+  { number: 2, title: 'Assign' },
+  { number: 3, title: 'Summary' },
 ];
 
-// Req 4: a joiner-facing mirror of BillEditorPage.tsx's step-wise wizard
-// (same 4 steps: People/Items/Assign/Summary, same /step/:n route shape —
-// see App.tsx), reusing the existing joiner components (JoinerItemRow,
-// AddItemForm) rather than the creator's billStore-backed step components,
-// since those are hard-wired to local scratch-editor state a joiner's
-// remote/live data doesn't fit. Read-only when the session's permissionMode
-// is read_only or it's been settled — same gate JoinerSessionView applies.
+// A joiner-facing mirror of BillEditorPage.tsx's step-wise wizard (same 3
+// steps: Items/Assign/Summary, same /step/:n route shape — see App.tsx),
+// reusing the existing joiner components (JoinerItemRow, AddItemForm) rather
+// than the creator's billStore-backed step components, since those are
+// hard-wired to local scratch-editor state a joiner's remote/live data
+// doesn't fit. People are session-scoped and shown in the session-level
+// people list, not in this per-bill wizard. Read-only when the session's
+// permissionMode is read_only or it's been settled — same gate
+// JoinerSessionView applies.
 const JoinerBillEditorPage = () => {
   const { code, billId, step: stepParam } = useParams<{ code: string; billId: string; step: string }>();
   const navigate = useNavigate();
@@ -136,24 +137,6 @@ const JoinerBillEditorPage = () => {
       case 1:
         return (
           <Card>
-            <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who's splitting this bill?</h2>
-            {session.people.length === 0 ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No one's been added yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {session.people.map((p) => (
-                  <li key={p.id} className="p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 text-zinc-800 dark:text-white">
-                    {p.name}
-                    {p.id === myPersonId && <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">(you)</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        );
-      case 2:
-        return (
-          <Card>
             <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
             {bill.items.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">No items yet.</p>
@@ -172,7 +155,7 @@ const JoinerBillEditorPage = () => {
             <AddItemForm code={code} billId={billId} joinerToken={joinerToken} disabled={readOnly} onAdded={refreshRef.current} />
           </Card>
         );
-      case 3:
+      case 2:
         return (
           <Card>
             <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Claim what's yours</h2>
@@ -198,7 +181,7 @@ const JoinerBillEditorPage = () => {
             )}
           </Card>
         );
-      case 4:
+      case 3:
         return (
           <Card>
             <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>

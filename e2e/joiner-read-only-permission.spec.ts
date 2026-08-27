@@ -37,12 +37,12 @@ test('read-only session: joiner sees items but cannot add or claim', async ({
   await expect(joinerPage.getByText("You're in! You can view the host's changes here.")).toBeVisible();
 
   // Step 2: Items — visible, but the add-item form's own button is disabled.
-  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/2`);
+  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/1`);
   await expect(joinerPage.getByText('Pizza')).toBeVisible({ timeout: 10000 });
   await expect(joinerPage.getByRole('button', { name: '+ Add item' })).toBeDisabled();
 
   // Step 3: Assign — the claim control is disabled too.
-  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/3`);
+  await joinerPage.goto(`/#/join/${code}/bills/${bill.id}/step/2`);
   await expect(joinerPage.getByRole('button', { name: 'Claim', exact: true })).toBeDisabled();
 
   await joinerPage.close();
