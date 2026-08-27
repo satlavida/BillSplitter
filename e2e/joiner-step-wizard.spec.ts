@@ -52,5 +52,8 @@ test('clicking a bill from the joiner session view opens its step wizard', async
   await expect(joinerPage.getByRole('heading', { name: 'Bill Summary' })).toBeVisible();
   await expect(joinerPage.getByText(/Total: USD 40\.00/)).toBeVisible();
 
+  // Items-claimed progress bar: Fuel hasn't been claimed by anyone yet.
+  await expect(joinerPage.getByText('0/1 claimed')).toBeVisible();
+
   await joinerPage.close();
 });

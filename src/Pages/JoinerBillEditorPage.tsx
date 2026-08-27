@@ -6,7 +6,7 @@ import { connectLiveSync } from '../lib/liveSync';
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat';
 import JoinerItemRow from '../Components/joiner/JoinerItemRow';
 import AddItemForm from '../Components/joiner/AddItemForm';
-import { Alert, Card } from '../ui/components';
+import { Alert, Card, ProgressBar } from '../ui/components';
 import type { LiveSession } from '../schemas/live.schema';
 
 const STEPS = [
@@ -181,30 +181,38 @@ const JoinerBillEditorPage = () => {
             )}
           </Card>
         );
-      case 3:
+      case 3: {
+        const claimedCount = bill.items.filter((item) => item.consumedBy.length > 0).length;
+        const totalItems = bill.items.length;
         return (
           <Card>
             <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">
+            {totalItems > 0 && (
+              <div className="mb-3">
+                <ProgressBar value={(claimedCount / totalItems) * 100} label={`${claimedCount}/${totalItems} claimed`} />
+              </div>
+            )}
+            <p className="text-base text-zinc-500 dark:text-zinc-400 mb-3">
               Paid by {bill.paidByPersonId ? nameFor(bill.paidByPersonId) : 'no one yet'}
             </p>
-            <ul className="space-y-1 mb-3">
+            <ul className="space-y-2 mb-3">
               {bill.items.map((item) => (
-                <li key={item.id} className="text-sm text-zinc-700 dark:text-zinc-300">
+                <li key={item.id} className="text-base text-zinc-700 dark:text-zinc-300">
                   {item.name} — {bill.currency} {discountedPrice(item).toFixed(2)}
                   {item.consumedBy.length > 0 && (
-                    <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                    <span className="block text-sm text-zinc-500 dark:text-zinc-400">
                       Claimed by {item.consumedBy.map((c) => nameFor(c.personId)).join(', ')}
                     </span>
                   )}
                 </li>
               ))}
             </ul>
-            <p className="text-sm font-medium text-zinc-800 dark:text-white">
+            <p className="text-base font-medium text-zinc-800 dark:text-white">
               Total: {bill.currency} {billTotal.toFixed(2)}
             </p>
           </Card>
         );
+      }
       default:
         return null;
     }
