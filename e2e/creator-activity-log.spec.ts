@@ -49,9 +49,10 @@ test('the creator sees a joiner claim and unclaim in the activity log', async ({
   await expect(page.getByRole('heading', { name: 'Activity Log' })).toBeVisible();
 
   // Scoped to the activity log's own list — the same line can also appear
-  // as a toast notification (LiveSessionPanel.tsx's toastLatestActivity),
-  // which would otherwise make this a strict-mode ambiguous match.
-  const logList = page.getByRole('list');
+  // as a toast notification (LiveSessionPanel.tsx's toastLatestActivity) and
+  // in the desktop right panel's ActivityFeedMini, which would otherwise
+  // make this a strict-mode ambiguous match.
+  const logList = page.getByTestId('activity-log-list');
   await expect(logList.getByText('Dana claimed 1 part of Chips')).toBeVisible({ timeout: 10000 });
   await expect(logList.getByText('Dana unclaimed 1 part of Chips')).toBeVisible({ timeout: 10000 });
 

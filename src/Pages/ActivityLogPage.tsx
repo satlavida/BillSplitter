@@ -116,7 +116,7 @@ const ActivityLogPage = () => {
         ) : filteredEntries.length === 0 ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">No activity matches these filters.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-2" data-testid="activity-log-list">
             {filteredEntries.map((entry) => {
               const line = formatActivityLine(entry);
               return (

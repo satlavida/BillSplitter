@@ -68,7 +68,7 @@ const CreatorBadge = () => (
   </span>
 );
 
-const PresenceDot = ({ status }: { status: PresenceStatus }) => {
+export const PresenceDot = ({ status }: { status: PresenceStatus }) => {
   if (!status) return null;
   return (
     <span
@@ -143,7 +143,7 @@ export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presence
   if (people.length === 0) return emptyState ?? null;
 
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2" data-testid="people-list">
       {people.map((person) => (
         <PersonListItem
           key={person.id}

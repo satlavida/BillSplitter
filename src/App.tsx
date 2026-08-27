@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation, 
 import { ThemeProvider } from './ThemeContext';
 import ThemeSwitcher from './Components/ThemeSwitcher';
 import { Sidebar, HamburgerButton } from './Components/Sidebar';
+import { RightPanel } from './Components/RightPanel';
 import { Spinner } from './ui/components';
 import useSessionStore from './sessionStore';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -55,6 +56,7 @@ const Header = memo(({ toggleSidebar, isSidebarOpen }: HeaderProps) => {
 const AppShell = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
+  const hasLiveSession = useSessionStore((s) => Boolean(s.sessions.find((sess) => sess.id === s.currentSessionId)?.isLive));
   const navigate = useNavigate();
   const location = useLocation();
   const activeItemId = location.pathname.startsWith('/settings') ? 'settings' : location.pathname.startsWith('/sessions') ? 'sessions' : null;
@@ -114,7 +116,9 @@ const AppShell = () => {
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-900 transition-colors duration-200">
       <Sidebar isOpen={isSidebarOpen} onToggle={toggleSidebar} items={sidebarItems} activeItemId={activeItemId} onItemClick={handleSidebarItemClick} />
 
-      <div className={`min-h-screen transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'ml-0 md:ml-16'}`}>
+      <div
+        className={`min-h-screen transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'ml-0 md:ml-16'} ${hasLiveSession ? 'lg:mr-72' : ''}`}
+      >
         <div className="py-8 px-4">
           <div className="max-w-lg mx-auto bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg ring-1 ring-zinc-200/50 dark:ring-zinc-700/50 transition-colors duration-200">
             <Header toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
@@ -122,6 +126,8 @@ const AppShell = () => {
           </div>
         </div>
       </div>
+
+      <RightPanel className="hidden lg:block fixed top-0 right-0 h-full w-72 overflow-y-auto p-4 border-l border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 transition-colors" />
     </div>
   );
 };

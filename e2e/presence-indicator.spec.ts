@@ -24,8 +24,11 @@ test('creator sees a joiner go online, then offline once their tab closes', asyn
   await joinerPage.getByRole('button', { name: 'Join' }).click();
   await expect(joinerPage.getByText("You're in!")).toBeVisible();
 
-  // Creator's PeopleSection picks up the online dot for Leo.
-  const leoRow = page.locator('li', { hasText: 'Leo' });
+  // Creator's PeopleSection picks up the online dot for Leo. Scoped to
+  // PeopleSection's own list (data-testid="people-list") — the desktop
+  // right panel (RightPanel.tsx) shows a read-only copy of the same
+  // name+dot, which would otherwise make a bare `li` lookup ambiguous.
+  const leoRow = page.getByTestId('people-list').locator('li', { hasText: 'Leo' });
   await expect(leoRow.locator('[aria-label="Online"]')).toBeVisible({ timeout: 10000 });
 
   // Once the joiner's tab (and its heartbeat loop) is gone, the dot flips to

@@ -23,7 +23,9 @@ interface PeopleSectionProps {
 const PRESENCE_POLL_MS = 1500;
 const JOINERS_POLL_MULTIPLE = 4; // ~6s between listJoiners calls
 
-function usePeoplePresence(liveCode: string | null, creatorToken: string | null) {
+// Exported for reuse by RightPanel.tsx's read-only people summary
+// (desktop/tablet two-column layout — see app-shell-navigation.md).
+export function usePeoplePresence(liveCode: string | null, creatorToken: string | null) {
   const [linkedPersonIds, setLinkedPersonIds] = useState<Set<string>>(new Set());
   const [onlinePersonIds, setOnlinePersonIds] = useState<Set<string>>(new Set());
   const [activeSinceMs, setActiveSinceMs] = useState<Record<string, number>>({});
