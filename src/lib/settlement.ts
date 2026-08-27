@@ -22,26 +22,26 @@ const EPSILON = 1e-6;
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
- * Computes each person's net balance across every bill in a session.
+ * Computes each person's net balance for a single bill.
  *
- * For each bill, the payer (bill.paidByPersonId) is owed everyone else's
- * share and owes nothing extra for their own share (they already paid it).
- * Everyone else owes their share to the payer. A bill with no payer
- * (paidByPersonId: null) contributes nothing to any balance — deliberate:
- * there's no payer to attribute a settlement claim to.
+ * The payer (bill.paidByPersonId) is owed everyone else's share and owes
+ * nothing extra for their own share (they already paid it). Everyone else
+ * owes their share to the payer. A bill with no payer (paidByPersonId:
+ * null) contributes nothing to any balance — deliberate: there's no payer
+ * to attribute a settlement claim to (every balance comes back 0).
  *
- * Invariant: sum(balances) is always 0 (money owed always nets to money owed
- * back), verified explicitly in settlement.test.ts.
+ * Kept at full float precision (not rounded to cents here) so the zero-sum
+ * invariant holds exactly when balances are later summed across bills;
+ * rounding happens only where amounts are actually settled/displayed (see
+ * simplifyDebts).
  */
-export const calculateBalances = (bills: Bill[], people: Person[]): Balance[] => {
+export const calculateBillBalances = (bill: Bill, people: Person[]): Balance[] => {
   const balances: Record<string, number> = {};
   people.forEach((p) => {
     balances[p.id] = 0;
   });
 
-  bills.forEach((bill) => {
-    if (!bill.paidByPersonId) return;
-
+  if (bill.paidByPersonId) {
     const personTotals = calculatePersonTotals(people, bill.items, bill.taxAmount);
     const billTotal = personTotals.reduce((sum, p) => sum + p.total, 0);
 
@@ -54,12 +54,34 @@ export const calculateBalances = (bills: Bill[], people: Person[]): Balance[] =>
         balances[personTotal.id] -= personTotal.total;
       }
     });
+  }
+
+  return Object.entries(balances).map(([personId, amount]) => ({
+    personId,
+    amount,
+  }));
+};
+
+/**
+ * Computes each person's net balance across every bill in a session, by
+ * summing calculateBillBalances over each bill.
+ *
+ * Invariant: sum(balances) is always 0 (money owed always nets to money owed
+ * back), verified explicitly in settlement.test.ts.
+ */
+export const calculateBalances = (bills: Bill[], people: Person[]): Balance[] => {
+  const totals: Record<string, number> = {};
+  people.forEach((p) => {
+    totals[p.id] = 0;
   });
 
-  // Kept at full float precision (not rounded to cents here) so the
-  // zero-sum invariant holds exactly; rounding happens only where amounts
-  // are actually settled/displayed (see simplifyDebts).
-  return Object.entries(balances).map(([personId, amount]) => ({
+  bills.forEach((bill) => {
+    calculateBillBalances(bill, people).forEach(({ personId, amount }) => {
+      totals[personId] += amount;
+    });
+  });
+
+  return Object.entries(totals).map(([personId, amount]) => ({
     personId,
     amount,
   }));

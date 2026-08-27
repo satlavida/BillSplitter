@@ -1,4 +1,4 @@
-import { calculateBalances, simplifyDebts, calculateSettlement } from './settlement';
+import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettlement } from './settlement';
 import type { Bill } from '../schemas/session.schema';
 import type { Person } from '../schemas/bill.schema';
 
@@ -147,6 +147,52 @@ describe('calculateBalances', () => {
 
     const balances = calculateBalances(bills, people);
     expect(sumBalances(balances)).toBeCloseTo(0, 2);
+  });
+});
+
+describe('calculateBillBalances', () => {
+  test('single bill: matches the whole-session result calculateBalances produces for just that bill', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const carol = person('carol', 'Carol');
+    const people = [alice, bob, carol];
+    const bill = makeBill('b1', 90, ['alice', 'bob', 'carol'], 'alice');
+
+    const billBalances = calculateBillBalances(bill, people);
+    const sessionBalances = calculateBalances([bill], people);
+
+    expect(billBalances).toEqual(sessionBalances);
+  });
+
+  test('a bill with no payer contributes a zero balance for everyone', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+    const bill = makeBill('b1', 100, ['alice', 'bob'], null);
+
+    const balances = calculateBillBalances(bill, people);
+    balances.forEach((b) => expect(b.amount).toBe(0));
+  });
+
+  test('summing calculateBillBalances over every bill equals calculateBalances for the whole session', () => {
+    const people = ['a', 'b', 'c', 'd'].map((id) => person(id, id));
+    const bills = [
+      makeBill('b1', 37.5, ['a', 'b', 'c'], 'a'),
+      makeBill('b2', 123.45, ['b', 'c', 'd'], 'c'),
+      makeBill('b3', 10, ['a', 'd'], 'd'),
+      makeBill('b4', 99.99, ['a', 'b', 'c', 'd'], 'b'),
+    ];
+
+    const summed: Record<string, number> = {};
+    people.forEach((p) => (summed[p.id] = 0));
+    bills.forEach((bill) => {
+      calculateBillBalances(bill, people).forEach(({ personId, amount }) => {
+        summed[personId] += amount;
+      });
+    });
+
+    const sessionBalances = calculateBalances(bills, people);
+    sessionBalances.forEach((b) => expect(summed[b.personId]).toBeCloseTo(b.amount, 6));
   });
 });
 
