@@ -43,6 +43,9 @@ upload modal closes immediately and progress surfaces elsewhere in the UI.
   still returns `200 OK` with `{"raw_response": "...", "error": "..."}`
   rather than an HTTP error — callers must check for that shape, not just
   `response.ok`.
+- `analysisPrompt` also asks the model for best-effort `restaurant_name`/
+  `date` fields (omitted entirely, not guessed, if illegible) —
+  `ReceiptScanResponseSchema` accepts them as optional.
 - Scan is disabled server-side if `OPENROUTER_API_KEY` is unset (see
   [infrastructure.md](infrastructure.md)).
 - `VITE_LIVE_SERVER_URL` (frontend env var) must point at wherever `server/`

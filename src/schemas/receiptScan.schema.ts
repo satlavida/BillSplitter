@@ -43,5 +43,10 @@ export const ReceiptScanResponseSchema = z.object({
     .union([z.number(), z.string()])
     .optional()
     .transform((v) => (v === undefined ? undefined : Number(v) || 0)),
+  // Best-effort merchant/date extraction (server/internal/api/scan_handlers.go's
+  // analysisPrompt) — the model omits these entirely when it can't read
+  // them, so both stay optional rather than defaulting to a placeholder.
+  restaurant_name: z.string().optional(),
+  date: z.string().optional(),
 });
 export type ReceiptScanResponse = z.infer<typeof ReceiptScanResponseSchema>;

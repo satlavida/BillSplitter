@@ -63,4 +63,20 @@ describe('ReceiptScanResponseSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test('parses restaurant_name and date when the model provides them', () => {
+    const parsed = ReceiptScanResponseSchema.parse({
+      items: [],
+      restaurant_name: 'Pizza Hut',
+      date: '2025-03-20',
+    });
+    expect(parsed.restaurant_name).toBe('Pizza Hut');
+    expect(parsed.date).toBe('2025-03-20');
+  });
+
+  test('restaurant_name and date are optional', () => {
+    const parsed = ReceiptScanResponseSchema.parse({ items: [] });
+    expect(parsed.restaurant_name).toBeUndefined();
+    expect(parsed.date).toBeUndefined();
+  });
 });

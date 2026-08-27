@@ -20,6 +20,11 @@ You are given an image of a restaurant bill that includes food and drink items.
 
 Instructions:
 
+Restaurant/Shop Name and Date:
+If the bill shows a restaurant, shop, or merchant name, extract it under restaurant_name.
+If the bill shows a date, extract it under date as YYYY-MM-DD if the format is unambiguous, otherwise as it appears on the bill.
+If either is not present or not legible, omit the field entirely rather than guessing.
+
 Extract all ordered items under the items array.
 For each item:
 
@@ -66,6 +71,8 @@ Validation:
 Output format:
 
 {
+  "restaurant_name": "Restaurant Name",
+  "date": "2025-03-20",
   "items": [
     {
       "name": "Item Name",
