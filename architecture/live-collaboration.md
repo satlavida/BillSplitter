@@ -16,7 +16,7 @@ claim/unclaim history.
 
 **Joiner side** — `src/Components/joiner/`
 - `JoinerSessionView.tsx` — top-level joiner shell; presence heartbeat, settlement fetch. Used by `Pages/JoinPage.tsx`.
-- `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`.
+- `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`; each bill's receipt thumbnail (`bill.imageRefKey`, served from `GET /api/images/{refKey}`) opens full-size in `ImageLightbox` on click, without following the card's link.
 - `JoinerItemRow.tsx` — claim/unclaim a live item.
 - `ClaimQuantityModal.tsx` — quantity picker for claiming.
 - `AddItemForm.tsx` — joiner adds a new item to a live bill.

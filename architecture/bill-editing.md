@@ -19,6 +19,7 @@ non-persisted scratch store hydrated from the session on entry.
 - `src/Components/PercentageSplitInput.tsx`, `src/Components/FractionalSplitInput.tsx` — split-type input widgets.
 - `src/Components/BillTotalsSummary.tsx` — subtotal/tax/total display (shared with Summary step).
 - `src/Components/EditableTitle.tsx` — inline-editable bill/session title.
+- `src/Components/ImageLightbox.tsx` — click-to-view full-size image modal (built on `Modal`), used by `ReceiptImagePreview` in `BillSummary.tsx` and by `JoinerBillList.tsx` ([live-collaboration.md](live-collaboration.md)).
 - `src/Components/PeopleListShared.tsx` — presentational `PersonInputForm`/`PeopleList`, shared with session-level people UI.
 - `src/billStore.ts` — non-persisted scratch editor for the currently-open bill. Not the source of truth; writes from outside `BillEditorPage` must go to `sessionStore` (see root `CLAUDE.md`).
 - `src/lib/personTotals.ts` — per-person total calculation (discounts, splits).

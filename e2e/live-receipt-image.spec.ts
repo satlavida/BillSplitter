@@ -50,5 +50,11 @@ test('a receipt image uploaded to a live bill is visible to a joiner', async ({ 
   await expect(img).toBeVisible({ timeout: 10000 });
   await expect(img).toHaveAttribute('src', `${LIVE_SERVER_URL}/api/images/${refKey}`);
 
+  // Clicking the thumbnail opens a lightbox instead of following the card's
+  // link into the bill wizard.
+  await img.click();
+  await expect(joinerPage.getByRole('heading', { name: 'Receipt' })).toBeVisible();
+  await expect(joinerPage).toHaveURL(new RegExp(`#/join/${code}$`));
+
   await joinerPage.close();
 });

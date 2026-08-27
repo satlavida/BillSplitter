@@ -7,6 +7,7 @@ import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper, Dropdown } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
+import ImageLightbox from './ImageLightbox';
 import { getImageBlob } from '../lib/imageStore';
 import type { ReceiptImageRef } from '../schemas/session.schema';
 
@@ -41,6 +42,7 @@ interface ReceiptImagePreviewProps {
 // Displays the resized receipt image captured during scanning (stored in IndexedDB).
 const ReceiptImagePreview = memo(({ receiptImage }: ReceiptImagePreviewProps) => {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     let currentUrl: string | null = null;
@@ -60,7 +62,13 @@ const ReceiptImagePreview = memo(({ receiptImage }: ReceiptImagePreviewProps) =>
   return (
     <div>
       <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Receipt</h3>
-      <img src={objectUrl} alt="Scanned receipt" className="max-w-full rounded-md border border-zinc-200 dark:border-zinc-700" />
+      <img
+        src={objectUrl}
+        alt="Scanned receipt"
+        className="max-w-full rounded-md border border-zinc-200 dark:border-zinc-700 cursor-zoom-in"
+        onClick={() => setLightboxOpen(true)}
+      />
+      <ImageLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} src={objectUrl} alt="Scanned receipt" />
     </div>
   );
 });
