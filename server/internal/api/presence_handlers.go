@@ -1,6 +1,9 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 type heartbeatRequest struct {
 	PersonID string `json:"personId"`
@@ -29,8 +32,12 @@ func (a *API) PresenceHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 // presenceResponse's online field is always a real (possibly empty) array,
 // never null, so the frontend doesn't need to special-case JSON null.
+// activeSince maps each online personId to when their current continuous
+// activity streak began (RFC3339) — used by the frontend to gate renaming
+// an active/claimed person (disabled while continuously active < 1hr).
 type presenceResponse struct {
-	Online []string `json:"online"`
+	Online      []string          `json:"online"`
+	ActiveSince map[string]string `json:"activeSince"`
 }
 
 // GetPresence handles GET /api/sessions/{code}/presence — public (no
@@ -43,5 +50,13 @@ func (a *API) GetPresence(w http.ResponseWriter, r *http.Request) {
 	if online == nil {
 		online = []string{}
 	}
-	writeJSON(w, http.StatusOK, presenceResponse{Online: online})
+
+	activeSince := make(map[string]string, len(online))
+	for _, personID := range online {
+		if since, ok := a.presence.ActiveSince(code, personID); ok {
+			activeSince[personID] = since.UTC().Format(time.RFC3339)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, presenceResponse{Online: online, ActiveSince: activeSince})
 }

@@ -39,6 +39,9 @@ func TestPresenceHeartbeatAndGetPresence(t *testing.T) {
 	if !found {
 		t.Fatalf("expected %s online right after joining, got %+v", bobPersonID, presence.Online)
 	}
+	if _, ok := presence.ActiveSince[bobPersonID]; !ok {
+		t.Fatalf("expected activeSince to include %s, got %+v", bobPersonID, presence.ActiveSince)
+	}
 
 	// Heartbeat without a token is rejected.
 	noAuth := postJSON(t, srv, "/api/sessions/"+created.Code+"/presence/heartbeat", map[string]any{"personId": bobPersonID}, nil)
