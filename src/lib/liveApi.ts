@@ -208,9 +208,16 @@ export const sendPresenceHeartbeat = (code: string, personId: string, joinerToke
     { parse: () => undefined }
   );
 
-const PresenceResponseSchema = z.object({ online: z.array(z.string()).default([]) });
+const PresenceResponseSchema = z.object({
+  online: z.array(z.string()).default([]),
+  // Per online personId, when their current continuous-activity streak
+  // began (RFC3339) — server/internal/presence.Tracker.ActiveSince. Used to
+  // gate renaming an active/claimed person (see PeopleSection.tsx).
+  activeSince: z.record(z.string(), z.string()).default({}),
+});
+export type PresenceResponse = z.infer<typeof PresenceResponseSchema>;
 
-export const getPresence = (code: string): Promise<string[]> =>
-  request(`/api/sessions/${code}/presence`, { method: 'GET' }, PresenceResponseSchema).then((r) => r.online);
+export const getPresence = (code: string): Promise<PresenceResponse> =>
+  request(`/api/sessions/${code}/presence`, { method: 'GET' }, PresenceResponseSchema);
 
 export { LiveApiError, LIVE_SERVER_URL };

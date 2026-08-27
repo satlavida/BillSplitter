@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import useSessionStore from '../sessionStore';
 import { getPresence, listJoiners } from '../lib/liveApi';
+import { isNameEditLocked } from '../lib/presenceRules';
 import { Card } from '../ui/components';
 import EditPersonModal from './EditPersonModal';
 import { PersonInputForm, PeopleList, type PresenceStatus } from './PeopleListShared';
@@ -25,11 +26,13 @@ const JOINERS_POLL_MULTIPLE = 4; // ~6s between listJoiners calls
 function usePeoplePresence(liveCode: string | null, creatorToken: string | null) {
   const [linkedPersonIds, setLinkedPersonIds] = useState<Set<string>>(new Set());
   const [onlinePersonIds, setOnlinePersonIds] = useState<Set<string>>(new Set());
+  const [activeSinceMs, setActiveSinceMs] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!liveCode) {
       setLinkedPersonIds(new Set());
       setOnlinePersonIds(new Set());
+      setActiveSinceMs({});
       return;
     }
 
@@ -38,8 +41,12 @@ function usePeoplePresence(liveCode: string | null, creatorToken: string | null)
 
     const tick = () => {
       getPresence(liveCode)
-        .then((online) => {
-          if (!cancelled) setOnlinePersonIds(new Set(online));
+        .then((presence) => {
+          if (cancelled) return;
+          setOnlinePersonIds(new Set(presence.online));
+          setActiveSinceMs(
+            Object.fromEntries(Object.entries(presence.activeSince).map(([personId, iso]) => [personId, new Date(iso).getTime()]))
+          );
         })
         .catch(() => {});
       if (creatorToken && tickCount % JOINERS_POLL_MULTIPLE === 0) {
@@ -68,7 +75,20 @@ function usePeoplePresence(liveCode: string | null, creatorToken: string | null)
     [linkedPersonIds, onlinePersonIds]
   );
 
-  return presenceFor;
+  // Req: creator can't rename a person while they're claimed, online, and
+  // have been continuously active for less than an hour — see
+  // src/lib/presenceRules.ts for the exact rule and its limitations.
+  const nameEditLockedFor = useCallback(
+    (personId: string): boolean =>
+      isNameEditLocked({
+        linked: linkedPersonIds.has(personId),
+        online: onlinePersonIds.has(personId),
+        activeSinceMs: activeSinceMs[personId] ?? null,
+      }),
+    [linkedPersonIds, onlinePersonIds, activeSinceMs]
+  );
+
+  return { presenceFor, nameEditLockedFor };
 }
 
 // Session-level People editor: people are session-scoped data
@@ -83,7 +103,7 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentPerson, setCurrentPerson] = useState<Person | null>(null);
 
-  const presenceFor = usePeoplePresence(session.isLive ? session.liveCode : null, session.liveCreatorToken);
+  const { presenceFor, nameEditLockedFor } = usePeoplePresence(session.isLive ? session.liveCode : null, session.liveCreatorToken);
 
   const handleAddPerson = useCallback(
     (name: string) => {
@@ -99,10 +119,17 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
     [removePerson, session.id]
   );
 
-  const handleEditPerson = useCallback((person: Person) => {
-    setCurrentPerson(person);
-    setEditModalOpen(true);
-  }, []);
+  const handleEditPerson = useCallback(
+    (person: Person) => {
+      // Defense in depth: PersonListItem already disables its own edit
+      // trigger while locked, but guard here too in case this is ever
+      // reached another way.
+      if (nameEditLockedFor(person.id)) return;
+      setCurrentPerson(person);
+      setEditModalOpen(true);
+    },
+    [nameEditLockedFor]
+  );
 
   const handleSavePerson = useCallback(
     (id: string, name: string) => {
@@ -124,6 +151,7 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
         emptyState={<p className="text-sm text-zinc-500 dark:text-zinc-400">No one added yet — add the people splitting this session's bills.</p>}
         presenceFor={presenceFor}
         creatorPersonId={session.creatorPersonId}
+        nameEditLockedFor={nameEditLockedFor}
       />
 
       <EditPersonModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} person={currentPerson} onSave={handleSavePerson} />

@@ -55,6 +55,7 @@ interface PersonListItemProps {
   onEdit: (person: Person) => void;
   presence?: PresenceStatus;
   isCreator?: boolean;
+  nameEditDisabled?: boolean;
 }
 
 // Req 2: badge marking which person is the session's creator/maker —
@@ -78,18 +79,22 @@ const PresenceDot = ({ status }: { status: PresenceStatus }) => {
   );
 };
 
-const PersonListItem = memo(({ person, onRemove, onEdit, presence, isCreator }: PersonListItemProps) => {
+const PersonListItem = memo(({ person, onRemove, onEdit, presence, isCreator, nameEditDisabled }: PersonListItemProps) => {
   const handleRemove = useCallback(() => {
     onRemove(person.id);
   }, [onRemove, person.id]);
 
   const handleEdit = useCallback(() => {
+    if (nameEditDisabled) return;
     onEdit(person);
-  }, [onEdit, person]);
+  }, [onEdit, person, nameEditDisabled]);
 
   return (
     <li className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600 shadow-sm transition-colors">
-      <span className="flex items-center gap-2 dark:text-white cursor-pointer hover:underline" onClick={handleEdit}>
+      <span
+        className={`flex items-center gap-2 dark:text-white ${nameEditDisabled ? '' : 'cursor-pointer hover:underline'}`}
+        onClick={handleEdit}
+      >
         <PresenceDot status={presence} />
         {person.name}
         {isCreator && <CreatorBadge />}
@@ -97,8 +102,10 @@ const PersonListItem = memo(({ person, onRemove, onEdit, presence, isCreator }: 
       <div className="flex items-center space-x-2">
         <button
           onClick={handleEdit}
-          className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors"
-          aria-label={`Edit ${person.name}`}
+          disabled={nameEditDisabled}
+          className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-800 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label={nameEditDisabled ? `${person.name} is active — wait until they've been offline a while to rename them` : `Edit ${person.name}`}
+          title={nameEditDisabled ? "Can't rename an active person" : undefined}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -129,9 +136,10 @@ interface PeopleListProps {
   emptyState?: React.ReactNode;
   presenceFor?: (personId: string) => PresenceStatus;
   creatorPersonId?: string | null;
+  nameEditLockedFor?: (personId: string) => boolean;
 }
 
-export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presenceFor, creatorPersonId }: PeopleListProps) => {
+export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presenceFor, creatorPersonId, nameEditLockedFor }: PeopleListProps) => {
   if (people.length === 0) return emptyState ?? null;
 
   return (
@@ -144,6 +152,7 @@ export const PeopleList = memo(({ people, onRemove, onEdit, emptyState, presence
           onEdit={onEdit}
           presence={presenceFor?.(person.id)}
           isCreator={Boolean(creatorPersonId) && person.id === creatorPersonId}
+          nameEditDisabled={nameEditLockedFor?.(person.id) ?? false}
         />
       ))}
     </ul>

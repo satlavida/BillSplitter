@@ -9,8 +9,8 @@ exported sessions.
 ## Frontend
 - `src/Pages/SessionsListPage.tsx` — route `/sessions`; lists locally-created sessions (`sessionStore`) plus "sessions I've joined" (`joinedSessionsStorage.ts`, reconciled against server status via `POST /api/sessions/status`); supports JSON import via `FileImport`.
 - `src/Pages/SessionHomePage.tsx` — route `/session/:sessionId`; people list, bill cards (with scan status/retry), "Paid by" quick-edit, "Scan New Bill" (creates an empty bill and opens it straight into the scan modal — see [scan-receipt.md](scan-receipt.md)), embeds `GoLiveSection` and `LiveSessionPanel` (see [live-collaboration.md](live-collaboration.md)).
-- `src/Components/PeopleSection.tsx` — session-level people list with live presence.
-- `src/Components/EditPersonModal.tsx` — rename person modal, used from `PeopleSection`.
+- `src/Components/PeopleSection.tsx` — session-level people list with live presence. `usePeoplePresence` also computes a per-person `nameEditLockedFor` (via `src/lib/presenceRules.ts`'s `isNameEditLocked`): the creator can't rename someone while they're claimed, currently online, and have been continuously active for under an hour.
+- `src/Components/EditPersonModal.tsx` — rename person modal, used from `PeopleSection`; `PeopleSection`'s `handleEditPerson` guards against opening it for a locked person as defense in depth (the trigger is already disabled in the list).
 - `src/Components/BillHistory/FileImport.tsx` — JSON file import control.
 - `src/sessionStore.ts` — persisted source of truth (`Session[]`, each with `people`/`bills`), zustand + `persist`. Also owns the live-push helpers — see [live-collaboration.md](live-collaboration.md).
 - `src/schemas/session.schema.ts` — `Session`, `Bill`, `ReceiptImageRef`, session-store state.
