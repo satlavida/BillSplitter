@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/shallow';
 import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
+import EditableTitle from './EditableTitle';
 import BillTotalsSummary from './BillTotalsSummary';
 import type { Item } from '../schemas/bill.schema';
 
@@ -225,8 +226,10 @@ const ItemsInput = () => {
   // Use Zustand store with specialized hooks and useShallow
   const items = useBillItems();
 
-  const { taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = useBillStore(
+  const { title, setTitle, taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = useBillStore(
     useShallow((state) => ({
+      title: state.title,
+      setTitle: state.setTitle,
       taxAmount: state.taxAmount,
       addItem: state.addItem,
       removeItem: state.removeItem,
@@ -283,6 +286,13 @@ const ItemsInput = () => {
     prevStep();
   }, [prevStep]);
 
+  const handleTitleSave = useCallback(
+    (newTitle: string) => {
+      setTitle(newTitle);
+    },
+    [setTitle]
+  );
+
   const handleNext = useCallback(() => {
     if (items.length > 0) {
       setTax(localTaxAmount);
@@ -300,6 +310,7 @@ const ItemsInput = () => {
   return (
     <div>
       <ScanReceiptButton />
+      <EditableTitle title={title} onSave={handleTitleSave} />
       <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
 
       <Card>

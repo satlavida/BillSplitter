@@ -11,7 +11,7 @@ non-persisted scratch store hydrated from the session on entry.
 ## Frontend
 - `src/Pages/BillEditorPage.tsx` — route `/session/:sessionId/bill/:billId/step/:step`; hydrates `billStore` from `sessionStore` on entry, subscribes to commit changes back, drives live-sync polling.
 - `src/Components/StepIndicator.tsx` — step nav header.
-- `src/Components/ItemsInput.tsx` — Step 1, Items; embeds `ScanReceiptButton`, `EditItemModal`, `BillTotalsSummary`.
+- `src/Components/ItemsInput.tsx` — Step 1, Items; embeds `ScanReceiptButton`, `EditableTitle` (bill title, "This bill is for:"), `EditItemModal`, `BillTotalsSummary`.
 - `src/Components/ItemAssignment.tsx` — Step 2, Assign; embeds `SplitTypeDrawer`, `PassAndSplitButton`.
 - `src/Components/BillSummary.tsx` — Step 3, Summary; per-person totals, share text, print.
 - `src/Components/EditItemModal.tsx` — add/edit item modal.
