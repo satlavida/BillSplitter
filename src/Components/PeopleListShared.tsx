@@ -2,9 +2,8 @@ import { useCallback, useRef, memo, type FormEvent } from 'react';
 import { Button } from '../ui/components';
 import type { Person } from '../schemas/bill.schema';
 
-// Presentational people-list pieces shared by the bill wizard's PeopleInput
-// step and the session-level PeopleSection — both bind them to different
-// data sources (billStore's scratch people vs sessionStore's shared people).
+// Presentational people-list pieces used by the session-level PeopleSection,
+// bound to sessionStore's shared people (session.people).
 
 interface PersonInputFormProps {
   onAddPerson: (name: string) => void;

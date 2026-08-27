@@ -71,23 +71,23 @@ describe('billStore - Basic Store Operations', () => {
     act(() => nextStep()); // Use nextStep action [cite: 8]
     expect(useBillStore.getState().step).toBe(2);
     
-    // Jump to step 4
-    act(() => goToStep(4)); // Use goToStep action [cite: 8]
-    expect(useBillStore.getState().step).toBe(4);
-    
+    // Jump to step 3
+    act(() => goToStep(3)); // Use goToStep action [cite: 8]
+    expect(useBillStore.getState().step).toBe(3);
+
     // Navigate backward
     act(() => prevStep()); // Use prevStep action [cite: 8]
-    expect(useBillStore.getState().step).toBe(3);
-    
+    expect(useBillStore.getState().step).toBe(2);
+
     // Test bounds - should not go below 1
     act(() => goToStep(1));
     act(() => prevStep());
     expect(useBillStore.getState().step).toBe(1);
-    
-    // Test bounds - should not go above 4
-    act(() => goToStep(4));
+
+    // Test bounds - should not go above 3
+    act(() => goToStep(3));
     act(() => nextStep());
-    expect(useBillStore.getState().step).toBe(4);
+    expect(useBillStore.getState().step).toBe(3);
   });
 
   test('should set title', () => {

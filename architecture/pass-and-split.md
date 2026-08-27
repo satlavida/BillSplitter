@@ -6,7 +6,7 @@ swipes through the bill's items to claim what they had, instead of one
 person assigning items to everyone from a list.
 
 ## Frontend
-- `src/Components/PassAndSplit/PassAndSplitButton.tsx` — entry button, launched from `ItemAssignment.tsx` (Step 3 of [bill-editing.md](bill-editing.md)).
+- `src/Components/PassAndSplit/PassAndSplitButton.tsx` — entry button, launched from `ItemAssignment.tsx` (Step 2 of [bill-editing.md](bill-editing.md)).
 - `src/Components/PassAndSplit/index.tsx` — activates/wires `PassAndSplitController` to `billStore`.
 - `src/Components/PassAndSplit/PassAndSplitController.tsx` — stage router (person selection → swiping → completion).
 - `src/Components/PassAndSplit/PersonSelection.tsx` — pick who's turn it is.

@@ -11,10 +11,9 @@ const StepIndicator = memo(() => {
   );
 
   const steps = [
-    { number: 1, title: 'People' },
-    { number: 2, title: 'Items' },
-    { number: 3, title: 'Assign' },
-    { number: 4, title: 'Summary' },
+    { number: 1, title: 'Items' },
+    { number: 2, title: 'Assign' },
+    { number: 3, title: 'Summary' },
   ];
 
   const handleStepClick = (stepNumber: number) => {
@@ -49,7 +48,7 @@ const StepIndicator = memo(() => {
         <div className="absolute left-0 right-0 h-1 bg-zinc-200 dark:bg-zinc-700">
           <div
             className="h-1 bg-blue-600 dark:bg-blue-500 transition-all duration-300 ease-in-out"
-            style={{ width: `${((step - 1) * 100) / 3}%` }}
+            style={{ width: `${((step - 1) * 100) / 2}%` }}
           ></div>
         </div>
       </div>

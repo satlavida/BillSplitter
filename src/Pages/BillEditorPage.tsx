@@ -5,7 +5,6 @@ import useBillStore, { useDocumentTitle } from '../billStore';
 import { getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync, createStaleResponseGuard } from '../lib/liveSync';
 import StepIndicator from '../Components/StepIndicator';
-import PeopleInput from '../Components/PeopleInput';
 import ItemsInput from '../Components/ItemsInput';
 import ItemAssignment from '../Components/ItemAssignment';
 import BillSummary from '../Components/BillSummary';
@@ -137,15 +136,13 @@ const BillEditorPage = () => {
   const renderStep = () => {
     switch (step) {
       case 1:
-        return <PeopleInput />;
-      case 2:
         return <ItemsInput />;
-      case 3:
+      case 2:
         return <ItemAssignment />;
-      case 4:
+      case 3:
         return <BillSummary />;
       default:
-        return <PeopleInput />;
+        return <ItemsInput />;
     }
   };
 

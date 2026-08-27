@@ -71,11 +71,10 @@ function usePeoplePresence(liveCode: string | null, creatorToken: string | null)
   return presenceFor;
 }
 
-// Session-level People editor (req 1): people are session-scoped data
+// Session-level People editor: people are session-scoped data
 // (session.people, shared across every bill in the session — see
 // sessionStore.ts), so editing lives here on the session home page rather
-// than inside a single bill's wizard. Reuses the same presentational pieces
-// PeopleInput.tsx uses for the (now read/add-only-during-wizard) step 1.
+// than inside a single bill's wizard (which no longer has a people step).
 const PeopleSection = ({ session }: PeopleSectionProps) => {
   const addPerson = useSessionStore((state) => state.addPerson);
   const removePerson = useSessionStore((state) => state.removePerson);

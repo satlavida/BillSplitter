@@ -130,7 +130,7 @@ const useBillStore = create<BillStore>()((set, get) => ({
       ...initialState,
 
       // Navigation actions
-      nextStep: () => set((state) => ({ step: Math.min(state.step + 1, 4) })),
+      nextStep: () => set((state) => ({ step: Math.min(state.step + 1, 3) })),
       prevStep: () => set((state) => ({ step: Math.max(state.step - 1, 1) })),
       goToStep: (step) => set({ step }),
 
