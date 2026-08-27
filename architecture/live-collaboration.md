@@ -11,7 +11,7 @@ claim/unclaim history.
 ## Frontend
 **Creator side**
 - `src/Components/GoLiveSection.tsx` — seeds the server-side session mirror, shows the join code/link. Used by `SessionHomePage.tsx`.
-- `src/Components/LiveSessionPanel.tsx` — joiners list, approve/disapprove, settle action, SSE connection status. Used by `SessionHomePage.tsx`.
+- `src/Components/LiveSessionPanel.tsx` — joiners list, approve/disapprove, settle action, SSE connection status. Used by `SessionHomePage.tsx`. Also pushes toast notifications (`src/toastStore.ts` + `src/ui/Toast.tsx`) on `joiner.pending`/`joiner.approved`/`joiner.disapproved` (diffs the freshly-refetched joiners list against the previous one) and on `activity.created` (refetches the activity log and toasts the newest entry via `src/lib/activityLine.ts`'s `formatActivityLine`, shared with `ActivityLogPage.tsx`). The `claim.*` SSE kinds `connectLiveSync` still subscribes to are not wired to toasts — they're dead/unemitted server-side since migration `0006_remove_claims.sql`; see Notes.
 - `src/Pages/ActivityLogPage.tsx` — route `/session/:sessionId/activity`; creator-only claim/unclaim audit log, filterable by person/action.
 
 **Joiner side** — `src/Components/joiner/`
@@ -76,6 +76,11 @@ claim/unclaim history.
 - The original claims-approval workflow (`item_claims` table) was removed in
   migration `0006` in favor of free-select claims gated by `permission_mode`
   — if you see references to an approval queue for claims, that's stale.
+  `liveSync.ts`'s frontend event-kind list still subscribes to
+  `claim.pending`/`claim.approved`/`claim.rejected` even though the server
+  never emits them anymore — a cleanup candidate, deliberately left alone
+  here since `LiveSessionPanel.tsx`'s toast wiring only listens for kinds
+  the server actually fires.
 - SSE payloads intentionally carry no state, only `{Kind, ID}` — don't add
   full entities to the payload; keep the refetch-on-event pattern.
 - `middleware/logging.go`'s `statusWriter` forwards `Flush()` specifically so

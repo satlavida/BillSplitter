@@ -75,9 +75,12 @@ for the full feature list and a route → doc index.
   `{refKey, width, height}` reference lives on `Bill.receiptImage`; the
   actual bytes are keyed by `refKey` in IndexedDB.
 - **UI kit**: `src/ui/components.tsx` (`Button`, `Card`, `Modal`,
-  `FileUpload`, `Spinner`, `Alert`, etc.) — reuse these rather than adding
-  new one-off styled elements. There is no toast/notification system;
-  errors are surfaced via local `useState` + `Alert`.
+  `FileUpload`, `Spinner`, `Alert`, `ProgressBar`, etc.) — reuse these rather
+  than adding new one-off styled elements. Most errors are still surfaced
+  via local `useState` + `Alert`; `src/toastStore.ts` + `src/ui/Toast.tsx`'s
+  `ToastContainer` (mounted once in `App.tsx`) is a separate, auto-dismissing
+  notification queue driven by live-session SSE events (see
+  `LiveSessionPanel.tsx`), not a general replacement for `Alert`.
 
 ## Go server (`server/`)
 

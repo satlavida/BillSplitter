@@ -8,6 +8,7 @@ import useSessionStore from './sessionStore';
 import Settings from './Components/Settings';
 import ServiceWorkerPrompt from './Components/Prompts/ServiceWorkerPrompt';
 import OnboardingModal from './Components/Prompts/OnboardingModal';
+import { ToastContainer } from './ui/Toast';
 import SessionsListPage from './Pages/SessionsListPage';
 import SessionHomePage from './Pages/SessionHomePage';
 import BillEditorPage from './Pages/BillEditorPage';
@@ -178,6 +179,7 @@ const App = () => {
       </HashRouter>
       <OnboardingModal />
       <ServiceWorkerPrompt />
+      <ToastContainer />
     </ThemeProvider>
   );
 };

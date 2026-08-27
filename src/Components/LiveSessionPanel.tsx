@@ -1,11 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
-import { getLiveSession, listJoiners, approveJoiner, disapproveJoiner, settleLiveSession, getLiveSettlement, LIVE_SERVER_URL } from '../lib/liveApi';
+import { getLiveSession, listJoiners, approveJoiner, disapproveJoiner, settleLiveSession, getLiveSettlement, getActivityLog, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync, createStaleResponseGuard, type LiveSyncStatus } from '../lib/liveSync';
+import { formatActivityLine } from '../lib/activityLine';
+import useToastStore from '../toastStore';
 import { Button, Card } from '../ui/components';
 import type { Session } from '../schemas/session.schema';
 import type { LiveJoiner, LiveSettlement } from '../schemas/live.schema';
+
+// Diffs a freshly-fetched joiners list against the previous one and pushes
+// a toast for anything a viewer would want to notice without having this
+// panel open: a brand-new joiner (pending approval, or already admitted in
+// open_link mode) or a formerly-pending one getting approved/declined.
+const toastJoinerChanges = (previous: LiveJoiner[], next: LiveJoiner[], pushToast: (message: string, kind?: 'info' | 'success' | 'error') => void) => {
+  const previousById = new Map(previous.map((j) => [j.id, j]));
+  for (const joiner of next) {
+    const before = previousById.get(joiner.id);
+    if (!before) {
+      if (joiner.status === 'approved') pushToast(`${joiner.name} joined`, 'success');
+      else if (joiner.status === 'pending') pushToast(`${joiner.name} wants to join`, 'info');
+      continue;
+    }
+    if (before.status === joiner.status) continue;
+    if (joiner.status === 'approved') pushToast(`${joiner.name} joined`, 'success');
+    else if (joiner.status === 'disapproved') pushToast(`${joiner.name}'s request was declined`, 'info');
+  }
+};
 
 interface LiveSessionPanelProps {
   session: Session;
@@ -31,6 +52,7 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
   const [confirmingSettle, setConfirmingSettle] = useState(false);
   const [settling, setSettling] = useState(false);
   const [settlement, setSettlement] = useState<LiveSettlement | null>(null);
+  const pushToast = useToastStore((s) => s.pushToast);
 
   const code = session.liveCode;
   const creatorToken = session.liveCreatorToken;
@@ -44,6 +66,13 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
   // resolve out of order — this guard keeps only the latest-issued one's
   // result. One instance for the component's lifetime, not per-render.
   const staleGuardRef = useRef(createStaleResponseGuard());
+  // Previous joiners list, for diffing new/changed entries into toasts
+  // (toastJoinerChanges) without waiting for a state update to land.
+  const joinersRef = useRef<LiveJoiner[]>([]);
+  // Newest activity entry id already surfaced as a toast, so the first
+  // fetch after mount (which may already have history) doesn't toast every
+  // pre-existing entry — only genuinely new ones from here on.
+  const lastToastedActivityIdRef = useRef<number | null>(null);
   refreshRef.current = () => {
     if (!code) return;
     staleGuardRef.current(getLiveSession(code), (liveSession) => {
@@ -53,7 +82,11 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
 
     if (creatorToken) {
       listJoiners(code, creatorToken)
-        .then(setJoiners)
+        .then((next) => {
+          toastJoinerChanges(joinersRef.current, next, pushToast);
+          joinersRef.current = next;
+          setJoiners(next);
+        })
         .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load joiners'));
     }
 
@@ -70,16 +103,48 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
       });
   };
 
+  // Refetches the activity log only in response to an activity.created SSE
+  // event (not on every poll/refresh — this is a separate, creator-token-
+  // gated endpoint, not worth hitting on every tick) and toasts the newest
+  // entry, e.g. "Dana claimed 2 parts of Pizza". Ref-wrapped like
+  // refreshRef above, so the effect below doesn't need it in its deps.
+  const toastLatestActivityRef = useRef<() => void>(() => {});
+  toastLatestActivityRef.current = () => {
+    if (!code || !creatorToken) return;
+    getActivityLog(code, creatorToken)
+      .then((entries) => {
+        const newest = entries[0];
+        if (!newest) return;
+        if (lastToastedActivityIdRef.current === null) {
+          // First load after mount — record where we are without toasting
+          // the whole pre-existing history.
+          lastToastedActivityIdRef.current = newest.id;
+          return;
+        }
+        if (newest.id !== lastToastedActivityIdRef.current) {
+          lastToastedActivityIdRef.current = newest.id;
+          pushToast(formatActivityLine(newest));
+        }
+      })
+      .catch(() => {
+        // Best-effort, matching this component's other secondary fetches.
+      });
+  };
+
   useEffect(() => {
     if (!code) return;
 
     const handle = connectLiveSync(code, {
       baseUrl: LIVE_SERVER_URL,
       onStatusChange: setSyncStatus,
-      onEvent: () => refreshRef.current(),
+      onEvent: (event) => {
+        refreshRef.current();
+        if (event.kind === 'activity.created') toastLatestActivityRef.current();
+      },
       onPoll: () => refreshRef.current(),
     });
     refreshRef.current();
+    toastLatestActivityRef.current();
 
     return () => handle.disconnect();
   }, [code, creatorToken, sessionId]);

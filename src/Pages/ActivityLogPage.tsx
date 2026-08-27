@@ -5,6 +5,7 @@ import useSessionStore from '../sessionStore';
 import { getActivityLog, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync } from '../lib/liveSync';
 import { formatRelativeTime } from '../lib/formatRelativeTime';
+import { formatActivityLine } from '../lib/activityLine';
 import { Card, Alert, Dropdown } from '../ui/components';
 import type { LiveActivityEntry } from '../schemas/live.schema';
 
@@ -47,6 +48,10 @@ const ActivityLogPage = () => {
     return () => handle.disconnect();
   }, [code, creatorToken]);
 
+  // Must run before any early return below (Rules of Hooks) — entries is
+  // just [] on those render paths, so the memo is harmless there.
+  const people = useMemo(() => Array.from(new Set(entries.map((e) => e.personName))).sort(), [entries]);
+
   if (!sessionId || !session) {
     return (
       <div>
@@ -71,7 +76,6 @@ const ActivityLogPage = () => {
     );
   }
 
-  const people = useMemo(() => Array.from(new Set(entries.map((e) => e.personName))).sort(), [entries]);
   const filteredEntries = entries.filter(
     (e) => (personFilter === ALL_PEOPLE || e.personName === personFilter) && (actionFilter === ALL_ACTIONS || e.action === actionFilter)
   );
@@ -114,9 +118,7 @@ const ActivityLogPage = () => {
         ) : (
           <ul className="space-y-2">
             {filteredEntries.map((entry) => {
-              const parts = Math.abs(entry.deltaValue);
-              const partWord = `${parts} part${parts === 1 ? '' : 's'}`;
-              const line = `${entry.personName} ${entry.action === 'claim' ? 'claimed' : 'unclaimed'} ${partWord} of ${entry.itemName}`;
+              const line = formatActivityLine(entry);
               return (
                 <li key={entry.id} className="text-sm text-zinc-700 dark:text-zinc-300 transition-colors">
                   <span>{line}</span>
