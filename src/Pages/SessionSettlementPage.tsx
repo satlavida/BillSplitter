@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
-import { calculateSettlement } from '../lib/settlement';
+import { calculateSettlement, calculateBillBalances } from '../lib/settlement';
 import { getDiscountedItemPrice } from '../lib/personTotals';
 import { getImageBlob } from '../lib/imageStore';
 import { useFormatCurrency } from '../currencyStore';
 import { Card, Button, Modal } from '../ui/components';
 import type { Bill } from '../schemas/session.schema';
+import type { Person } from '../schemas/bill.schema';
 
 // Req 16: a compact per-bill list on the settlement page (bill totals
 // computed the same way BillSummary/personTotals.ts do — subtotal after
@@ -39,11 +40,37 @@ const ReceiptModal = ({ refKey, onClose }: { refKey: string; onClose: () => void
   );
 };
 
+interface BillBreakdownProps {
+  bill: Bill;
+  people: Person[];
+  nameFor: (id: string) => string;
+  formatCurrency: (amount: number) => string;
+}
+
+// Per-bill "who owes whom on this bill" line, e.g. "Bob owes Alice 500" /
+// "you're owed 500" — the detailed settlement view's per-bill counterpart
+// to the session-wide "Who pays whom" card above.
+const BillBreakdown = ({ bill, people, nameFor, formatCurrency }: BillBreakdownProps) => {
+  const balances = calculateBillBalances(bill, people).filter((b) => Math.abs(b.amount) > 0.005);
+  if (balances.length === 0) return null;
+
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {balances.map((b) => (
+        <li key={b.personId} className="text-xs text-zinc-500 dark:text-zinc-400">
+          {b.amount > 0 ? `${nameFor(b.personId)} is owed ${formatCurrency(b.amount)}` : `${nameFor(b.personId)} owes ${formatCurrency(-b.amount)}`}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 const SessionSettlementPage = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const session = useSessionStore(useShallow((s) => (sessionId ? s.sessions.find((sess) => sess.id === sessionId) : undefined)));
   const formatCurrency = useFormatCurrency();
   const [viewingReceiptFor, setViewingReceiptFor] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'basic' | 'detailed'>('basic');
 
   if (!sessionId || !session) {
     return (
@@ -66,7 +93,17 @@ const SessionSettlementPage = () => {
           ← Back to Session
         </Link>
       </div>
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Settlement</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Settlement</h2>
+        <div className="flex gap-1 no-print">
+          <Button size="sm" variant={viewMode === 'basic' ? 'primary' : 'secondary'} onClick={() => setViewMode('basic')}>
+            Basic
+          </Button>
+          <Button size="sm" variant={viewMode === 'detailed' ? 'primary' : 'secondary'} onClick={() => setViewMode('detailed')}>
+            Detailed
+          </Button>
+        </div>
+      </div>
 
       <Card>
         <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Balances</h3>
@@ -121,6 +158,14 @@ const SessionSettlementPage = () => {
                 <div>
                   <span className="text-zinc-800 dark:text-white transition-colors">{bill.title}</span>
                   <span className="block text-xs text-zinc-500 dark:text-zinc-400">{new Date(bill.date).toLocaleDateString()}</span>
+                  {viewMode === 'detailed' && (
+                    <>
+                      <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                        Paid by {bill.paidByPersonId ? nameFor(bill.paidByPersonId) : 'no one yet'}
+                      </span>
+                      <BillBreakdown bill={bill} people={session.people} nameFor={nameFor} formatCurrency={formatCurrency} />
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-zinc-700 dark:text-zinc-300">{formatCurrency(billTotal(bill))}</span>
