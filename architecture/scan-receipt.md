@@ -8,7 +8,7 @@ live) so it can be reviewed later. Scanning is async/non-blocking — the
 upload modal closes immediately and progress surfaces elsewhere in the UI.
 
 ## Frontend
-- `src/Components/ScanReceiptButton.tsx` — upload/capture modal; on submit, resizes + stores the image locally, marks the bill `scanStatus: 'processing'`, closes immediately, fires `scanBillReceipt` without awaiting it. Used from `ItemsInput.tsx` ([bill-editing.md](bill-editing.md)).
+- `src/Components/ScanReceiptButton.tsx` — upload/capture modal; on submit, resizes + stores the image locally, marks the bill `scanStatus: 'processing'`, closes immediately, fires `scanBillReceipt` without awaiting it. Used from `ItemsInput.tsx` ([bill-editing.md](bill-editing.md)). Also self-opens on mount if it receives router nav-state `{ autoOpenScan: true }` (immediately replaced with no state, so back/forward doesn't re-trigger it) — used by `SessionHomePage.tsx`'s "Scan New Bill" action, which creates an empty bill then navigates straight into its Items step with the scan modal already open.
 - `src/lib/receiptScan.ts` — `scanBillReceipt(sessionId, billId)`; calls `POST /api/scan`, writes results straight to `sessionStore` (has its own try/catch — safe if the triggering component unmounts mid-flight).
 - `src/lib/imageResize.ts` — resize math + `resizeImageToDataUrl`, used before storing scanned/uploaded images.
 - `src/lib/imageStore.ts` — IndexedDB (`idb` package) storage for receipt image blobs, keyed by `refKey`; only `{refKey, width, height}` lives on `Bill.receiptImage` since images are too large for localStorage.

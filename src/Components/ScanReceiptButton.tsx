@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type FormEvent, type MouseEvent, type RefObject } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
@@ -121,6 +121,8 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef,
 // Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
   const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModeSelectionOpen, setIsModeSelectionOpen] = useState(false);
@@ -165,6 +167,18 @@ const ScanReceiptButton = () => {
   const openModeSelection = () => {
     setIsModeSelectionOpen(true);
   };
+
+  // Session-page "Scan New Bill" (SessionHomePage.tsx's handleScanNewBill)
+  // creates an empty bill, then navigates straight here with this nav-state
+  // flag so the scan modal opens immediately instead of landing on a blank
+  // items step. Cleared via a state-less replace so browser back/forward
+  // through this route doesn't keep re-opening it.
+  useEffect(() => {
+    if (!(location.state as { autoOpenScan?: boolean } | null)?.autoOpenScan) return;
+    openModal();
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const closeModeSelection = () => {
     setIsModeSelectionOpen(false);

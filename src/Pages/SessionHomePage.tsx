@@ -83,6 +83,15 @@ const SessionHomePage = () => {
     if (bill) navigate(`/session/${sessionId}/bill/${bill.id}`);
   };
 
+  // Creates an empty bill then lands directly in its Items step with the
+  // scan modal already open (ScanReceiptButton.tsx's autoOpenScan nav-state
+  // effect), rather than making the user create a bill and then find/click
+  // Scan Receipt themselves.
+  const handleScanNewBill = () => {
+    const bill = addBill(sessionId);
+    if (bill) navigate(`/session/${sessionId}/bill/${bill.id}/step/1`, { state: { autoOpenScan: true } });
+  };
+
   const handleRetryScan = (e: MouseEvent, billId: string) => {
     e.stopPropagation();
     useSessionStore.getState().updateBill(sessionId, billId, { scanStatus: 'processing', scanError: null });
@@ -102,7 +111,10 @@ const SessionHomePage = () => {
 
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Bills</h2>
-        <Button onClick={handleAddBill}>Add Bill</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleScanNewBill}>Scan New Bill</Button>
+          <Button onClick={handleAddBill}>Add Bill</Button>
+        </div>
       </div>
 
       {session.bills.length === 0 ? (
