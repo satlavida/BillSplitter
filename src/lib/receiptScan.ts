@@ -2,6 +2,7 @@ import useSessionStore from '../sessionStore';
 import useBillStore from '../billStore';
 import { getImageBlob } from './imageStore';
 import { ReceiptScanResponseSchema, type ReceiptScanResponse } from '../schemas/receiptScan.schema';
+import { scannedTitle, isUnsetTitle } from './receiptTitle';
 
 // Same base URL as liveApi.ts — receipt scanning is now served by the Go
 // live-collaboration server's POST /api/scan (migrated off the external
@@ -18,6 +19,8 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 };
 
 const applyScanResults = (sessionId: string, billId: string, data: ReceiptScanResponse) => {
+  const title = scannedTitle(data);
+
   // If the scanned bill is the one currently open in the bill-editor's
   // scratch store, write through billStore so the on-screen item list picks
   // up the results immediately (billStore -> sessionStore is a one-way
@@ -26,7 +29,7 @@ const applyScanResults = (sessionId: string, billId: string, data: ReceiptScanRe
   // background while the user was elsewhere, so sessionStore is the only
   // place that needs updating.
   if (useBillStore.getState().billId === billId) {
-    const { addItem, setTax } = useBillStore.getState();
+    const { addItem, setTax, setTitle } = useBillStore.getState();
     data.items.forEach((item) => {
       addItem({
         name: item.name,
@@ -38,6 +41,9 @@ const applyScanResults = (sessionId: string, billId: string, data: ReceiptScanRe
     });
     if (data.tax !== undefined) {
       setTax(data.tax);
+    }
+    if (title && isUnsetTitle(useBillStore.getState().title)) {
+      setTitle(title);
     }
     useSessionStore.getState().updateBill(sessionId, billId, { scanStatus: 'idle', scanError: null });
     return;
@@ -59,6 +65,7 @@ const applyScanResults = (sessionId: string, billId: string, data: ReceiptScanRe
   useSessionStore.getState().updateBill(sessionId, billId, {
     items: [...existingItems, ...newItems],
     taxAmount: data.tax !== undefined ? data.tax : bill?.taxAmount,
+    title: title && isUnsetTitle(bill?.title) ? title : bill?.title,
     scanStatus: 'idle',
     scanError: null,
   });

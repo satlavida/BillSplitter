@@ -45,7 +45,15 @@ upload modal closes immediately and progress surfaces elsewhere in the UI.
   `response.ok`.
 - `analysisPrompt` also asks the model for best-effort `restaurant_name`/
   `date` fields (omitted entirely, not guessed, if illegible) —
-  `ReceiptScanResponseSchema` accepts them as optional.
+  `ReceiptScanResponseSchema` accepts them as optional. `receiptScan.ts`'s
+  `applyScanResults` uses them (via `src/lib/receiptTitle.ts`'s
+  `scannedTitle`/`isUnsetTitle`, split into their own module so they're
+  unit-testable — `receiptScan.ts` itself can't be statically imported into
+  a Jest test at all, since it references `import.meta.env`) to set the
+  bill's title to `"{restaurant_name} - {date}"` (or just the name if no
+  date), but only when the bill's title is still unset (empty, or the
+  schema default `'Untitled Bill'`) — a rescan never clobbers a
+  manually-entered title.
 - Scan is disabled server-side if `OPENROUTER_API_KEY` is unset (see
   [infrastructure.md](infrastructure.md)).
 - `VITE_LIVE_SERVER_URL` (frontend env var) must point at wherever `server/`
