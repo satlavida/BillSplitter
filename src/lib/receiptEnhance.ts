@@ -271,7 +271,7 @@ export interface EnhancedReceiptImage {
   height: number;
 }
 
-const loadImageFile = (file: File): Promise<HTMLImageElement> => {
+export const loadImageFile = (file: File): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
@@ -289,19 +289,36 @@ const loadImageFile = (file: File): Promise<HTMLImageElement> => {
 };
 
 /**
- * Top-level orchestrator: File -> boundary detection -> perspective crop
- * (skipped if no boundary was found) -> grayscale/contrast enhancement ->
- * resize to <=2048px on either dimension -> JPEG data URL. This is the one
- * entry point both the dev test page and (eventually) the real scan flow
- * are meant to call.
+ * Returns a Quad covering the full image (its four corners) — the
+ * starting boundary offered when detectReceiptBoundary finds nothing
+ * confident, so a caller/UI still has something to crop-and-drag-in from.
  */
-export const enhanceReceiptImage = async (file: File): Promise<EnhancedReceiptImage> => {
-  const img = await loadImageFile(file);
-  const boundary = await detectReceiptBoundary(img);
+export const fullImageQuad = (source: HTMLImageElement | HTMLCanvasElement): Quad => {
+  const width = 'naturalWidth' in source ? source.naturalWidth : source.width;
+  const height = 'naturalHeight' in source ? source.naturalHeight : source.height;
+  return {
+    topLeft: { x: 0, y: 0 },
+    topRight: { x: width, y: 0 },
+    bottomRight: { x: width, y: height },
+    bottomLeft: { x: 0, y: height },
+  };
+};
 
+/**
+ * Crop-or-skip -> grayscale/contrast enhancement -> resize to <=2048px on
+ * either dimension -> JPEG data URL, given an already-loaded image and an
+ * explicit quad (or null to skip cropping entirely). Split out from
+ * enhanceReceiptImage so a caller that lets the user manually adjust the
+ * detected boundary (e.g. drag corner handles) can re-run just this part
+ * without redoing file loading/boundary detection.
+ */
+export const enhanceReceiptFromImageAndQuad = async (
+  img: HTMLImageElement,
+  quad: Quad | null
+): Promise<EnhancedReceiptImage> => {
   let canvas: HTMLCanvasElement;
-  if (boundary) {
-    canvas = await cropToQuad(img, boundary);
+  if (quad) {
+    canvas = await cropToQuad(img, quad);
   } else {
     canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth;
@@ -318,8 +335,21 @@ export const enhanceReceiptImage = async (file: File): Promise<EnhancedReceiptIm
 
   return {
     dataUrl: resized.toDataURL('image/jpeg', 0.85),
-    boundary,
+    boundary: quad,
     width: resized.width,
     height: resized.height,
   };
+};
+
+/**
+ * Top-level orchestrator: File -> boundary detection -> perspective crop
+ * (skipped if no boundary was found) -> grayscale/contrast enhancement ->
+ * resize to <=2048px on either dimension -> JPEG data URL. This is the one
+ * entry point both the dev test page and (eventually) the real scan flow
+ * are meant to call for a fully-automatic run (no user-adjusted quad).
+ */
+export const enhanceReceiptImage = async (file: File): Promise<EnhancedReceiptImage> => {
+  const img = await loadImageFile(file);
+  const boundary = await detectReceiptBoundary(img);
+  return enhanceReceiptFromImageAndQuad(img, boundary);
 };

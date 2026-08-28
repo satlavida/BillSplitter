@@ -1,4 +1,4 @@
-import { orderQuadPoints, computeWarpedDimensions, toGrayscaleImageData, stretchContrast, type Point, type Quad } from './receiptEnhance';
+import { orderQuadPoints, computeWarpedDimensions, toGrayscaleImageData, stretchContrast, fullImageQuad, type Point, type Quad } from './receiptEnhance';
 
 // jsdom doesn't implement the ImageData constructor; toGrayscaleImageData
 // and stretchContrast only touch `.data`/`.width`/`.height`, so a plain
@@ -93,6 +93,30 @@ describe('computeWarpedDimensions', () => {
     };
 
     expect(computeWarpedDimensions(quad)).toEqual({ width: 40, height: 40 });
+  });
+});
+
+describe('fullImageQuad', () => {
+  test('returns the four corners of an HTMLImageElement-shaped source', () => {
+    const source = { naturalWidth: 400, naturalHeight: 300 } as HTMLImageElement;
+
+    expect(fullImageQuad(source)).toEqual({
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 400, y: 0 },
+      bottomRight: { x: 400, y: 300 },
+      bottomLeft: { x: 0, y: 300 },
+    });
+  });
+
+  test('returns the four corners of an HTMLCanvasElement-shaped source', () => {
+    const source = { width: 200, height: 150 } as HTMLCanvasElement;
+
+    expect(fullImageQuad(source)).toEqual({
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 200, y: 0 },
+      bottomRight: { x: 200, y: 150 },
+      bottomLeft: { x: 0, y: 150 },
+    });
   });
 });
 
