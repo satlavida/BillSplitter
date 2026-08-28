@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import usePassAndSplitStore from './stores/passAndSplitStore';
 import useBillStore from '../../billStore';
-import useFormatCurrency from '../../currencyStore';
+import { formatAmountInCurrency } from '../../lib/currencyDisplay';
 import ItemCard from './ItemCard';
 import type { Item } from '../../schemas/bill.schema';
 
@@ -9,7 +9,10 @@ import type { Item } from '../../schemas/bill.schema';
 const SWIPE_THRESHOLD = 100; // Minimum px to trigger dismiss
 
 const ItemSwipeStack = () => {
-  const formatCurrency = useFormatCurrency().formatCurrency;
+  // This bill's own currency, not the user's global preference — see
+  // architecture/currency.md.
+  const currency = useBillStore((state) => state.currency);
+  const formatCurrency = (amount: number | null | undefined) => formatAmountInCurrency(amount, currency);
 
   // Get relevant data from stores
   const itemQueue = usePassAndSplitStore((state) => state.itemQueue);

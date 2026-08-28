@@ -36,10 +36,17 @@ type Result struct {
 }
 
 // CalculateBalances computes each person's net balance across every bill in
-// a session. For each bill, the payer is owed everyone else's share; a bill
-// with no payer (PaidByPersonID == nil) contributes nothing to any balance.
+// a session, converted into sessionCurrency. For each bill, the payer is
+// owed everyone else's share; a bill with no payer (PaidByPersonID == nil)
+// contributes nothing to any balance. A bill whose own currency differs from
+// sessionCurrency has its contribution multiplied by its effective rate
+// (bill.ExchangeRate — set by a fetch or a user override, see
+// architecture/currency.md) before being added to any balance; a mismatched
+// bill with no rate yet falls back to 1.0 rather than erroring (shouldn't
+// normally happen once the Bill Settings flow enforces setting a rate, but
+// this must stay defensive since settlement can't fail outright over it).
 // Invariant: sum(balances) is always 0, verified in settlement_test.go.
-func CalculateBalances(bills []models.Bill, people []models.Person) []Balance {
+func CalculateBalances(bills []models.Bill, people []models.Person, sessionCurrency string) []Balance {
 	balances := make(map[string]float64, len(people))
 	order := make([]string, 0, len(people))
 	for _, p := range people {
@@ -53,6 +60,11 @@ func CalculateBalances(bills []models.Bill, people []models.Person) []Balance {
 		}
 		payerID := *bill.PaidByPersonID
 
+		effectiveRate := 1.0
+		if bill.Currency != sessionCurrency && bill.ExchangeRate != nil {
+			effectiveRate = *bill.ExchangeRate
+		}
+
 		personTotals := calculatePersonTotals(people, bill.Items, bill.TaxAmount)
 		var billTotal float64
 		for _, pt := range personTotals {
@@ -64,9 +76,9 @@ func CalculateBalances(bills []models.Bill, people []models.Person) []Balance {
 				continue
 			}
 			if personID == payerID {
-				balances[personID] += billTotal - pt.Total
+				balances[personID] += (billTotal - pt.Total) * effectiveRate
 			} else {
-				balances[personID] -= pt.Total
+				balances[personID] -= pt.Total * effectiveRate
 			}
 		}
 	}
@@ -133,9 +145,9 @@ func SimplifyDebts(balances []Balance) []Transaction {
 }
 
 // CalculateSettlement combines CalculateBalances and SimplifyDebts into the
-// full server-computed settlement for a session.
-func CalculateSettlement(bills []models.Bill, people []models.Person) Result {
-	balances := CalculateBalances(bills, people)
+// full server-computed settlement for a session, in sessionCurrency.
+func CalculateSettlement(bills []models.Bill, people []models.Person, sessionCurrency string) Result {
+	balances := CalculateBalances(bills, people, sessionCurrency)
 	transactions := SimplifyDebts(balances)
 	return Result{Balances: balances, Transactions: transactions}
 }

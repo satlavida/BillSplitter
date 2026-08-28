@@ -21,7 +21,8 @@ non-persisted scratch store hydrated from the session on entry.
 - `src/Components/EditableTitle.tsx` — inline-editable bill/session title.
 - `src/Components/ImageLightbox.tsx` — click-to-view full-size image modal (built on `Modal`), used by `ReceiptImagePreview` in `BillSummary.tsx` and by `JoinerBillList.tsx` ([live-collaboration.md](live-collaboration.md)).
 - `src/Components/PeopleListShared.tsx` — presentational `PersonInputForm`/`PeopleList`, shared with session-level people UI.
-- `src/billStore.ts` — non-persisted scratch editor for the currently-open bill. Not the source of truth; writes from outside `BillEditorPage` must go to `sessionStore` (see root `CLAUDE.md`).
+- `src/billStore.ts` — non-persisted scratch editor for the currently-open bill. Not the source of truth; writes from outside `BillEditorPage` must go to `sessionStore` (see root `CLAUDE.md`). Also holds `currency`/`exchangeRate`/`exchangeRateDate`/`exchangeRateIsOverride`, written by `BillSettingsModal.tsx` (see [currency.md](currency.md)) rather than any wizard step.
+- `src/Components/BillSettingsModal.tsx` — gear icon top-right of `BillEditorPage.tsx`; bill currency + transaction-date + exchange-rate override UI ([currency.md](currency.md)). `ItemsInput`/`ItemAssignment`/`BillSummary` all format amounts via the open bill's own `currency` (`formatAmountInCurrency`, `src/lib/currencyDisplay.ts`), not the global currency preference.
 - `src/lib/personTotals.ts` — per-person total calculation (discounts, splits).
 - `src/lib/splitSummary.ts` — shareable plain-text summary generation.
 - `src/schemas/bill.schema.ts` — `Person`, `Item`, `SplitType`, `DiscountType`.
@@ -36,6 +37,7 @@ routes documented in [live-collaboration.md](live-collaboration.md).
 - [scan-receipt.md](scan-receipt.md) — populates Step 1 items from a photo.
 - [live-collaboration.md](live-collaboration.md) — pushes local edits to the server when the session is live.
 - [settlement.md](settlement.md) — shares `personTotals.ts` logic.
+- [currency.md](currency.md) — per-bill currency/exchange-rate fields, set from this page's gear icon.
 
 ## Notes
 - Print (`BillSummary.tsx`'s Print button): `PrintWrapper` (`src/ui/components.tsx`)

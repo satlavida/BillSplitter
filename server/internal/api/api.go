@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"billsplitter/server/internal/exchangerate"
 	"billsplitter/server/internal/logging"
 	"billsplitter/server/internal/presence"
 	"billsplitter/server/internal/sse"
@@ -30,6 +31,7 @@ type API struct {
 	logRetentionDays     int
 	idleRetentionDays    int
 	settledRetentionDays int
+	exchangeRate         *exchangerate.Client
 
 	// Version is the running build's version string (set in cmd/server/main.go
 	// from a -ldflags-injected value, "dev" otherwise). Exposed via GET
@@ -47,6 +49,7 @@ type Config struct {
 	LogRetentionDays            int
 	IdleSessionRetentionDays    int
 	SettledSessionRetentionDays int
+	ExchangeRateAPIBaseURL      string
 }
 
 func New(st *store.Store, hub *sse.Hub, reporter *logging.Reporter, cfg Config) *API {
@@ -62,6 +65,7 @@ func New(st *store.Store, hub *sse.Hub, reporter *logging.Reporter, cfg Config) 
 		logRetentionDays:     cfg.LogRetentionDays,
 		idleRetentionDays:    cfg.IdleSessionRetentionDays,
 		settledRetentionDays: cfg.SettledSessionRetentionDays,
+		exchangeRate:         exchangerate.New(cfg.ExchangeRateAPIBaseURL),
 	}
 }
 

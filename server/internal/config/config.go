@@ -24,6 +24,12 @@ type Config struct {
 	OpenRouterAPIKey string
 	OpenRouterModel  string
 
+	// ExchangeRateAPIBaseURL overrides the exchange-rate provider's base URL
+	// (empty uses exchangerate.Client's own default, api.frankfurter.dev) —
+	// a testability hook for pointing at a mock server, not something a real
+	// deployment needs to set.
+	ExchangeRateAPIBaseURL string
+
 	// LogDir is where daily log files are written (in addition to stdout).
 	LogDir string
 	// LogRetentionDays controls how long log files and error_events rows
@@ -48,6 +54,7 @@ func Load() Config {
 		CleanupEvery:                getEnvInt("CLEANUP_INTERVAL_MINUTES", 30),
 		OpenRouterAPIKey:            getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:             getEnv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite"),
+		ExchangeRateAPIBaseURL:      getEnv("EXCHANGE_RATE_API_BASE_URL", ""),
 		LogDir:                      getEnv("LOG_DIR", "./data/logs"),
 		LogRetentionDays:            getEnvInt("LOG_RETENTION_DAYS", 30),
 		IdleSessionRetentionDays:    getEnvInt("IDLE_SESSION_RETENTION_DAYS", 14),

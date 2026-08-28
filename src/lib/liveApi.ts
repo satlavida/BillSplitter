@@ -60,13 +60,14 @@ export const createLiveSession = (
   joinMode: 'approval_code' | 'open_link',
   claimMode: 'free_select' | 'claims_require_approval',
   permissionMode?: 'edit' | 'read_only',
-  creatorPersonId?: string | null
+  creatorPersonId?: string | null,
+  currency?: string
 ): Promise<CreateLiveSessionResponse> =>
   request(
     '/api/sessions',
     {
       method: 'POST',
-      body: JSON.stringify({ title, people, joinMode, claimMode, permissionMode, creatorPersonId: creatorPersonId ?? null }),
+      body: JSON.stringify({ title, people, joinMode, claimMode, permissionMode, creatorPersonId: creatorPersonId ?? null, currency }),
     },
     CreateLiveSessionResponseSchema
   );
@@ -111,8 +112,25 @@ export const addLiveItem = (
 export const updateLiveBill = (
   code: string,
   billId: string,
-  bill: { title: string; currency: string; taxAmount: number; paidByPersonId: string | null }
+  bill: {
+    title: string;
+    currency: string;
+    taxAmount: number;
+    paidByPersonId: string | null;
+    exchangeRate: number | null;
+    exchangeRateDate: string | null;
+    exchangeRateIsOverride: boolean;
+  }
 ): Promise<void> => request(`/api/sessions/${code}/bills/${billId}`, { method: 'PATCH', body: JSON.stringify(bill) }, { parse: () => undefined });
+
+// Updates a live session's base currency (creator-only — see
+// api.requireCreator server-side). Session Settings panel writes here.
+export const updateLiveSessionCurrency = (code: string, currency: string, creatorToken: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/currency`,
+    { method: 'PATCH', body: JSON.stringify({ currency }), headers: { 'X-Creator-Token': creatorToken } },
+    { parse: () => undefined }
+  );
 
 export const updateLiveItem = (
   code: string,

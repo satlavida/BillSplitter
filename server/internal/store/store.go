@@ -65,7 +65,7 @@ func now() string {
 // creatorPersonID, if non-nil, must reference one of the ids in people (or be
 // nil if the creator hasn't picked/added their own identity yet). Returns the
 // new session (with its generated code and creator token).
-func (s *Store) CreateSession(title string, people []models.Person, joinMode models.JoinMode, claimMode models.ClaimMode, permissionMode models.PermissionMode, creatorPersonID *string) (*models.Session, error) {
+func (s *Store) CreateSession(title string, people []models.Person, joinMode models.JoinMode, claimMode models.ClaimMode, permissionMode models.PermissionMode, creatorPersonID *string, currency string) (*models.Session, error) {
 	code, err := s.newUniqueSessionCode()
 	if err != nil {
 		return nil, err
@@ -88,9 +88,9 @@ func (s *Store) CreateSession(title string, people []models.Person, joinMode mod
 	// enforcement — insert the session with a NULL creator_person_id, then
 	// the people, then backfill.
 	_, err = tx.Exec(
-		`INSERT INTO sessions (id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, created_at, updated_at, last_access_at)
-		 VALUES (?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)`,
-		code, title, token, joinMode, claimMode, permissionMode, ts, ts, ts,
+		`INSERT INTO sessions (id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, currency, created_at, updated_at, last_access_at)
+		 VALUES (?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?)`,
+		code, title, token, joinMode, claimMode, permissionMode, currency, ts, ts, ts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert session: %w", err)
@@ -113,6 +113,20 @@ func (s *Store) CreateSession(title string, people []models.Person, joinMode mod
 	}
 
 	return s.GetSession(code)
+}
+
+// UpdateSessionCurrency sets a session's base currency (creator-only, see
+// api.UpdateSessionCurrency) — does not touch bill-level currency/rate data,
+// which is unaffected by a session's own currency changing.
+func (s *Store) UpdateSessionCurrency(sessionID, currency string) error {
+	res, err := s.db.Exec(`UPDATE sessions SET currency = ? WHERE id = ?`, currency, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
 }
 
 // SetCreatorPersonID records which person row represents the session
@@ -157,9 +171,9 @@ func (s *Store) GetSession(code string) (*models.Session, error) {
 	sess := &models.Session{}
 	var settledAt, creatorPersonID sql.NullString
 	err := s.db.QueryRow(
-		`SELECT id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, settled_at, created_at, updated_at, last_access_at
+		`SELECT id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, settled_at, currency, created_at, updated_at, last_access_at
 		 FROM sessions WHERE id = ?`, code,
-	).Scan(&sess.ID, &sess.Title, &sess.CreatorToken, &sess.JoinMode, &sess.ClaimMode, &sess.PermissionMode, &creatorPersonID, &sess.IsSettled, &settledAt, &sess.CreatedAt, &sess.UpdatedAt, &sess.LastAccessAt)
+	).Scan(&sess.ID, &sess.Title, &sess.CreatorToken, &sess.JoinMode, &sess.ClaimMode, &sess.PermissionMode, &creatorPersonID, &sess.IsSettled, &settledAt, &sess.Currency, &sess.CreatedAt, &sess.UpdatedAt, &sess.LastAccessAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -273,6 +287,7 @@ func (s *Store) listPeople(sessionID string) ([]models.Person, error) {
 func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 	rows, err := s.db.Query(
 		`SELECT b.id, b.title, b.date, b.tax_amount, b.currency, b.paid_by_person_id,
+		        b.exchange_rate, b.exchange_rate_date, b.exchange_rate_is_override,
 		        i.ref_key, i.width, i.height
 		 FROM bills b
 		 LEFT JOIN images i ON i.ref_key = (
@@ -289,13 +304,21 @@ func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 	var ids []string
 	for rows.Next() {
 		var b models.Bill
-		var paidBy, imageRefKey sql.NullString
+		var paidBy, imageRefKey, exchangeRateDate sql.NullString
+		var exchangeRate sql.NullFloat64
 		var imageWidth, imageHeight sql.NullInt64
-		if err := rows.Scan(&b.ID, &b.Title, &b.Date, &b.TaxAmount, &b.Currency, &paidBy, &imageRefKey, &imageWidth, &imageHeight); err != nil {
+		if err := rows.Scan(&b.ID, &b.Title, &b.Date, &b.TaxAmount, &b.Currency, &paidBy, &exchangeRate, &exchangeRateDate, &b.ExchangeRateIsOverride, &imageRefKey, &imageWidth, &imageHeight); err != nil {
 			return nil, err
 		}
 		if paidBy.Valid {
 			b.PaidByPersonID = &paidBy.String
+		}
+		if exchangeRate.Valid {
+			rate := exchangeRate.Float64
+			b.ExchangeRate = &rate
+		}
+		if exchangeRateDate.Valid {
+			b.ExchangeRateDate = &exchangeRateDate.String
 		}
 		if imageRefKey.Valid {
 			b.ImageRefKey = &imageRefKey.String
@@ -397,13 +420,16 @@ func (s *Store) SetBillPaidBy(sessionID, billID string, personID *string) error 
 	return s.touchSession(sessionID)
 }
 
-// UpdateBill overwrites a bill's own fields (title/currency/tax/payer) —
-// used to sync a locally-edited bill up to a live session. Never touches
-// items; see UpdateItem.
-func (s *Store) UpdateBill(sessionID, billID, title, currency string, taxAmount float64, paidByPersonID *string) error {
+// UpdateBill overwrites a bill's own fields (title/currency/tax/payer/
+// exchange rate) — used to sync a locally-edited bill up to a live session.
+// Never touches items; see UpdateItem. exchangeRate/exchangeRateDate are the
+// rate currently in effect for this bill (fetched or overridden — see
+// exchangeRateIsOverride) when its currency differs from its session's; nil
+// when the bill matches its session's currency.
+func (s *Store) UpdateBill(sessionID, billID, title, currency string, taxAmount float64, paidByPersonID *string, exchangeRate *float64, exchangeRateDate *string, exchangeRateIsOverride bool) error {
 	res, err := s.db.Exec(
-		`UPDATE bills SET title = ?, currency = ?, tax_amount = ?, paid_by_person_id = ? WHERE id = ? AND session_id = ?`,
-		title, currency, taxAmount, paidByPersonID, billID, sessionID,
+		`UPDATE bills SET title = ?, currency = ?, tax_amount = ?, paid_by_person_id = ?, exchange_rate = ?, exchange_rate_date = ?, exchange_rate_is_override = ? WHERE id = ? AND session_id = ?`,
+		title, currency, taxAmount, paidByPersonID, exchangeRate, exchangeRateDate, exchangeRateIsOverride, billID, sessionID,
 	)
 	if err != nil {
 		return err
@@ -1267,4 +1293,118 @@ func (s *Store) ScanRequestsSince(sinceModifier string) (int, error) {
 	var n int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM scan_requests WHERE requested_at >= datetime('now', ?)`, sinceModifier).Scan(&n)
 	return n, err
+}
+
+// ---- Exchange rate cache (GET /api/exchange-rate) ----
+
+// GetExchangeRate looks up a previously-cached rate for (date, base, quote).
+// found is false on a cache miss (not an error) — the caller is expected to
+// fetch from the external provider and UpsertExchangeRate the result.
+func (s *Store) GetExchangeRate(date, base, quote string) (rate float64, found bool, err error) {
+	err = s.db.QueryRow(
+		`SELECT rate FROM exchange_rates WHERE date = ? AND base_currency = ? AND quote_currency = ?`,
+		date, base, quote,
+	).Scan(&rate)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return rate, true, nil
+}
+
+// ListExchangeRatesPaged returns a page of the global exchange-rate cache
+// for the admin viewer, most-recently-fetched first, plus the total row
+// count matching the filters (for page-count rendering). page is 1-indexed;
+// values < 1 are clamped. dateFilter (exact match), currencyFilter (matches
+// either side of the pair), and search (substring match against date/base/
+// quote) are all optional — pass "" to skip a filter.
+func (s *Store) ListExchangeRatesPaged(page, pageSize int, dateFilter, currencyFilter, search string) ([]models.ExchangeRate, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+
+	var where []string
+	var args []any
+	if dateFilter != "" {
+		where = append(where, "date = ?")
+		args = append(args, dateFilter)
+	}
+	if currencyFilter != "" {
+		where = append(where, "(base_currency = ? OR quote_currency = ?)")
+		args = append(args, currencyFilter, currencyFilter)
+	}
+	if search != "" {
+		like := "%" + search + "%"
+		where = append(where, "(base_currency LIKE ? OR quote_currency LIKE ? OR date LIKE ?)")
+		args = append(args, like, like, like)
+	}
+	whereSQL := ""
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM exchange_rates `+whereSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	selectArgs := append(append([]any{}, args...), pageSize, (page-1)*pageSize)
+	rows, err := s.db.Query(
+		`SELECT date, base_currency, quote_currency, rate, fetched_at FROM exchange_rates `+whereSQL+` ORDER BY fetched_at DESC LIMIT ? OFFSET ?`,
+		selectArgs...,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	result := []models.ExchangeRate{}
+	for rows.Next() {
+		var er models.ExchangeRate
+		if err := rows.Scan(&er.Date, &er.BaseCurrency, &er.QuoteCurrency, &er.Rate, &er.FetchedAt); err != nil {
+			return nil, 0, err
+		}
+		result = append(result, er)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return result, total, nil
+}
+
+// FlushExchangeRates permanently deletes every row from the global
+// exchange-rate cache (admin-only, see api.AdminFlushExchangeRates). Bill-
+// level rate overrides/fetched-rate snapshots on individual bills are
+// untouched — this only clears the shared lookup cache, which will simply
+// repopulate itself lazily on the next GET /api/exchange-rate for any given
+// (date, base, quote). Returns the number of rows removed, for the admin
+// confirmation message.
+func (s *Store) FlushExchangeRates() (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM exchange_rates`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// UpsertExchangeRate caches a fetched rate for (date, base, quote). Historical
+// rates never change once published, so the ON CONFLICT update is
+// belt-and-suspenders (keeps the statement idempotent under a concurrent
+// lazy-fetch race) rather than something expected to actually change a value.
+func (s *Store) UpsertExchangeRate(date, base, quote string, rate float64) error {
+	_, err := s.db.Exec(
+		`INSERT INTO exchange_rates (date, base_currency, quote_currency, rate, fetched_at)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(date, base_currency, quote_currency) DO UPDATE SET
+		   rate = excluded.rate,
+		   fetched_at = excluded.fetched_at`,
+		date, base, quote, rate, now(),
+	)
+	return err
 }

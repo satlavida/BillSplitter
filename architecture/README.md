@@ -20,6 +20,7 @@ existing file, plus a row in the tables below.
 | Scan Receipt | Upload/capture a receipt photo, extract items via vision LLM, store the image | [scan-receipt.md](scan-receipt.md) |
 | Live Collaboration | Multi-device real-time sync: sessions, join/approve, claims, presence, SSE | [live-collaboration.md](live-collaboration.md) |
 | Settlement | Who-owes-who calculation and debt simplification | [settlement.md](settlement.md) |
+| Currency | Per-session/per-bill currency, exchange rate fetch/cache, conversion | [currency.md](currency.md) |
 | Session Management | Creating/listing sessions, session home dashboard, people, JSON import | [session-management.md](session-management.md) |
 | Settings | Currency and auto-add-self preferences | [settings.md](settings.md) |
 | App Shell / Navigation | Router, sidebar, theming, PWA update prompt | [app-shell-navigation.md](app-shell-navigation.md) |

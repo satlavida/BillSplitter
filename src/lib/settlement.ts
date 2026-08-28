@@ -35,6 +35,17 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
  * rounding happens only where amounts are actually settled/displayed (see
  * simplifyDebts).
  */
+// The rate to convert 1 unit of bill.currency into sessionCurrency: 1 if
+// they match, else bill.exchangeRate (falling back to 1 if unset — see
+// calculateBalances's doc comment for why that's a deliberate non-throwing
+// fallback). Exported so pages showing a bill's own amounts (e.g.
+// SessionSettlementPage's per-bill breakdown) can convert them the same way
+// settlement math does, without duplicating this fallback logic.
+export const getEffectiveRate = (bill: Pick<Bill, 'currency' | 'exchangeRate'>, sessionCurrency: string): number => {
+  if (bill.currency === sessionCurrency) return 1;
+  return bill.exchangeRate ?? 1;
+};
+
 export const calculateBillBalances = (bill: Pick<Bill, 'items' | 'taxAmount' | 'paidByPersonId'>, people: Person[]): Balance[] => {
   const balances: Record<string, number> = {};
   people.forEach((p) => {
@@ -63,21 +74,37 @@ export const calculateBillBalances = (bill: Pick<Bill, 'items' | 'taxAmount' | '
 };
 
 /**
- * Computes each person's net balance across every bill in a session, by
- * summing calculateBillBalances over each bill.
+ * Computes each person's net balance across every bill in a session, in
+ * sessionCurrency. For each bill, the payer is credited/debtors debited in
+ * that bill's own currency (calculateBillBalances), then converted into
+ * sessionCurrency by multiplying by the bill's effective rate: 1 if the
+ * bill's currency matches the session's, else bill.exchangeRate (the
+ * currently-in-effect fetched-or-overridden rate — see
+ * BillSettingsModal.tsx). Falls back to 1 (with a console warning, not a
+ * throw) if a mismatched-currency bill somehow has no rate yet, so a single
+ * incomplete bill can't break the whole session's settlement.
+ *
+ * This is a hand-mirrored twin of server/internal/settlement/settlement.go's
+ * CalculateBalances — see that file's doc comment and
+ * architecture/settlement.md: both sides must change together.
  *
  * Invariant: sum(balances) is always 0 (money owed always nets to money owed
  * back), verified explicitly in settlement.test.ts.
  */
-export const calculateBalances = (bills: Bill[], people: Person[]): Balance[] => {
+export const calculateBalances = (bills: Bill[], people: Person[], sessionCurrency: string): Balance[] => {
   const totals: Record<string, number> = {};
   people.forEach((p) => {
     totals[p.id] = 0;
   });
 
   bills.forEach((bill) => {
+    if (bill.currency !== sessionCurrency && bill.exchangeRate === null) {
+      console.warn(`Bill ${bill.id} is in ${bill.currency} but has no exchange rate to ${sessionCurrency} — treating as 1:1.`);
+    }
+    const effectiveRate = getEffectiveRate(bill, sessionCurrency);
+
     calculateBillBalances(bill, people).forEach(({ personId, amount }) => {
-      totals[personId] += amount;
+      totals[personId] += amount * effectiveRate;
     });
   });
 
@@ -131,10 +158,11 @@ export const simplifyDebts = (balances: Balance[]): Transaction[] => {
 
 /**
  * Full settlement computation for a session: net balances per person plus
- * the simplified set of who-pays-whom transactions to zero them out.
+ * the simplified set of who-pays-whom transactions to zero them out, all in
+ * sessionCurrency.
  */
-export const calculateSettlement = (bills: Bill[], people: Person[]): SettlementResult => {
-  const balances = calculateBalances(bills, people);
+export const calculateSettlement = (bills: Bill[], people: Person[], sessionCurrency: string): SettlementResult => {
+  const balances = calculateBalances(bills, people, sessionCurrency);
   const transactions = simplifyDebts(balances);
   return { balances, transactions };
 };

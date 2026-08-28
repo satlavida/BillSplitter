@@ -183,6 +183,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
       creatorPersonId: null,
       isSettled: false,
       settledAt: null,
+      currency: 'USD',
       people: [{ id: 'p1', name: 'Alice' }],
       bills: [
         {
@@ -203,6 +204,9 @@ describe('sessionStore - mergeLiveSnapshot', () => {
           ],
           taxAmount: 2,
           currency: 'USD',
+          exchangeRate: null,
+          exchangeRateDate: null,
+          exchangeRateIsOverride: false,
           paidByPersonId: 'p1',
           imageRefKey: null,
           imageWidth: null,
@@ -243,6 +247,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
       creatorPersonId: null,
       isSettled: false,
       settledAt: null,
+      currency: 'USD',
       people: [{ id: 'p1', name: 'Bob' }],
       bills: [
         {
@@ -252,6 +257,9 @@ describe('sessionStore - mergeLiveSnapshot', () => {
           items: [],
           taxAmount: 9,
           currency: 'EUR',
+          exchangeRate: null,
+          exchangeRateDate: null,
+          exchangeRateIsOverride: false,
           paidByPersonId: null,
           imageRefKey: null,
           imageWidth: null,
@@ -287,6 +295,7 @@ describe('sessionStore - mergeLiveSnapshot respects in-flight pending writes', (
     creatorPersonId: null,
     isSettled: false,
     settledAt: null,
+    currency: 'USD',
     people: [] as { id: string; name: string }[],
     bills: [
       {
@@ -307,6 +316,9 @@ describe('sessionStore - mergeLiveSnapshot respects in-flight pending writes', (
         ],
         taxAmount: 50,
         currency: 'EUR',
+        exchangeRate: null,
+        exchangeRateDate: null,
+        exchangeRateIsOverride: false,
         paidByPersonId: 'server-p',
         imageRefKey: null,
         imageWidth: null,

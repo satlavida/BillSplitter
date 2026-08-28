@@ -17,6 +17,16 @@ export const BillSchema = z.object({
   items: z.array(ItemSchema).default([]),
   taxAmount: z.number().nonnegative().default(0),
   currency: z.string().default('INR'),
+  // Set (and its rate fields populated) only when this bill's currency
+  // differs from its session's — see the Bill Settings modal / Session
+  // Settings panel and architecture/currency.md. exchangeRate is whichever
+  // value is currently in effect (fetched from the backend's exchange-rate
+  // cache, or a user override — see exchangeRateIsOverride); settlement
+  // reads this single field regardless of which it is. Overrides are
+  // bill-local and are never written back to the backend's global cache.
+  exchangeRate: z.number().positive().nullable().default(null),
+  exchangeRateDate: z.string().nullable().default(null),
+  exchangeRateIsOverride: z.boolean().default(false),
   paidByPersonId: z.string().nullable().default(null),
   receiptImage: ReceiptImageRefSchema.nullable().default(null),
   splitStateVersion: z.string().default(SESSION_STORE_VERSION),
@@ -47,6 +57,12 @@ export const SessionSchema = z.object({
   // picker) can read/set them before/without a live round-trip.
   permissionMode: z.enum(['edit', 'read_only']).default('edit'),
   creatorPersonId: z.string().nullable().default(null),
+  // The session's base currency — settlement, balances, and (by default)
+  // joiner-facing views always render in this currency. Bills may use a
+  // different currency; see Bill.exchangeRate. Seeded from the global
+  // currency preference (src/currencyStore.ts) at session creation time,
+  // then independent of it — see architecture/currency.md.
+  currency: z.string().default('USD'),
 });
 export type Session = z.infer<typeof SessionSchema>;
 

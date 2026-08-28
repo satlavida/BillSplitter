@@ -46,6 +46,12 @@ interface BillStoreState {
   items: Item[];
   taxAmount: number;
   currency: string;
+  // Mirrors Bill.exchangeRate/exchangeRateDate/exchangeRateIsOverride in
+  // session.schema.ts — see the Bill Settings modal (BillSettingsModal.tsx),
+  // the only writer of these three fields.
+  exchangeRate: number | null;
+  exchangeRateDate: string | null;
+  exchangeRateIsOverride: boolean;
   title: string;
 }
 
@@ -72,6 +78,11 @@ interface BillStoreActions {
   removeAllPeople: (itemId: string) => void;
 
   setCurrency: (currency: string) => void;
+  // Sets the fetched-or-overridden exchange rate for this bill (Bill
+  // Settings modal). exchangeRate is whichever value is currently in
+  // effect; isOverride is a display/audit flag, not consulted by
+  // settlement math (see settlement.ts).
+  setExchangeRateInfo: (info: { exchangeRate: number | null; exchangeRateDate: string | null; exchangeRateIsOverride: boolean }) => void;
   setTitle: (title: string) => void;
 
   reset: () => void;
@@ -117,6 +128,9 @@ const initialState: BillStoreState = {
   items: [],
   taxAmount: 0,
   currency: 'INR',
+  exchangeRate: null,
+  exchangeRateDate: null,
+  exchangeRateIsOverride: false,
   title: '',
 };
 
@@ -290,6 +304,7 @@ const useBillStore = create<BillStore>()((set, get) => ({
 
       // Other settings
       setCurrency: (currency) => set({ currency }),
+      setExchangeRateInfo: ({ exchangeRate, exchangeRateDate, exchangeRateIsOverride }) => set({ exchangeRate, exchangeRateDate, exchangeRateIsOverride }),
       setTitle: (title) => set({ title }),
 
       // Reset - modified to keep version but clear billId
@@ -414,6 +429,9 @@ const useBillStore = create<BillStore>()((set, get) => ({
           items: bill.items,
           taxAmount: bill.taxAmount,
           currency: bill.currency,
+          exchangeRate: bill.exchangeRate,
+          exchangeRateDate: bill.exchangeRateDate,
+          exchangeRateIsOverride: bill.exchangeRateIsOverride,
           title: bill.title,
         });
         if (!result.success) {

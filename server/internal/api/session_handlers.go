@@ -18,6 +18,7 @@ type createSessionRequest struct {
 	ClaimMode       string          `json:"claimMode"`
 	PermissionMode  string          `json:"permissionMode"`
 	CreatorPersonID *string         `json:"creatorPersonId"`
+	Currency        string          `json:"currency"`
 }
 
 type createSessionResponse struct {
@@ -63,7 +64,12 @@ func (a *API) CreateSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sess, err := a.store.CreateSession(req.Title, req.People, joinMode, claimMode, permissionMode, req.CreatorPersonID)
+	currency := req.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+
+	sess, err := a.store.CreateSession(req.Title, req.People, joinMode, claimMode, permissionMode, req.CreatorPersonID, currency)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create session")
 		return
@@ -429,6 +435,41 @@ func (a *API) Settle(w http.ResponseWriter, r *http.Request) {
 
 	a.hub.Broadcast(code, sse.Event{Kind: "session.settled", ID: code})
 	writeJSON(w, http.StatusOK, map[string]bool{"settled": true})
+}
+
+type updateSessionCurrencyRequest struct {
+	Currency string `json:"currency"`
+}
+
+// UpdateSessionCurrency handles PATCH /api/sessions/{code}/currency
+// (creator-only) — sets a live session's base currency from the Session
+// Settings panel. Bill-level currency/rate data is untouched by this call.
+func (a *API) UpdateSessionCurrency(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+
+	var req updateSessionCurrencyRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Currency == "" {
+		writeError(w, http.StatusBadRequest, "currency is required")
+		return
+	}
+
+	if err := a.store.UpdateSessionCurrency(code, req.Currency); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update session currency")
+		return
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "session.updated", ID: code})
+	writeJSON(w, http.StatusOK, map[string]string{"currency": req.Currency})
 }
 
 // DeleteLiveSession handles DELETE /api/sessions/{code} (creator-only, req

@@ -1,4 +1,4 @@
-import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettlement } from './settlement';
+import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettlement, getEffectiveRate } from './settlement';
 import type { Bill } from '../schemas/session.schema';
 import type { Person } from '../schemas/bill.schema';
 
@@ -16,6 +16,9 @@ const makeBill = (
   title: `Bill ${id}`,
   date: '2026-01-01T00:00:00.000Z',
   currency: 'INR',
+  exchangeRate: null,
+  exchangeRateDate: null,
+  exchangeRateIsOverride: false,
   taxAmount: 0,
   paidByPersonId,
   receiptImage: null,
@@ -49,7 +52,7 @@ describe('calculateBalances', () => {
     // 90 split 3 ways = 30 each; Alice paid, so she's owed 60 (Bob's 30 + Carol's 30)
     const bills = [makeBill('b1', 90, ['alice', 'bob', 'carol'], 'alice')];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
 
     expect(byId.alice).toBeCloseTo(60);
@@ -65,7 +68,7 @@ describe('calculateBalances', () => {
 
     const bills = [makeBill('b1', 20, ['alice', 'bob'], 'alice'), makeBill('b2', 40, ['alice', 'bob'], 'alice')];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
 
     // Alice is owed 10 from bill 1 and 20 from bill 2 = 30
@@ -85,7 +88,7 @@ describe('calculateBalances', () => {
       makeBill('b2', 60, ['bob', 'carol'], 'bob'), // each owes 30, bob paid (carol only involved)
     ];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
 
     // Alice: +60 (b1) + 0 (not in b2) = 60
@@ -105,7 +108,7 @@ describe('calculateBalances', () => {
 
     const bills = [makeBill('b1', 50, ['alice', 'bob'], 'alice')];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
 
     expect(byId.dave).toBe(0);
@@ -119,7 +122,7 @@ describe('calculateBalances', () => {
 
     const bills = [makeBill('b1', 100, ['alice', 'bob'], null)];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     balances.forEach((b) => expect(b.amount).toBe(0));
   });
 
@@ -132,7 +135,7 @@ describe('calculateBalances', () => {
       makeBill('b4', 99.99, ['a', 'b', 'c', 'd'], 'b'),
     ];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     expect(sumBalances(balances)).toBeCloseTo(0, 6);
   });
 
@@ -145,8 +148,52 @@ describe('calculateBalances', () => {
     // 10 / 3 doesn't divide evenly
     const bills = [makeBill('b1', 10, ['alice', 'bob', 'carol'], 'alice')];
 
-    const balances = calculateBalances(bills, people);
+    const balances = calculateBalances(bills, people, 'INR');
     expect(sumBalances(balances)).toBeCloseTo(0, 2);
+  });
+
+  test('a bill in a different currency is converted to session currency using its exchange rate', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+
+    // b1 is in session currency (INR): 100 split, alice paid, alice is owed 50.
+    // b2 is in USD, rate 1 USD = 80 INR: 10 USD split -> owed 5 USD -> 400 INR.
+    const bills = [makeBill('b1', 100, ['alice', 'bob'], 'alice'), makeBill('b2', 10, ['alice', 'bob'], 'alice', { currency: 'USD', exchangeRate: 80 })];
+
+    const balances = calculateBalances(bills, people, 'INR');
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    expect(byId.alice).toBeCloseTo(50 + 400);
+    expect(byId.bob).toBeCloseTo(-(50 + 400));
+    expect(sumBalances(balances)).toBeCloseTo(0);
+  });
+
+  test('a mismatched-currency bill with no exchange rate set falls back to 1:1 instead of throwing', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+    const bills = [makeBill('b1', 20, ['alice', 'bob'], 'alice', { currency: 'USD', exchangeRate: null })];
+
+    const balances = calculateBalances(bills, people, 'INR');
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    expect(byId.alice).toBeCloseTo(10);
+    expect(byId.bob).toBeCloseTo(-10);
+  });
+});
+
+describe('getEffectiveRate', () => {
+  test('is 1 when the bill currency matches the session currency, regardless of exchangeRate', () => {
+    expect(getEffectiveRate({ currency: 'INR', exchangeRate: 80 }, 'INR')).toBe(1);
+  });
+
+  test('is the bill exchangeRate when currencies differ', () => {
+    expect(getEffectiveRate({ currency: 'USD', exchangeRate: 80 }, 'INR')).toBe(80);
+  });
+
+  test('falls back to 1 when currencies differ and exchangeRate is unset', () => {
+    expect(getEffectiveRate({ currency: 'USD', exchangeRate: null }, 'INR')).toBe(1);
   });
 });
 
@@ -159,7 +206,7 @@ describe('calculateBillBalances', () => {
     const bill = makeBill('b1', 90, ['alice', 'bob', 'carol'], 'alice');
 
     const billBalances = calculateBillBalances(bill, people);
-    const sessionBalances = calculateBalances([bill], people);
+    const sessionBalances = calculateBalances([bill], people, 'INR');
 
     expect(billBalances).toEqual(sessionBalances);
   });
@@ -191,7 +238,7 @@ describe('calculateBillBalances', () => {
       });
     });
 
-    const sessionBalances = calculateBalances(bills, people);
+    const sessionBalances = calculateBalances(bills, people, 'INR');
     sessionBalances.forEach((b) => expect(summed[b.personId]).toBeCloseTo(b.amount, 6));
   });
 });
@@ -250,7 +297,7 @@ describe('calculateSettlement', () => {
 
     const bills = [makeBill('b1', 90, ['alice', 'bob', 'carol'], 'alice'), makeBill('b2', 60, ['bob', 'carol'], 'bob')];
 
-    const result = calculateSettlement(bills, people);
+    const result = calculateSettlement(bills, people, 'INR');
 
     expect(sumBalances(result.balances)).toBeCloseTo(0);
     // Every transaction should be a positive amount between two distinct people

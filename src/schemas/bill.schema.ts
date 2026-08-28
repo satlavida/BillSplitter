@@ -52,6 +52,13 @@ export const BillStateSchema = z.object({
   items: z.array(ItemSchema).default([]),
   taxAmount: z.number().nonnegative().default(0),
   currency: z.string().default('INR'),
+  // Mirrors Bill.exchangeRate/exchangeRateDate/exchangeRateIsOverride in
+  // session.schema.ts — see that schema's comment. billStore is a scratch
+  // editor, so these hold the in-progress values while the Bill Settings
+  // modal is open, committed back to sessionStore like every other field.
+  exchangeRate: z.number().positive().nullable().default(null),
+  exchangeRateDate: z.string().nullable().default(null),
+  exchangeRateIsOverride: z.boolean().default(false),
   title: z.string().default(''),
 });
 export type BillState = z.infer<typeof BillStateSchema>;

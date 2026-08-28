@@ -8,7 +8,7 @@ exported sessions.
 
 ## Frontend
 - `src/Pages/SessionsListPage.tsx` — route `/sessions`; lists locally-created sessions (`sessionStore`) plus "sessions I've joined" (`joinedSessionsStorage.ts`, reconciled against server status via `POST /api/sessions/status`); supports JSON import via `FileImport`.
-- `src/Pages/SessionHomePage.tsx` — route `/session/:sessionId`; people list, bill cards (with scan status/retry), "Paid by" quick-edit, "Scan New Bill" (creates an empty bill and opens it straight into the scan modal — see [scan-receipt.md](scan-receipt.md)), embeds `GoLiveSection` and `LiveSessionPanel` (see [live-collaboration.md](live-collaboration.md)).
+- `src/Pages/SessionHomePage.tsx` — route `/session/:sessionId`; people list, bill cards (with scan status/retry), "Paid by" quick-edit, "Scan New Bill" (creates an empty bill and opens it straight into the scan modal — see [scan-receipt.md](scan-receipt.md)), gear icon top-right opens `SessionSettingsModal` (session currency + exchange-rate table — see [currency.md](currency.md)), embeds `GoLiveSection` and `LiveSessionPanel` (see [live-collaboration.md](live-collaboration.md)).
 - `src/Components/PeopleSection.tsx` — session-level people list with live presence. `usePeoplePresence` also computes a per-person `nameEditLockedFor` (via `src/lib/presenceRules.ts`'s `isNameEditLocked`): the creator can't rename someone while they're claimed, currently online, and have been continuously active for under an hour.
 - `src/Components/EditPersonModal.tsx` — rename person modal, used from `PeopleSection`; `PeopleSection`'s `handleEditPerson` guards against opening it for a locked person as defense in depth (the trigger is already disabled in the list).
 - `src/Components/BillHistory/FileImport.tsx` — JSON file import control.
@@ -23,7 +23,8 @@ mirrored server-side — see [live-collaboration.md](live-collaboration.md).
 ## Related features
 - [bill-editing.md](bill-editing.md) — bills within a session are edited here.
 - [live-collaboration.md](live-collaboration.md) — "Go Live" is initiated from `SessionHomePage`.
-- [settings.md](settings.md) — `autoAddSelf` affects who's pre-populated when creating a session.
+- [settings.md](settings.md) — `autoAddSelf` affects who's pre-populated when creating a session; the global currency preference seeds a new session's `currency`.
+- [currency.md](currency.md) — the session-level `currency` field and its Session Settings panel.
 
 ## Notes
 - `sessionStore.ts` is the single source of truth for local data; anything

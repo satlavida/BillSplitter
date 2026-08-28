@@ -78,10 +78,13 @@ func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateBillRequest struct {
-	Title          string  `json:"title"`
-	Currency       string  `json:"currency"`
-	TaxAmount      float64 `json:"taxAmount"`
-	PaidByPersonID *string `json:"paidByPersonId"`
+	Title                  string   `json:"title"`
+	Currency               string   `json:"currency"`
+	TaxAmount              float64  `json:"taxAmount"`
+	PaidByPersonID         *string  `json:"paidByPersonId"`
+	ExchangeRate           *float64 `json:"exchangeRate"`
+	ExchangeRateDate       *string  `json:"exchangeRateDate"`
+	ExchangeRateIsOverride bool     `json:"exchangeRateIsOverride"`
 }
 
 // UpdateBill handles PATCH /api/sessions/{code}/bills/{billId} — syncs a
@@ -103,7 +106,7 @@ func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.store.UpdateBill(code, billID, req.Title, req.Currency, req.TaxAmount, req.PaidByPersonID); errors.Is(err, store.ErrNotFound) {
+	if err := a.store.UpdateBill(code, billID, req.Title, req.Currency, req.TaxAmount, req.PaidByPersonID, req.ExchangeRate, req.ExchangeRateDate, req.ExchangeRateIsOverride); errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "bill not found")
 		return
 	} else if err != nil {

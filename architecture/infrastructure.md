@@ -12,6 +12,14 @@ and the frontend's shared UI kit.
   **Check here before adding a new one-off styled element** — there is no
   toast/notification system; errors are surfaced via local `useState` +
   `Alert`.
+- `src/Components/ErrorBoundary.tsx` — class-component error boundary
+  (React error boundaries can't be hooks). Mounted twice: `main.tsx` around
+  the whole `<App>` (last-resort, unrecoverable short of reload), and
+  `App.tsx`'s `AppShell` around `<Outlet>`, keyed by `location.pathname` so
+  it remounts (clearing the error) on navigation — a crash on one routed
+  page doesn't take down the sidebar/header. Doesn't catch event-handler or
+  async errors (a React limitation, not a bug here) — those still need
+  their own try/catch.
 - `src/lib/generateId.ts` — 5-char alphanumeric ID generator (session/bill codes, etc.).
 - `src/lib/formatRelativeTime.ts` — human-readable relative timestamps (used by the activity log, [live-collaboration.md](live-collaboration.md)).
 - `src/lib/errorMessages.ts` — maps raw server error strings to user-facing copy.
@@ -34,3 +42,20 @@ Every backend feature doc depends on this one for bootstrapping/config/middlewar
 ## Notes
 - `VITE_LIVE_SERVER_URL` (frontend) has no working production default — `.env.production` must point it at wherever `server/` is actually deployed.
 - `VITE_WORKER_URL` no longer exists — that was the pre-migration external Cloudflare Worker endpoint for receipt scanning.
+- **Zustand: always wrap a multi-field object-literal selector in
+  `useShallow`** (`import { useShallow } from 'zustand/shallow'`), e.g.
+  `useBillStore(useShallow((s) => ({ a: s.a, b: s.b })))`, never
+  `useBillStore((s) => ({ a: s.a, b: s.b }))` bare. Without it, the selector
+  returns a brand-new object reference on every call, so
+  `useSyncExternalStore` (which Zustand's hook is built on) never sees two
+  consecutive snapshots as equal — this manifests as `"The result of
+  getSnapshot should be cached to avoid an infinite loop"` followed by
+  `"Maximum update depth exceeded"`, crashing the component (a real
+  incident: `BillSettingsModal.tsx`'s first version selected an object from
+  `useBillStore` without `useShallow` and infinite-looped as soon as it
+  rendered). A selector returning a single primitive field (a string,
+  number, or an existing array/object reference from the store) doesn't
+  need `useShallow` — this only matters when the selector itself
+  constructs a new object/array. Grep the codebase for
+  `useShallow((state) => ({` before adding a new multi-field selector to
+  see the existing pattern.

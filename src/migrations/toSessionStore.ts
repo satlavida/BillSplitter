@@ -29,6 +29,9 @@ const billStateToBill = (billState: LegacyBillState, fallbackTitle: string, fall
   items: billState.items,
   taxAmount: billState.taxAmount,
   currency: billState.currency,
+  exchangeRate: null,
+  exchangeRateDate: null,
+  exchangeRateIsOverride: false,
   paidByPersonId: null,
   receiptImage: null,
   splitStateVersion: SESSION_STORE_VERSION,
@@ -65,6 +68,10 @@ export const buildSessionsFromLegacyData = (historyRaw: unknown, activeBillRaw: 
         liveCreatorToken: null,
         permissionMode: 'edit',
         creatorPersonId: null,
+        // Legacy (pre-multi-currency) data has one bill per session — the
+        // session currency is just that bill's own currency, so no
+        // conversion is ever needed for migrated data.
+        currency: bill.currency,
       });
     });
   } else if (historyRaw !== undefined) {
@@ -94,6 +101,10 @@ export const buildSessionsFromLegacyData = (historyRaw: unknown, activeBillRaw: 
         liveCreatorToken: null,
         permissionMode: 'edit',
         creatorPersonId: null,
+        // Legacy (pre-multi-currency) data has one bill per session — the
+        // session currency is just that bill's own currency, so no
+        // conversion is ever needed for migrated data.
+        currency: bill.currency,
       });
     }
   } else if (activeBillRaw !== undefined) {

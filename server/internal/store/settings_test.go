@@ -125,11 +125,11 @@ func TestErrorEventsAndCounters(t *testing.T) {
 func TestPurgeStaleSessionsIndependentIdleAndSettledThresholds(t *testing.T) {
 	s := openSettingsTestDB(t)
 
-	idleSess, err := s.CreateSession("Idle", nil, "open_link", "free_select", "edit", nil)
+	idleSess, err := s.CreateSession("Idle", nil, "open_link", "free_select", "edit", nil, "USD")
 	if err != nil {
 		t.Fatalf("create idle session: %v", err)
 	}
-	settledSess, err := s.CreateSession("Settled", nil, "open_link", "free_select", "edit", nil)
+	settledSess, err := s.CreateSession("Settled", nil, "open_link", "free_select", "edit", nil, "USD")
 	if err != nil {
 		t.Fatalf("create settled session: %v", err)
 	}

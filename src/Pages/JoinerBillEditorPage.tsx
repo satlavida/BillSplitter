@@ -6,7 +6,8 @@ import { connectLiveSync } from '../lib/liveSync';
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat';
 import JoinerItemRow from '../Components/joiner/JoinerItemRow';
 import AddItemForm from '../Components/joiner/AddItemForm';
-import { Alert, Card, ProgressBar } from '../ui/components';
+import { Alert, Card, ProgressBar, Checkbox } from '../ui/components';
+import { toSessionCurrency } from '../lib/currencyConvert';
 import type { LiveSession } from '../schemas/live.schema';
 
 const STEPS = [
@@ -34,6 +35,10 @@ const JoinerBillEditorPage = () => {
   const [joinerToken, setJoinerToken] = useState<string | null>(null);
   const [identityError, setIdentityError] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Defaults to the bill's own currency — that's the whole point of
+  // per-bill currency — with an opt-in toggle to view it converted into the
+  // session's currency instead. Local UI state only, not persisted.
+  const [showSessionCurrency, setShowSessionCurrency] = useState(false);
 
   usePresenceHeartbeat(code ?? null, myPersonId, joinerToken);
 
@@ -121,6 +126,10 @@ const JoinerBillEditorPage = () => {
   const readOnly = session.isSettled || session.permissionMode === 'read_only';
   const goToStep = (n: number) => navigate(`/join/${code}/bills/${billId}/step/${n}`);
 
+  const currencyMismatch = bill.currency !== session.currency;
+  const displayCurrency = showSessionCurrency && currencyMismatch ? session.currency : bill.currency;
+  const displayAmount = (amount: number) => (showSessionCurrency && currencyMismatch ? toSessionCurrency(amount, bill, session.currency) : amount);
+
   // Kept in sync with billStore.getDiscountedItemPrice / personTotals.ts's
   // copy of the same formula — duplicated rather than imported since
   // LiveItem's discountType/splitType are plain strings, not the narrower
@@ -146,7 +155,7 @@ const JoinerBillEditorPage = () => {
                   <li key={item.id} className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600">
                     <span className="text-zinc-800 dark:text-white">{item.name}</span>
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {bill.currency} {item.price.toFixed(2)}
+                      {displayCurrency} {displayAmount(item.price).toFixed(2)}
                     </span>
                   </li>
                 ))}
@@ -168,8 +177,8 @@ const JoinerBillEditorPage = () => {
                     key={item.id}
                     code={code}
                     billId={billId}
-                    item={item}
-                    currency={bill.currency}
+                    item={{ ...item, price: displayAmount(item.price) }}
+                    currency={displayCurrency}
                     myPersonId={myPersonId}
                     joinerToken={joinerToken ?? ''}
                     nameFor={nameFor}
@@ -198,7 +207,7 @@ const JoinerBillEditorPage = () => {
             <ul className="space-y-2 mb-3">
               {bill.items.map((item) => (
                 <li key={item.id} className="text-base text-zinc-700 dark:text-zinc-300">
-                  {item.name} — {bill.currency} {discountedPrice(item).toFixed(2)}
+                  {item.name} — {displayCurrency} {displayAmount(discountedPrice(item)).toFixed(2)}
                   {item.consumedBy.length > 0 && (
                     <span className="block text-sm text-zinc-500 dark:text-zinc-400">
                       Claimed by {item.consumedBy.map((c) => nameFor(c.personId)).join(', ')}
@@ -208,7 +217,7 @@ const JoinerBillEditorPage = () => {
               ))}
             </ul>
             <p className="text-base font-medium text-zinc-800 dark:text-white">
-              Total: {bill.currency} {billTotal.toFixed(2)}
+              Total: {displayCurrency} {displayAmount(billTotal).toFixed(2)}
             </p>
           </Card>
         );
@@ -227,6 +236,17 @@ const JoinerBillEditorPage = () => {
       </div>
 
       <h1 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{bill.title}</h1>
+
+      {currencyMismatch && (
+        <div className="mb-3 no-print">
+          <Checkbox
+            id="show-session-currency"
+            checked={showSessionCurrency}
+            onChange={(e) => setShowSessionCurrency(e.target.checked)}
+            label={`Show in session currency (${session.currency}) instead of ${bill.currency}`}
+          />
+        </div>
+      )}
 
       {readOnly && (
         <Alert type="info" className="mb-4">

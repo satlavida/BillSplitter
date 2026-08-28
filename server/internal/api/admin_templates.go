@@ -55,6 +55,7 @@ button[type="button"] { background:#fff; color:var(--text); border:1px solid var
 <a href="/admin/bill-processor">Bill Scanner</a>
 <a href="/admin/settings">Settings</a>
 <a href="/admin/jobs">Jobs</a>
+<a href="/admin/exchange-rates">Exchange Rates</a>
 </nav>
 <main>
 {{template "content" .}}
@@ -313,6 +314,45 @@ const adminJobsContentHTML = `{{define "content"}}
 </div>
 {{end}}`
 
+// adminExchangeRatesContentHTML is the one admin page with genuine
+// server-side pagination/search/filter (see admin_exchangerate_handlers.go)
+// — the filter form is a plain GET so the page stays bookmarkable/shareable,
+// matching the rest of the admin panel's no-JS-framework style.
+const adminExchangeRatesContentHTML = `{{define "content"}}
+<h1>Exchange Rate Cache</h1>
+{{if .Flushed}}<div class="card">Flushed {{.Flushed}} cached rate(s).</div>{{end}}
+<form method="get" action="/admin/exchange-rates" style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+<input type="text" name="q" value="{{.Query}}" placeholder="Search currency or date…" class="admin-search" style="margin-bottom:0;">
+<input type="date" name="date" value="{{.Date}}">
+<input type="text" name="currency" value="{{.Currency}}" placeholder="Currency (e.g. USD)" style="width:140px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+<button type="submit">Filter</button>
+<a href="/admin/exchange-rates">Clear</a>
+</form>
+<form method="post" action="/admin/exchange-rates/flush" onsubmit="return confirm('Delete all {{.Total}} cached exchange rate(s)? This cannot be undone.');" style="margin-bottom:12px;">
+<button type="submit" style="background:#b91c1c;">Flush all ({{.Total}})</button>
+</form>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Date</th><th>Pair</th><th>Rate</th><th>Fetched At</th></tr></thead>
+<tbody>
+{{range .Rates}}
+<tr>
+<td>{{.Date}}</td>
+<td>{{.BaseCurrency}} → {{.QuoteCurrency}}</td>
+<td>{{.Rate}}</td>
+<td>{{.FetchedAt}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+<div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+{{if .HasPrev}}<a href="/admin/exchange-rates?page={{.PrevPage}}&q={{.Query}}&date={{.Date}}&currency={{.Currency}}">&laquo; Prev</a>{{end}}
+<span>Page {{.Page}} of {{.PageCount}}</span>
+{{if .HasNext}}<a href="/admin/exchange-rates?page={{.NextPage}}&q={{.Query}}&date={{.Date}}&currency={{.Currency}}">Next &raquo;</a>{{end}}
+</div>
+{{end}}`
+
 var adminBaseTemplate = template.Must(template.New("layout").Parse(adminLayoutHTML))
 
 var adminSessionsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminSessionsContentHTML))
@@ -320,3 +360,4 @@ var adminStatsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).
 var adminScanTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminScanContentHTML))
 var adminSettingsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminSettingsContentHTML))
 var adminJobsTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminJobsContentHTML))
+var adminExchangeRatesTemplate = template.Must(template.Must(adminBaseTemplate.Clone()).Parse(adminExchangeRatesContentHTML))

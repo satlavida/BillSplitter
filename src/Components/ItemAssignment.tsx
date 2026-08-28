@@ -1,7 +1,7 @@
 import { useMemo, memo, useCallback, useState } from 'react';
 import useBillStore, { useBillPersons, useBillItems, SPLIT_TYPES, getDiscountedItemPrice, type Allocation, type SplitType } from '../billStore';
 import useSessionStore from '../sessionStore';
-import { useFormatCurrency } from '../currencyStore';
+import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
 import SplitTypeDrawer from './SplitTypeDrawer';
@@ -214,7 +214,7 @@ const ItemAssignment = () => {
   const isLive = useSessionStore((s) => s.getCurrentSession()?.isLive ?? false);
   const [splitDrawerItem, setSplitDrawerItem] = useState<Item | null>(null);
 
-  const { assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople, nextStep, prevStep, getUnassignedItems } =
+  const { assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople, nextStep, prevStep, getUnassignedItems, currency } =
     useBillStore(
       useShallow((state) => ({
         assignItemEqual: state.assignItemEqual,
@@ -225,10 +225,13 @@ const ItemAssignment = () => {
         nextStep: state.nextStep,
         prevStep: state.prevStep,
         getUnassignedItems: state.getUnassignedItems,
+        currency: state.currency,
       }))
     );
 
-  const formatCurrency = useFormatCurrency();
+  // This bill's own currency, not the user's global preference — see
+  // architecture/currency.md.
+  const formatCurrency = (amount: number | null | undefined) => formatAmountInCurrency(amount, currency);
 
   const handleTogglePerson = useCallback(
     (personId: string, itemId: string) => {

@@ -18,6 +18,7 @@ import SessionSettlementPage from './Pages/SessionSettlementPage';
 import ActivityLogPage from './Pages/ActivityLogPage';
 import JoinPage from './Pages/JoinPage';
 import JoinerBillEditorPage from './Pages/JoinerBillEditorPage';
+import ErrorBoundary from './Components/ErrorBoundary';
 import './App.css';
 
 interface HeaderProps {
@@ -145,7 +146,16 @@ const AppShell = () => {
               isRightPanelOpen={isRightPanelOpen}
               showRightPanelToggle={hasLiveSession}
             />
-            <Outlet />
+            {/*
+              Keyed by pathname so navigating to a different route remounts
+              (and thus resets) the boundary — a crash on one page doesn't
+              require a full reload to recover, just navigating away. The
+              sidebar/header stay outside this boundary and keep working
+              even if the routed page itself has crashed.
+            */}
+            <ErrorBoundary key={location.pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </div>
       </div>

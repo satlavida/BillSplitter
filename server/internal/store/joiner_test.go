@@ -23,7 +23,7 @@ func TestRejoinByExistingPersonReplacesPriorJoinerRow(t *testing.T) {
 
 	s := New(database)
 	alice := models.Person{ID: "alice", Name: "Alice"}
-	sess, err := s.CreateSession("Trip", []models.Person{alice}, models.JoinModeApprovalCode, models.ClaimModeFreeSelect, models.PermissionModeEdit, nil)
+	sess, err := s.CreateSession("Trip", []models.Person{alice}, models.JoinModeApprovalCode, models.ClaimModeFreeSelect, models.PermissionModeEdit, nil, "USD")
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestRejoinByAlreadyApprovedPersonStaysApproved(t *testing.T) {
 
 	s := New(database)
 	alice := models.Person{ID: "alice", Name: "Alice"}
-	sess, err := s.CreateSession("Trip", []models.Person{alice}, models.JoinModeApprovalCode, models.ClaimModeFreeSelect, models.PermissionModeEdit, nil)
+	sess, err := s.CreateSession("Trip", []models.Person{alice}, models.JoinModeApprovalCode, models.ClaimModeFreeSelect, models.PermissionModeEdit, nil, "USD")
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}

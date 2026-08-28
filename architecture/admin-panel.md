@@ -3,8 +3,9 @@
 ## Summary
 A small, deliberately server-rendered (not React) internal-only panel for
 viewing live sessions, aggregate stats, receipt-scan usage analytics,
-background-job run history, and admin-configurable settings (currently just
-the receipt-scan model), and for manually purging a session. A separate
+the cached exchange-rate table, background-job run history, and
+admin-configurable settings (currently just the receipt-scan model), and for
+manually purging a session or flushing the exchange-rate cache. A separate
 JSON endpoint, `GET /adminhealth`, exposes the same kind of data
 programmatically (e.g. for an external uptime/monitoring check). No
 frontend counterpart.
@@ -19,6 +20,9 @@ None — server-rendered `html/template` pages, by design (kept small/internal p
   - `GET /admin/bill-processor` — scan analytics page (see [scan-receipt.md](scan-receipt.md)).
   - `GET /admin/jobs` — background-job run history (session purge, log retention — see [background-cleanup.md](background-cleanup.md)).
   - `POST /admin/sessions/{code}/purge` — purge a single session (DB rows + image files).
+- `server/internal/api/admin_exchangerate_handlers.go`
+  - `GET /admin/exchange-rates` — paginated, searchable, filterable (`?page=&q=&date=&currency=`) viewer over the global exchange-rate cache ([currency.md](currency.md)); the only admin table with real server-side pagination (every other admin table is small enough for the shared client-side JS filter — this cache can grow unbounded).
+  - `POST /admin/exchange-rates/flush` — deletes every row from the cache (confirmed client-side, same `onsubmit="return confirm(...)"` pattern as session purge). Never touches a bill's own stored rate — see [currency.md](currency.md).
   - `requireAdminToken` — gates HTML admin pages behind a static bearer token (cookie + header/query/form token check, mints the cookie and redirects a `?token=` GET to the clean path); admin auth lives here, not in `internal/middleware/`.
   - `requireAdminTokenAPI` — same static bearer token check for JSON endpoints (`/admin/settings/models`, `/adminhealth`), without the cookie-minting/redirect side effects that would surprise a non-browser caller.
 - `server/internal/api/admin_settings_handlers.go`
@@ -34,6 +38,7 @@ None — server-rendered `html/template` pages, by design (kept small/internal p
 - [live-collaboration.md](live-collaboration.md) — sessions shown/purged here.
 - [scan-receipt.md](scan-receipt.md) — usage analytics + model setting shown here.
 - [background-cleanup.md](background-cleanup.md) — automatic purge vs. this manual purge endpoint; job run history shown here.
+- [currency.md](currency.md) — the exchange-rate cache viewed/flushed here.
 
 ## Notes
 - Disabled entirely if `ADMIN_TOKEN` is unset (see [infrastructure.md](infrastructure.md)) — this also disables `/adminhealth`.

@@ -22,7 +22,7 @@ claim/unclaim history.
 - `AddItemForm.tsx` — joiner adds a new item to a live bill.
 - `JoinerSettlementSummary.tsx` — personal-view settlement lines (see [settlement.md](settlement.md)); Basic/Detailed toggle mirroring the creator's `SessionSettlementPage.tsx`, Detailed using `src/lib/liveBillBalances.ts`'s `calculateLiveBillBalances` (a `LiveBill`/`LivePerson`-typed adapter around `settlement.ts`'s `calculateBillBalances`, since the server's loosely-typed `discountType`/`splitType` strings don't structurally match this app's narrower literal unions).
 - `src/Pages/JoinPage.tsx` — route `/join/:code`; pick/enter identity, pending-approval or immediate admission.
-- `src/Pages/JoinerBillEditorPage.tsx` — route `/join/:code/bills/:billId/step/:step`; joiner-facing mirror of the bill wizard using live data instead of `billStore`. Summary step shows an items-claimed `ProgressBar` (`src/ui/components.tsx`) above the item list.
+- `src/Pages/JoinerBillEditorPage.tsx` — route `/join/:code/bills/:billId/step/:step`; joiner-facing mirror of the bill wizard using live data instead of `billStore`. Summary step shows an items-claimed `ProgressBar` (`src/ui/components.tsx`) above the item list. When the bill's currency differs from the session's, shows amounts in the bill's own currency by default with a "Show in session currency" checkbox that converts every displayed amount via `src/lib/currencyConvert.ts`'s `toSessionCurrency` — see [currency.md](currency.md); the toggle is local UI state, not persisted or synced.
 
 **Shared**
 - `src/lib/liveApi.ts` — HTTP client for every live-collaboration route below; central error mapping via `lib/errorMessages.ts`.
@@ -32,7 +32,7 @@ claim/unclaim history.
 - `src/lib/joinedSessionsStorage.ts` — client-side index of joined live sessions, used by `SessionsListPage.tsx`.
 - `src/hooks/usePresenceHeartbeat.ts` — sends a heartbeat every 1.5s while a joiner view is mounted.
 - `src/schemas/live.schema.ts` — wire-response schemas (`LiveSession`, `LiveJoiner`, `LiveBill`, `LiveItem`, `LiveSettlement`, `LiveActivityEntry`), deliberately separate from local schemas.
-- `src/sessionStore.ts` — owns the fire-and-forget push helpers (`pushNewBillLive`, `pushBillFieldsLive`, etc., dynamically importing `liveApi.ts`) and `mergeLiveSnapshot`/`mergeLiveBill` (merges a fetched server snapshot back in by entity id, using `pendingLiveWrites.ts` to avoid clobbering in-flight edits).
+- `src/sessionStore.ts` — owns the fire-and-forget push helpers (`pushNewBillLive`, `pushBillFieldsLive`, `pushSessionCurrencyLive`, etc., dynamically importing `liveApi.ts`) and `mergeLiveSnapshot`/`mergeLiveBill` (merges a fetched server snapshot back in by entity id, using `pendingLiveWrites.ts` to avoid clobbering in-flight edits). `BILL_FIELD_KEYS` (the allowlist of per-bill fields synced live) includes `currency`/`exchangeRate`/`exchangeRateDate`/`exchangeRateIsOverride` — see [currency.md](currency.md) for what writes them.
 
 ## Backend
 - `server/internal/api/session_handlers.go`
@@ -45,6 +45,7 @@ claim/unclaim history.
   - `GET /api/sessions/{code}/joiners/{id}` — public poll of own status; one-time token reveal.
   - `POST /api/sessions/{code}/joiners/{id}/approve` / `/disapprove` — creator-only.
   - `POST /api/sessions/{code}/settle` — creator-only, marks session settled (read-only thereafter).
+  - `PATCH /api/sessions/{code}/currency` — creator-only, updates the session's base currency (see [currency.md](currency.md)).
   - Shared auth helpers: `requireCreator`, `requireJoiner`, `requireEditPermission`, `requireNotSettled`.
 - `server/internal/api/bill_handlers.go`
   - `POST /api/sessions/{code}/bills`, `PATCH .../bills/{billId}` — add/update a bill.
@@ -57,13 +58,14 @@ claim/unclaim history.
 - `server/internal/sse/hub.go` — per-session-code pub/sub. Payloads are entity-id-only (`{Kind, ID}`); subscribers refetch via REST. Event kinds: `joiner.pending`, `joiner.approved`, `joiner.disapproved`, `item.updated`, `bill.updated`, `session.settled`, `session.deleted`, `activity.created`. A stuck subscriber is dropped rather than blocking others.
 - `server/internal/presence/presence.go` — in-memory (non-DB) online/offline tracker + identity-reclaim-lock, own sweep loop (`RunPresenceSweeper` in `api/api.go`). Also tracks each person's continuous-activity-since timestamp (`ActiveSince`): a `Touch` resets it only if the gap since the previous touch exceeds `GapThreshold` (60s — above the 1.5s heartbeat cadence, below the 1hr name-edit-lock bar), so normal heartbeating accrues a stable duration instead of resetting every beat. Not persisted, lost on server restart — matches the tracker's existing non-DB pattern, acceptable given sessions are short-lived/purged after 48h.
 - `server/internal/store/store.go` — sessions, people, bills, items, item allocations (claims), item activity, joiners (including upsert-on-rejoin and token verify/reveal).
-- Migrations: `0001_init.sql` (sessions/people/bills/items/item_allocations/joiners), `0003_joiner_token_and_activity_log.sql`, `0004_claim_activity_reject.sql`, `0005_permission_and_identity.sql` (permission_mode, creator_person_id), `0006_remove_claims.sql` (drops the old approval-queue `item_claims` table), `0007_joiners_unique_person.sql` (dedupe + unique index for rejoin-as-upsert).
+- Migrations: `0001_init.sql` (sessions/people/bills/items/item_allocations/joiners), `0003_joiner_token_and_activity_log.sql`, `0004_claim_activity_reject.sql`, `0005_permission_and_identity.sql` (permission_mode, creator_person_id), `0006_remove_claims.sql` (drops the old approval-queue `item_claims` table), `0007_joiners_unique_person.sql` (dedupe + unique index for rejoin-as-upsert), `0009_currency.sql`/`0010_exchange_rate_cache.sql` (session/bill currency + exchange-rate cache — see [currency.md](currency.md)).
 
 ## Related features
 - [scan-receipt.md](scan-receipt.md) — image upload route lives under the same session/bill path structure.
 - [settlement.md](settlement.md) — `GET /api/sessions/{code}/settlement`, `LiveSessionPanel`'s settle action, `JoinerSettlementSummary`.
 - [background-cleanup.md](background-cleanup.md) — stale live sessions get purged; presence sweeper runs alongside.
 - [admin-panel.md](admin-panel.md) — manual per-session purge.
+- [currency.md](currency.md) — session `currency` column, per-bill exchange-rate columns, and the fields those add to `LiveSession`/`LiveBill`.
 
 ## Notes
 - If `autoAddSelf`/`selfName` (see [settings.md](settings.md)) are set,

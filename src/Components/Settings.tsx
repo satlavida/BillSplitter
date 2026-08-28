@@ -3,31 +3,7 @@ import useCurrencyStore from '../currencyStore';
 import useSettingsStore from '../settingsStore';
 import { useShallow } from 'zustand/shallow';
 import { Checkbox, SearchSelect } from '../ui/components';
-
-const getCurrencySymbol = (code: string): string => {
-  try {
-    return (
-      new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: code,
-        currencyDisplay: 'narrowSymbol',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })
-        .formatToParts(0)
-        .find((part) => part.type === 'currency')?.value ?? code
-    );
-  } catch {
-    return code;
-  }
-};
-
-const getCurrencyCodes = (): string[] => {
-  if (typeof Intl.supportedValuesOf === 'function') {
-    return Intl.supportedValuesOf('currency');
-  }
-  return ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'SEK', 'NZD', 'MXN', 'SGD', 'HKD', 'NOK', 'KRW', 'TRY', 'RUB', 'INR', 'BRL', 'ZAR'];
-};
+import { getCurrencyOptions } from '../lib/currencyDisplay';
 
 const Settings = () => {
   const { currency, changeCurrency } = useCurrencyStore(
@@ -46,11 +22,7 @@ const Settings = () => {
     }))
   );
 
-  const currencyOptions = useMemo(() => {
-    return getCurrencyCodes()
-      .map((code) => ({ code, symbol: getCurrencySymbol(code) }))
-      .sort((a, b) => a.code.localeCompare(b.code));
-  }, []);
+  const currencyOptions = useMemo(() => getCurrencyOptions(), []);
 
   return (
     <div className="space-y-4">
@@ -64,6 +36,9 @@ const Settings = () => {
           searchPlaceholder="Search currency..."
           options={currencyOptions.map(({ code, symbol }) => ({ value: code, label: `${code} (${symbol})` }))}
         />
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Used as the starting currency for new sessions — each session can change its own currency later from its Session Settings panel.
+        </p>
       </div>
 
       <div>

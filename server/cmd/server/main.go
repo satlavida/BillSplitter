@@ -55,6 +55,7 @@ func main() {
 		LogRetentionDays:            cfg.LogRetentionDays,
 		IdleSessionRetentionDays:    cfg.IdleSessionRetentionDays,
 		SettledSessionRetentionDays: cfg.SettledSessionRetentionDays,
+		ExchangeRateAPIBaseURL:      cfg.ExchangeRateAPIBaseURL,
 	})
 	a.Version = version
 

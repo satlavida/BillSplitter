@@ -42,6 +42,9 @@ export const LiveBillSchema = z.object({
   items: z.array(LiveItemSchema).default([]),
   taxAmount: z.number(),
   currency: z.string(),
+  exchangeRate: z.number().nullable().default(null),
+  exchangeRateDate: z.string().nullable().default(null),
+  exchangeRateIsOverride: z.boolean().default(false),
   paidByPersonId: z.string().nullable(),
   // The bill's most-recently-uploaded receipt image, if any — distinct
   // from the client-only Bill.receiptImage in session.schema.ts, whose
@@ -68,6 +71,7 @@ export const LiveSessionSchema = z.object({
   creatorPersonId: z.string().nullable().default(null),
   isSettled: z.boolean(),
   settledAt: z.string().nullable(),
+  currency: z.string().default('USD'),
   people: z.array(LivePersonSchema).default([]),
   bills: z.array(LiveBillSchema).default([]),
 });

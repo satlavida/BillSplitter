@@ -26,7 +26,7 @@ func TestPurgeOnce_RemovesBackdatedSettledSessionAndItsImageFile(t *testing.T) {
 	database := openTestDB(t)
 	st := store.New(database)
 
-	sess, err := st.CreateSession("Test", nil, "open_link", "free_select", "edit", nil)
+	sess, err := st.CreateSession("Test", nil, "open_link", "free_select", "edit", nil, "USD")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestPurgeOnce_LeavesRecentSessionsAlone(t *testing.T) {
 	database := openTestDB(t)
 	st := store.New(database)
 
-	sess, err := st.CreateSession("Recent", nil, "open_link", "free_select", "edit", nil)
+	sess, err := st.CreateSession("Recent", nil, "open_link", "free_select", "edit", nil, "USD")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}

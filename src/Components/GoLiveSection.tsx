@@ -152,7 +152,7 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
         people = [...session.people, created];
       }
 
-      const result = await createLiveSession(session.title, people, joinMode, 'free_select', permissionMode, resolvedCreatorPersonId);
+      const result = await createLiveSession(session.title, people, joinMode, 'free_select', permissionMode, resolvedCreatorPersonId, session.currency);
       markSessionLive(session.id, result.code, result.creatorToken);
     } catch (err) {
       setError(err instanceof LiveApiError ? err.message : `Could not reach the live server (${LIVE_SERVER_URL}). Is it running?`);

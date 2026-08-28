@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import useBillStore, { useBillItems, getDiscountedItemPrice } from '../billStore';
-import { useFormatCurrency } from '../currencyStore';
+import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
@@ -226,11 +226,12 @@ const ItemsInput = () => {
   // Use Zustand store with specialized hooks and useShallow
   const items = useBillItems();
 
-  const { title, setTitle, taxAmount, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = useBillStore(
+  const { title, setTitle, taxAmount, currency, addItem, removeItem, updateItem, setTax, nextStep, prevStep, getSubtotal } = useBillStore(
     useShallow((state) => ({
       title: state.title,
       setTitle: state.setTitle,
       taxAmount: state.taxAmount,
+      currency: state.currency,
       addItem: state.addItem,
       removeItem: state.removeItem,
       updateItem: state.updateItem,
@@ -241,7 +242,9 @@ const ItemsInput = () => {
     }))
   );
 
-  const formatCurrency = useFormatCurrency();
+  // This bill's own currency, not the user's global preference — see
+  // architecture/currency.md.
+  const formatCurrency = (amount: number | null | undefined) => formatAmountInCurrency(amount, currency);
 
   const [localTaxAmount, setLocalTaxAmount] = useState<number | string>(taxAmount || '');
   const [editModalOpen, setEditModalOpen] = useState(false);

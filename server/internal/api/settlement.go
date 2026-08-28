@@ -6,5 +6,5 @@ import (
 )
 
 func computeSettlement(sess *models.Session) settlement.Result {
-	return settlement.CalculateSettlement(sess.Bills, sess.People)
+	return settlement.CalculateSettlement(sess.Bills, sess.People, sess.Currency)
 }

@@ -36,6 +36,17 @@ type Bill struct {
 	TaxAmount      float64 `json:"taxAmount"`
 	Currency       string  `json:"currency"`
 	PaidByPersonID *string `json:"paidByPersonId"`
+	// ExchangeRate is the rate currently in effect for converting this
+	// bill's amounts into its session's currency (fetched from the global
+	// exchange_rates cache, or a user override — see migration 0009) — nil
+	// when Currency matches the session's currency (implicit 1:1).
+	ExchangeRate *float64 `json:"exchangeRate"`
+	// ExchangeRateDate is the transaction date the rate was fetched/overridden for.
+	ExchangeRateDate *string `json:"exchangeRateDate"`
+	// ExchangeRateIsOverride distinguishes a user-entered rate from a
+	// fetched one, for display/audit purposes only — settlement math reads
+	// ExchangeRate regardless of which it is.
+	ExchangeRateIsOverride bool `json:"exchangeRateIsOverride"`
 	// The bill's most-recently-uploaded receipt image, if any (see
 	// api.UploadImage / store.listBills). Nil when no image has been
 	// uploaded for this bill.
@@ -81,6 +92,7 @@ type Session struct {
 	ClaimMode       ClaimMode      `json:"claimMode"`
 	PermissionMode  PermissionMode `json:"permissionMode"`
 	CreatorPersonID *string        `json:"creatorPersonId"`
+	Currency        string         `json:"currency"`
 	IsSettled       bool           `json:"isSettled"`
 	SettledAt       *string        `json:"settledAt"`
 	CreatorToken    string         `json:"-"`
@@ -135,6 +147,17 @@ type ItemActivity struct {
 	DeltaValue float64 `json:"deltaValue"`
 	TotalValue float64 `json:"totalValue"`
 	CreatedAt  string  `json:"createdAt"`
+}
+
+// ExchangeRate is a single cached rate lookup row (see migration
+// 0010_exchange_rate_cache.sql) — a global, backend-only, permanent cache
+// keyed by (date, base, quote), never edited by users directly.
+type ExchangeRate struct {
+	Date          string  `json:"date"`
+	BaseCurrency  string  `json:"baseCurrency"`
+	QuoteCurrency string  `json:"quoteCurrency"`
+	Rate          float64 `json:"rate"`
+	FetchedAt     string  `json:"fetchedAt"`
 }
 
 type ImageMeta struct {

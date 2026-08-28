@@ -46,7 +46,14 @@ for the full feature list and a route → doc index.
 - **Frontend**: React 19 + TypeScript (`.tsx`), Vite 6, Tailwind CSS 4,
   react-router-dom 7 (`HashRouter` — see `src/App.tsx`'s comment on why, static
   GitHub Pages hosting with no SPA fallback).
-- **State**: Zustand, no ORM/backend required for local use.
+- **State**: Zustand, no ORM/backend required for local use. Always wrap a
+  multi-field object-literal selector in `useShallow` (`import { useShallow }
+  from 'zustand/shallow'`) — a bare `useXStore((s) => ({ a: s.a, b: s.b }))`
+  returns a new object every call, which breaks `useSyncExternalStore`'s
+  snapshot caching and infinite-loops the component (`"Maximum update depth
+  exceeded"`). See `architecture/infrastructure.md`'s Notes for the real
+  incident this happened in. Selecting a single primitive or an existing
+  array/object reference doesn't need it.
   - `src/sessionStore.ts` — the source of truth, persisted to localStorage.
     Holds `Session[]`, each with `people` and `bills`; `Bill.items` holds the
     line items. Also owns the "push to live server" logic (best-effort,

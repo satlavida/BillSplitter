@@ -7,6 +7,7 @@ import type { LiveSession, LiveBill, LiveItem } from './schemas/live.schema';
 import { getImageBlob } from './lib/imageStore';
 import { trackPendingLiveWrite, isPendingLiveWrite } from './lib/pendingLiveWrites';
 import useSettingsStore from './settingsStore';
+import useCurrencyStore from './currencyStore';
 
 // Dynamically imported (rather than a static import) so this module never
 // pulls in liveApi.ts's `import.meta.env` reference at parse time — Jest's
@@ -25,8 +26,18 @@ const pushNewBillLive = (liveCode: string, bill: Pick<Bill, 'id' | 'title' | 'cu
 const pushNewItemLive = (liveCode: string, billId: string, item: Item) =>
   trackPendingLiveWrite(`item:${item.id}:fields`, import('./lib/liveApi').then(({ addLiveItem }) => addLiveItem(liveCode, billId, item)));
 
-const pushBillFieldsLive = (liveCode: string, billId: string, bill: Pick<Bill, 'title' | 'currency' | 'taxAmount' | 'paidByPersonId'>) =>
-  trackPendingLiveWrite(`bill:${billId}:fields`, import('./lib/liveApi').then(({ updateLiveBill }) => updateLiveBill(liveCode, billId, bill)));
+const pushBillFieldsLive = (
+  liveCode: string,
+  billId: string,
+  bill: Pick<Bill, 'title' | 'currency' | 'taxAmount' | 'paidByPersonId' | 'exchangeRate' | 'exchangeRateDate' | 'exchangeRateIsOverride'>
+) => trackPendingLiveWrite(`bill:${billId}:fields`, import('./lib/liveApi').then(({ updateLiveBill }) => updateLiveBill(liveCode, billId, bill)));
+
+// Pushes a session-currency change to the live server (creator-only). Kept
+// separate from the per-bill push helpers above since it targets the
+// session row, not a bill — mirrors their trackPendingLiveWrite/fire-and-
+// forget pattern (see setSessionCurrency).
+const pushSessionCurrencyLive = (liveCode: string, currency: string, creatorToken: string) =>
+  trackPendingLiveWrite(`session:${liveCode}:currency`, import('./lib/liveApi').then(({ updateLiveSessionCurrency }) => updateLiveSessionCurrency(liveCode, currency, creatorToken)));
 
 const pushItemFieldsLive = (liveCode: string, billId: string, item: Item) =>
   trackPendingLiveWrite(`item:${item.id}:fields`, import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item)));
@@ -77,7 +88,7 @@ const pushReceiptImageLive = (liveCode: string, billId: string, receiptImage: { 
     })()
   );
 
-const BILL_FIELD_KEYS = ['title', 'currency', 'taxAmount', 'paidByPersonId'] as const;
+const BILL_FIELD_KEYS = ['title', 'currency', 'taxAmount', 'paidByPersonId', 'exchangeRate', 'exchangeRateDate', 'exchangeRateIsOverride'] as const;
 const ITEM_FIELD_KEYS = ['name', 'price', 'quantity', 'discount', 'discountType', 'splitType'] as const;
 
 function billFieldsChanged(a: Bill, b: Bill): boolean {
@@ -93,7 +104,10 @@ function localBillDiffersFromLive(local: Bill, remote: LiveBill): boolean {
     local.title !== remote.title ||
     local.currency !== remote.currency ||
     local.taxAmount !== remote.taxAmount ||
-    local.paidByPersonId !== remote.paidByPersonId
+    local.paidByPersonId !== remote.paidByPersonId ||
+    local.exchangeRate !== remote.exchangeRate ||
+    local.exchangeRateDate !== remote.exchangeRateDate ||
+    local.exchangeRateIsOverride !== remote.exchangeRateIsOverride
   );
 }
 
@@ -141,6 +155,9 @@ async function syncExistingBillsLive(liveCode: string, bills: Bill[]) {
           currency: bill.currency,
           taxAmount: bill.taxAmount,
           paidByPersonId: bill.paidByPersonId,
+          exchangeRate: bill.exchangeRate,
+          exchangeRateDate: bill.exchangeRateDate,
+          exchangeRateIsOverride: bill.exchangeRateIsOverride,
         }).catch(() => {});
       }
       if (bill.receiptImage) {
@@ -155,6 +172,9 @@ async function syncExistingBillsLive(liveCode: string, bills: Bill[]) {
         currency: bill.currency,
         taxAmount: bill.taxAmount,
         paidByPersonId: bill.paidByPersonId,
+        exchangeRate: bill.exchangeRate,
+        exchangeRateDate: bill.exchangeRateDate,
+        exchangeRateIsOverride: bill.exchangeRateIsOverride,
       }).catch(() => {});
     }
 
@@ -197,6 +217,9 @@ const newBillDefaults = (overrides?: Partial<Bill>): Bill => ({
   items: overrides?.items ?? [],
   taxAmount: overrides?.taxAmount ?? 0,
   currency: overrides?.currency ?? 'INR',
+  exchangeRate: overrides?.exchangeRate ?? null,
+  exchangeRateDate: overrides?.exchangeRateDate ?? null,
+  exchangeRateIsOverride: overrides?.exchangeRateIsOverride ?? false,
   paidByPersonId: overrides?.paidByPersonId ?? null,
   receiptImage: overrides?.receiptImage ?? null,
   splitStateVersion: SESSION_STORE_VERSION,
@@ -211,6 +234,11 @@ interface SessionStoreActions {
   getCurrentSession: () => Session | undefined;
   getSession: (sessionId: string) => Session | undefined;
   setSessionTitle: (sessionId: string, title: string) => void;
+  // Sets the session's base currency (Session Settings panel). Best-effort
+  // pushed to the live server if the session is live — see
+  // pushSessionCurrencyLive; a failed push doesn't block/roll back the
+  // local change, mirroring every other live push in this file.
+  setSessionCurrency: (sessionId: string, currency: string) => void;
 
   addBill: (sessionId: string, billData?: Partial<Bill>) => Bill | undefined;
   updateBill: (sessionId: string, billId: string, data: Partial<Bill>) => void;
@@ -298,6 +326,9 @@ function mergeLiveBill(local: Bill | undefined, remote: LiveSession['bills'][num
     taxAmount: billFieldsPending ? (local?.taxAmount ?? remote.taxAmount) : remote.taxAmount,
     currency: billFieldsPending ? (local?.currency ?? remote.currency) : remote.currency,
     paidByPersonId: billFieldsPending ? (local?.paidByPersonId ?? remote.paidByPersonId) : remote.paidByPersonId,
+    exchangeRate: billFieldsPending ? (local?.exchangeRate ?? remote.exchangeRate) : remote.exchangeRate,
+    exchangeRateDate: billFieldsPending ? (local?.exchangeRateDate ?? remote.exchangeRateDate) : remote.exchangeRateDate,
+    exchangeRateIsOverride: billFieldsPending ? (local?.exchangeRateIsOverride ?? remote.exchangeRateIsOverride) : remote.exchangeRateIsOverride,
     receiptImage: local?.receiptImage ?? null,
     splitStateVersion: local?.splitStateVersion ?? SESSION_STORE_VERSION,
     scanStatus: local?.scanStatus ?? 'idle',
@@ -340,6 +371,10 @@ const useSessionStore = create<SessionStore>()(
           liveCreatorToken: null,
           permissionMode: 'edit',
           creatorPersonId: null,
+          // One-time seed from the user's global currency preference — not
+          // a live link; changing the global preference later doesn't
+          // retroactively change existing sessions (see currencyStore.ts).
+          currency: useCurrencyStore.getState().currency,
         };
 
         set((state) => ({
@@ -369,6 +404,18 @@ const useSessionStore = create<SessionStore>()(
         set((state) => ({
           sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, title }) : s)),
         })),
+
+      setSessionCurrency: (sessionId, currency) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, currency }) : s)),
+        }));
+
+        if (session?.isLive && session.liveCode && session.liveCreatorToken) {
+          pushSessionCurrencyLive(session.liveCode, currency, session.liveCreatorToken).catch(() => {});
+        }
+      },
 
       addBill: (sessionId, billData) => {
         const newBill = newBillDefaults(billData);
@@ -440,6 +487,9 @@ const useSessionStore = create<SessionStore>()(
             currency: updatedBill.currency,
             taxAmount: updatedBill.taxAmount,
             paidByPersonId: updatedBill.paidByPersonId,
+            exchangeRate: updatedBill.exchangeRate,
+            exchangeRateDate: updatedBill.exchangeRateDate,
+            exchangeRateIsOverride: updatedBill.exchangeRateIsOverride,
           }).catch(() => {});
         }
 

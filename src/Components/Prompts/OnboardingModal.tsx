@@ -3,36 +3,12 @@ import useCurrencyStore from '../../currencyStore';
 import useSettingsStore from '../../settingsStore';
 import { useShallow } from 'zustand/shallow';
 import { Modal, Button, Checkbox, SearchSelect } from '../../ui/components';
+import { getCurrencyOptions } from '../../lib/currencyDisplay';
 
 // Bump this id (e.g. "onboarding_v2") if the onboarding flow's questions
 // change materially and existing users should see it again; completion is
 // tracked per-id in settingsStore so old and new ids can coexist.
 const ONBOARDING_ID = 'onboarding_v1';
-
-const getCurrencySymbol = (code: string): string => {
-  try {
-    return (
-      new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: code,
-        currencyDisplay: 'narrowSymbol',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })
-        .formatToParts(0)
-        .find((part) => part.type === 'currency')?.value ?? code
-    );
-  } catch {
-    return code;
-  }
-};
-
-const getCurrencyCodes = (): string[] => {
-  if (typeof Intl.supportedValuesOf === 'function') {
-    return Intl.supportedValuesOf('currency');
-  }
-  return ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'SEK', 'NZD', 'MXN', 'SGD', 'HKD', 'NOK', 'KRW', 'TRY', 'RUB', 'INR', 'BRL', 'ZAR'];
-};
 
 // One-time setup modal shown on first use, letting the user set their
 // currency and whether/how to auto-add themselves to bills — the same
@@ -57,11 +33,7 @@ const OnboardingModal = () => {
     }))
   );
 
-  const currencyOptions = useMemo(() => {
-    return getCurrencyCodes()
-      .map((code) => ({ code, symbol: getCurrencySymbol(code) }))
-      .sort((a, b) => a.code.localeCompare(b.code));
-  }, []);
+  const currencyOptions = useMemo(() => getCurrencyOptions(), []);
 
   const isOpen = !completedOnboarding[ONBOARDING_ID];
   const finish = () => completeOnboarding(ONBOARDING_ID);

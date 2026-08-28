@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import useBillStore, { useBillPersonTotals, useBillPersons, useBillItems, type PersonTotal, type PersonTotalItem } from '../billStore';
 import { generateSplitSummaryText } from '../lib/splitSummary';
 import useSessionStore from '../sessionStore';
-import useCurrencyStore, { useFormatCurrency } from '../currencyStore';
+import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
 import { Button, Card, PrintButton, PrintWrapper, Dropdown } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
@@ -212,10 +212,11 @@ const BillSummary = () => {
   const navigate = useNavigate();
 
   // Use Zustand store with useShallow to prevent unnecessary re-renders
-  const { title, taxAmount, goToStep, exportBill } = useBillStore(
+  const { title, taxAmount, currency, goToStep, exportBill } = useBillStore(
     useShallow((state) => ({
       title: state.title,
       taxAmount: state.taxAmount,
+      currency: state.currency,
       goToStep: state.goToStep,
       exportBill: state.exportBill,
     }))
@@ -223,10 +224,10 @@ const BillSummary = () => {
 
   const addBill = useSessionStore((state) => state.addBill);
 
-  const formatCurrency = useFormatCurrency();
-
-  // Current currency
-  const currency = useCurrencyStore((state) => state.currency);
+  // This bill's own currency, not the user's global preference — a bill
+  // paid for in USD should show "$" while being edited, regardless of what
+  // the editor's own default/other sessions use. See architecture/currency.md.
+  const formatCurrency = (amount: number | null | undefined) => formatAmountInCurrency(amount, currency);
 
   // User provided UPI ID
   const [upiId, setUpiId] = useState('');

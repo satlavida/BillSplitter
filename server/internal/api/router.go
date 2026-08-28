@@ -19,6 +19,7 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{code}/events", a.Events)
 	mux.HandleFunc("GET /api/sessions/{code}/settlement", a.GetSettlement)
 	mux.HandleFunc("POST /api/sessions/{code}/settle", a.Settle)
+	mux.HandleFunc("PATCH /api/sessions/{code}/currency", a.UpdateSessionCurrency)
 
 	mux.HandleFunc("POST /api/sessions/{code}/join", a.Join)
 	mux.HandleFunc("GET /api/sessions/{code}/joiners", a.ListJoiners)
@@ -43,6 +44,8 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("POST /api/scan", a.Scan)
 	mux.HandleFunc("GET /api/scan/usage", a.ScanUsageQuery)
 
+	mux.HandleFunc("GET /api/exchange-rate", a.GetExchangeRate)
+
 	mux.HandleFunc("GET /admin", a.AdminSessionsPage)
 	mux.HandleFunc("GET /admin/stats", a.AdminStatsPage)
 	mux.HandleFunc("GET /admin/bill-processor", a.AdminScanPage)
@@ -51,6 +54,8 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("GET /admin/settings/models", a.AdminOpenRouterModels)
 	mux.HandleFunc("POST /admin/settings/model", a.AdminSetOpenRouterModel)
 	mux.HandleFunc("GET /admin/jobs", a.AdminJobsPage)
+	mux.HandleFunc("GET /admin/exchange-rates", a.AdminExchangeRatesPage)
+	mux.HandleFunc("POST /admin/exchange-rates/flush", a.AdminFlushExchangeRates)
 
 	return mux
 }
