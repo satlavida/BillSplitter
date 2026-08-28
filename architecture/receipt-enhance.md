@@ -106,8 +106,10 @@ None — this feature is entirely client-side. No Go changes.
   or real canvas pixel data (`detectReceiptBoundary`, `cropToQuad`,
   `enhanceReceiptFromImageAndQuad`/`enhanceReceiptImage`) are not
   meaningfully mockable and are validated manually via the dev test page
-  instead — verified during development against synthetic angled/plain
-  test photos (Playwright-driven, screenshots inspected) confirming: a
+  instead — verified during development against the synthetic photos in
+  [test/images/](../test/images/) (`angled-receipt.jpg`, `no-boundary.jpg`
+  — generated, not real receipts; see that folder's README), Playwright-
+  driven with screenshots inspected, confirming: a
   correct boundary overlay, a properly deskewed crop, the no-boundary-found
   fallback (uses the full image, unmodified dimensions), and the drag
   interaction itself (dragging a corner outward on the canvas visibly

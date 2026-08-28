@@ -5,6 +5,7 @@ import {
   enhanceReceiptFromImageAndQuad,
   loadImageFile,
   fullImageQuad,
+  insetQuad,
   type Quad,
   type Point,
   type EnhancedReceiptImage,
@@ -13,9 +14,22 @@ import {
 const CORNER_KEYS: (keyof Quad)[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
 const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
 
+// A quad starting exactly on the image's true edges/corners is awkward to
+// grab (half the touch target falls outside the canvas), so both the
+// no-detection fallback and "Use full image" pull the corners in a little
+// first — the user can still drag them back out to the true edge.
+const FALLBACK_INSET_RATIO = 0.05;
+
+// Shared between drawing and hit-testing so the visible "catch" ring
+// always matches the actual draggable area.
+const getHandleRadii = (refWidth: number) => ({
+  dot: Math.max(9, refWidth / 100),
+  catchRing: Math.max(26, refWidth / 30),
+});
+
 const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: number, draggingIndex: number | null) => {
   const points = CORNER_KEYS.map((key) => quad[key]);
-  const handleRadius = Math.max(8, refWidth / 120);
+  const { dot, catchRing } = getHandleRadii(refWidth);
 
   ctx.strokeStyle = '#22c55e';
   ctx.lineWidth = Math.max(2, refWidth / 300);
@@ -26,15 +40,31 @@ const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: nu
 
   ctx.font = `${Math.max(16, refWidth / 40)}px sans-serif`;
   points.forEach((p, i) => {
-    ctx.fillStyle = i === draggingIndex ? '#f97316' : '#22c55e';
+    const isActive = i === draggingIndex;
+    const color = isActive ? '#f97316' : '#22c55e';
+
+    // Larger translucent ring showing the actual grabbable area — this is
+    // the part that matters for touch, since a fingertip is much wider
+    // than the thin boundary line/solid dot alone.
     ctx.beginPath();
-    ctx.arc(p.x, p.y, i === draggingIndex ? handleRadius * 1.3 : handleRadius, 0, 2 * Math.PI);
+    ctx.arc(p.x, p.y, isActive ? catchRing * 1.15 : catchRing, 0, 2 * Math.PI);
+    ctx.fillStyle = isActive ? 'rgba(249, 115, 22, 0.18)' : 'rgba(34, 197, 94, 0.15)';
+    ctx.fill();
+    ctx.strokeStyle = isActive ? 'rgba(249, 115, 22, 0.6)' : 'rgba(34, 197, 94, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Solid center dot marking the exact corner position.
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.arc(p.x, p.y, isActive ? dot * 1.3 : dot, 0, 2 * Math.PI);
     ctx.fill();
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 2;
     ctx.stroke();
+
     ctx.fillStyle = '#166534';
-    ctx.fillText(CORNER_LABELS[i], p.x + handleRadius + 4, p.y - handleRadius - 4);
+    ctx.fillText(CORNER_LABELS[i], p.x + catchRing + 4, p.y - catchRing - 4);
   });
 };
 
@@ -113,7 +143,7 @@ const DevReceiptScanTestPage = () => {
       const detected = await detectReceiptBoundary(img);
       setDetectedBoundary(detected);
 
-      const startingQuad = detected ?? fullImageQuad(img);
+      const startingQuad = detected ?? insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
       setEditableQuad(startingQuad);
       await runEnhance(startingQuad);
     } catch (err) {
@@ -145,7 +175,7 @@ const DevReceiptScanTestPage = () => {
   const handlePointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!editableQuad || !imgRef.current) return;
     const p = getCanvasPoint(e);
-    const hitRadius = Math.max(20, imgRef.current.naturalWidth / 40);
+    const hitRadius = getHandleRadii(imgRef.current.naturalWidth).catchRing;
 
     let closestIndex = -1;
     let closestDist = Infinity;
@@ -181,7 +211,7 @@ const DevReceiptScanTestPage = () => {
   const resetToDetected = () => {
     const img = imgRef.current;
     if (!img) return;
-    const quad = detectedBoundary ?? fullImageQuad(img);
+    const quad = detectedBoundary ?? insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
     setEditableQuad(quad);
     void runEnhance(quad);
   };
@@ -189,7 +219,7 @@ const DevReceiptScanTestPage = () => {
   const useFullImage = () => {
     const img = imgRef.current;
     if (!img) return;
-    const quad = fullImageQuad(img);
+    const quad = insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
     setEditableQuad(quad);
     void runEnhance(quad);
   };

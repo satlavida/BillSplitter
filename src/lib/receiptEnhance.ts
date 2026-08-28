@@ -305,6 +305,31 @@ export const fullImageQuad = (source: HTMLImageElement | HTMLCanvasElement): Qua
 };
 
 /**
+ * Moves each corner of a quad a fraction of the way toward the quad's
+ * centroid. Used to pull a starting quad's corners in from an image's true
+ * edges/corners a little, since a handle sitting exactly on the boundary
+ * of a canvas is awkward to grab (especially with a fingertip) — half its
+ * hit target falls outside the canvas.
+ */
+export const insetQuad = (quad: Quad, insetRatio: number): Quad => {
+  const centroid: Point = {
+    x: (quad.topLeft.x + quad.topRight.x + quad.bottomRight.x + quad.bottomLeft.x) / 4,
+    y: (quad.topLeft.y + quad.topRight.y + quad.bottomRight.y + quad.bottomLeft.y) / 4,
+  };
+  const moveTowardCentroid = (p: Point): Point => ({
+    x: p.x + (centroid.x - p.x) * insetRatio,
+    y: p.y + (centroid.y - p.y) * insetRatio,
+  });
+
+  return {
+    topLeft: moveTowardCentroid(quad.topLeft),
+    topRight: moveTowardCentroid(quad.topRight),
+    bottomRight: moveTowardCentroid(quad.bottomRight),
+    bottomLeft: moveTowardCentroid(quad.bottomLeft),
+  };
+};
+
+/**
  * Crop-or-skip -> grayscale/contrast enhancement -> resize to <=2048px on
  * either dimension -> JPEG data URL, given an already-loaded image and an
  * explicit quad (or null to skip cropping entirely). Split out from

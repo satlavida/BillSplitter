@@ -1,4 +1,13 @@
-import { orderQuadPoints, computeWarpedDimensions, toGrayscaleImageData, stretchContrast, fullImageQuad, type Point, type Quad } from './receiptEnhance';
+import {
+  orderQuadPoints,
+  computeWarpedDimensions,
+  toGrayscaleImageData,
+  stretchContrast,
+  fullImageQuad,
+  insetQuad,
+  type Point,
+  type Quad,
+} from './receiptEnhance';
 
 // jsdom doesn't implement the ImageData constructor; toGrayscaleImageData
 // and stretchContrast only touch `.data`/`.width`/`.height`, so a plain
@@ -117,6 +126,52 @@ describe('fullImageQuad', () => {
       bottomRight: { x: 200, y: 150 },
       bottomLeft: { x: 0, y: 150 },
     });
+  });
+});
+
+describe('insetQuad', () => {
+  test('pulls each corner a fraction of the way toward the centroid', () => {
+    const quad: Quad = {
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 100, y: 0 },
+      bottomRight: { x: 100, y: 100 },
+      bottomLeft: { x: 0, y: 100 },
+    };
+    // Centroid is (50, 50); a 10% inset moves each corner 10% of the way there.
+    const result = insetQuad(quad, 0.1);
+
+    expect(result.topLeft).toEqual({ x: 5, y: 5 });
+    expect(result.topRight).toEqual({ x: 95, y: 5 });
+    expect(result.bottomRight).toEqual({ x: 95, y: 95 });
+    expect(result.bottomLeft).toEqual({ x: 5, y: 95 });
+  });
+
+  test('a zero ratio leaves the quad unchanged', () => {
+    const quad: Quad = {
+      topLeft: { x: 10, y: 20 },
+      topRight: { x: 210, y: 20 },
+      bottomRight: { x: 210, y: 320 },
+      bottomLeft: { x: 10, y: 320 },
+    };
+
+    expect(insetQuad(quad, 0)).toEqual(quad);
+  });
+
+  test('a ratio of 1 collapses every corner onto the centroid', () => {
+    const quad: Quad = {
+      topLeft: { x: 0, y: 0 },
+      topRight: { x: 40, y: 0 },
+      bottomRight: { x: 40, y: 80 },
+      bottomLeft: { x: 0, y: 80 },
+    };
+    const centroid = { x: 20, y: 40 };
+
+    const result = insetQuad(quad, 1);
+
+    expect(result.topLeft).toEqual(centroid);
+    expect(result.topRight).toEqual(centroid);
+    expect(result.bottomRight).toEqual(centroid);
+    expect(result.bottomLeft).toEqual(centroid);
   });
 });
 
