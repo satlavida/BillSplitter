@@ -18,6 +18,7 @@ import SessionSettlementPage from './Pages/SessionSettlementPage';
 import ActivityLogPage from './Pages/ActivityLogPage';
 import JoinPage from './Pages/JoinPage';
 import JoinerBillEditorPage from './Pages/JoinerBillEditorPage';
+import DevReceiptScanTestPage from './Pages/DevReceiptScanTestPage';
 import ErrorBoundary from './Components/ErrorBoundary';
 import './App.css';
 
@@ -216,6 +217,7 @@ const App = () => {
             <Route path="/join/:code" element={<JoinPage />} />
             <Route path="/join/:code/bills/:billId/step/:step" element={<JoinerBillEditorPage />} />
             <Route path="/settings" element={<Settings />} />
+            {import.meta.env.DEV && <Route path="/dev/receipt-scan-test" element={<DevReceiptScanTestPage />} />}
           </Route>
         </Routes>
       </HashRouter>

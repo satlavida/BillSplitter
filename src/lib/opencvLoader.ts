@@ -21,8 +21,12 @@ let cvPromise: Promise<OpenCv> | null = null;
  */
 export const loadOpenCv = (): Promise<OpenCv> => {
   if (!cvPromise) {
-    cvPromise = import('@techstark/opencv-js').then((mod) => {
-      const cvModule = mod.default ?? mod;
+    cvPromise = import('@techstark/opencv-js').then(async (mod) => {
+      // The package's default export is the emscripten module factory's
+      // return value, which is itself a Promise that resolves once the
+      // wasm runtime is ready (unless it happened to already be ready
+      // synchronously, in which case it's the module object directly).
+      const cvModule = await (mod.default ?? mod);
       if (cvModule.Mat) {
         return cvModule;
       }
