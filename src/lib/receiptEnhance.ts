@@ -337,8 +337,7 @@ export const binarizeForOcr = (source: HTMLCanvasElement): HTMLCanvasElement => 
 
 /**
  * Downscales (never upscales) a canvas so neither dimension exceeds
- * maxDimension, reusing the same aspect-preserving math as
- * resizeImageToDataUrl.
+ * maxDimension, reusing computeResizedDimensions' aspect-preserving math.
  */
 export const resizeToMaxDimension = (canvas: HTMLCanvasElement, maxDimension = 2048): HTMLCanvasElement => {
   const { width, height } = computeResizedDimensions(canvas.width, canvas.height, maxDimension, maxDimension);

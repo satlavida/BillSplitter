@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, type FormEvent, type MouseEvent, type RefObject } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent, type MouseEvent, type RefObject } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
-import { resizeImageToDataUrl } from '../lib/imageResize';
+import ReceiptBoundaryEditor, { computeStartingQuad } from './ReceiptBoundaryEditor';
+import { detectReceiptBoundary, enhanceReceiptFromImageAndQuad, loadImageFile, type Quad } from '../lib/receiptEnhance';
 import { saveImageBlob, dataUrlToBlob } from '../lib/imageStore';
 import { generateId } from '../lib/generateId';
 import { scanBillReceipt } from '../lib/receiptScan';
@@ -61,18 +62,28 @@ const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }
   );
 };
 
-interface ReceiptUploadFormProps {
-  onSubmit: (e: FormEvent) => void;
+interface ReceiptFilePickerProps {
   onCancel: () => void;
-  isLoading: boolean;
   error: string | null;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileInputClick: () => void;
+  onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   useCameraCapture: boolean | undefined;
+  isDetecting: boolean;
 }
 
-// Receipt Upload Form Component
-const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef, onFileInputClick, useCameraCapture }: ReceiptUploadFormProps) => {
+// Step 1: pick/capture a receipt photo. Selecting a file immediately hands
+// off to the crop step below (loads the image + runs boundary detection)
+// rather than requiring a separate "submit" click.
+const ReceiptFilePicker = ({
+  onCancel,
+  error,
+  fileInputRef,
+  onFileInputClick,
+  onFileChange,
+  useCameraCapture,
+  isDetecting,
+}: ReceiptFilePickerProps) => {
   // Only intercept the click if useCameraCapture is undefined
   const handleFileInputClick = (e: MouseEvent<HTMLInputElement>) => {
     if (useCameraCapture === undefined && onFileInputClick) {
@@ -82,7 +93,7 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef,
   };
 
   return (
-    <form onSubmit={onSubmit}>
+    <div>
       <FileUpload
         ref={fileInputRef}
         label={useCameraCapture ? 'Take photo of receipt' : 'Select receipt image'}
@@ -90,31 +101,22 @@ const ReceiptUploadForm = ({ onSubmit, onCancel, isLoading, error, fileInputRef,
         capture={useCameraCapture ? 'environment' : undefined}
         error={error}
         onClick={handleFileInputClick}
+        onChange={onFileChange}
+        disabled={isDetecting}
       />
 
-      <Alert type="warning">
-        <p>
-          ⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis. The data
-          may be used for training AI models.
-        </p>
-      </Alert>
+      {isDetecting && (
+        <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+          <Spinner size="sm" /> Analyzing photo...
+        </div>
+      )}
 
-      <div className="flex justify-end space-x-2 mt-4">
+      <div className="flex justify-end mt-4">
         <Button variant="secondary" onClick={onCancel} type="button">
           Cancel
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? (
-            <div className="flex items-center">
-              <Spinner className="mr-2" />
-              Processing...
-            </div>
-          ) : (
-            'Process Receipt'
-          )}
-        </Button>
       </div>
-    </form>
+    </div>
   );
 };
 
@@ -126,10 +128,16 @@ const ScanReceiptButton = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModeSelectionOpen, setIsModeSelectionOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useCameraCapture, setUseCameraCapture] = useState<boolean | undefined>(undefined);
   const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
+
+  // Crop step state: set once a file has been picked and loaded.
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [detectedBoundary, setDetectedBoundary] = useState<Quad | null | undefined>(undefined);
+  const [editableQuad, setEditableQuad] = useState<Quad | null>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const isOnline = useOnlineStatus();
 
@@ -141,6 +149,14 @@ const ScanReceiptButton = () => {
   // Single file input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const resetCropState = () => {
+    setSelectedImg(null);
+    setDetectedBoundary(undefined);
+    setEditableQuad(null);
+    setIsDetecting(false);
+    setIsProcessing(false);
+  };
+
   const openModal = () => {
     if (!isOnline) {
       setIsOfflineModalOpen(true);
@@ -149,12 +165,14 @@ const ScanReceiptButton = () => {
     setIsModalOpen(true);
     setError(null);
     setUseCameraCapture(undefined);
+    resetCropState();
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setError(null);
     setUseCameraCapture(undefined);
+    resetCropState();
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -222,10 +240,8 @@ const ScanReceiptButton = () => {
     return null; // No error
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    const file = fileInputRef.current?.files?.[0];
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
 
     const validationError = validateImageFile(file);
     if (validationError) {
@@ -233,25 +249,74 @@ const ScanReceiptButton = () => {
       return;
     }
 
-    if (!sessionId || !billId) {
+    setError(null);
+    setIsDetecting(true);
+
+    try {
+      const img = await loadImageFile(file as File);
+      setSelectedImg(img);
+
+      // A failure here shouldn't block scanning entirely — fall back to
+      // letting the user draw the boundary manually over the full image.
+      let detected: Quad | null = null;
+      try {
+        detected = await detectReceiptBoundary(img);
+      } catch (detectErr) {
+        console.error('Boundary detection failed, falling back to full image:', detectErr);
+      }
+
+      setDetectedBoundary(detected);
+      setEditableQuad(computeStartingQuad(detected, img));
+    } catch (err) {
+      console.error('Failed to load selected image:', err);
+      setError('Failed to load the selected image. Please try a different photo.');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleRedetectEdges = async () => {
+    if (!selectedImg) return;
+    setIsDetecting(true);
+    setError(null);
+    try {
+      const detected = await detectReceiptBoundary(selectedImg);
+      setDetectedBoundary(detected);
+      setEditableQuad(computeStartingQuad(detected, selectedImg));
+    } catch (err) {
+      console.error('Redetecting edges failed:', err);
+      setError('Could not redetect edges. You can still adjust the boundary manually.');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleResetBoundary = () => {
+    if (!selectedImg) return;
+    setEditableQuad(computeStartingQuad(detectedBoundary ?? null, selectedImg));
+  };
+
+  const handleConfirmCrop = async () => {
+    if (!sessionId || !billId || !selectedImg || !editableQuad) {
       setError('Failed to process receipt. Please try again.');
       return;
     }
 
     try {
-      setIsLoading(true);
+      setIsProcessing(true);
       setError(null);
 
-      // Store the (resized) receipt image first — it's both what's shown as
-      // the bill's receipt reference and what gets scanned, and it needs to
-      // exist in IndexedDB before scanBillReceipt (or a later retry) can
-      // read it back.
-      const resized = await resizeImageToDataUrl(file as File);
+      // Perspective-crop to the selected boundary, grayscale + contrast
+      // enhance, and resize — then store the result exactly as before.
+      // It's both what's shown as the bill's receipt reference and what
+      // gets scanned, and it needs to exist in IndexedDB before
+      // scanBillReceipt (or a later retry) can read it back.
+      const enhanced = await enhanceReceiptFromImageAndQuad(selectedImg, editableQuad);
       const refKey = generateId();
-      await saveImageBlob(refKey, dataUrlToBlob(resized.dataUrl));
+      await saveImageBlob(refKey, dataUrlToBlob(enhanced.dataUrl));
 
       useSessionStore.getState().updateBill(sessionId, billId, {
-        receiptImage: { refKey, width: resized.width, height: resized.height },
+        receiptImage: { refKey, width: enhanced.width, height: enhanced.height },
         scanStatus: 'processing',
         scanError: null,
       });
@@ -266,7 +331,7 @@ const ScanReceiptButton = () => {
       console.error('Error preparing receipt image:', err);
       setError('Failed to process receipt. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -283,16 +348,78 @@ const ScanReceiptButton = () => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Upload Receipt">
-        <ReceiptUploadForm
-          onSubmit={handleSubmit}
-          onCancel={closeModal}
-          isLoading={isLoading}
-          error={error}
-          fileInputRef={fileInputRef}
-          onFileInputClick={openModeSelection}
-          useCameraCapture={useCameraCapture}
-        />
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={selectedImg ? 'Crop Receipt' : 'Upload Receipt'}
+        className={selectedImg ? 'max-w-2xl' : undefined}
+      >
+        {!selectedImg ? (
+          <ReceiptFilePicker
+            onCancel={closeModal}
+            error={error}
+            fileInputRef={fileInputRef}
+            onFileInputClick={openModeSelection}
+            onFileChange={handleFileChange}
+            useCameraCapture={useCameraCapture}
+            isDetecting={isDetecting}
+          />
+        ) : (
+          <div>
+            <h3 className="font-medium mb-2 dark:text-white">Select receipt area</h3>
+            {isDetecting && !editableQuad && (
+              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+                <Spinner size="sm" /> Detecting receipt edges...
+              </div>
+            )}
+            {editableQuad && (
+              <>
+                <ReceiptBoundaryEditor
+                  img={selectedImg}
+                  quad={editableQuad}
+                  onChange={setEditableQuad}
+                  className="max-w-full max-h-[60vh] border border-zinc-200 dark:border-zinc-700 rounded"
+                />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+                  Drag the corners so they line up with the receipt's edges.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Button variant="secondary" size="sm" onClick={handleRedetectEdges} disabled={isDetecting}>
+                    {isDetecting ? <Spinner size="sm" /> : 'Redetect edges'}
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleResetBoundary} disabled={isDetecting}>
+                    Reset boundary
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {error && <Alert type="error">{error}</Alert>}
+
+            <Alert type="warning">
+              <p>
+                ⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis.
+                The data may be used for training AI models.
+              </p>
+            </Alert>
+
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button variant="secondary" onClick={closeModal} type="button">
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmCrop} disabled={isProcessing || isDetecting || !editableQuad}>
+                {isProcessing ? (
+                  <div className="flex items-center">
+                    <Spinner className="mr-2" />
+                    Processing...
+                  </div>
+                ) : (
+                  'Use This Crop'
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <ModeSelectionModal

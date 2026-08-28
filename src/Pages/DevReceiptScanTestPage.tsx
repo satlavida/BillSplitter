@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useState, type ChangeEvent } from 'react';
 import { Card, FileUpload, Spinner, Alert, Button } from '../ui/components';
+import ReceiptBoundaryEditor, { computeStartingQuad, FALLBACK_INSET_RATIO } from '../Components/ReceiptBoundaryEditor';
 import {
   detectReceiptBoundary,
   enhanceReceiptFromImageAndQuad,
@@ -8,66 +9,8 @@ import {
   fullImageQuad,
   insetQuad,
   type Quad,
-  type Point,
   type EnhancedReceiptImage,
 } from '../lib/receiptEnhance';
-
-const CORNER_KEYS: (keyof Quad)[] = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'];
-const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
-
-// A quad starting exactly on the image's true edges/corners is awkward to
-// grab (half the touch target falls outside the canvas), so both the
-// no-detection fallback and "Use full image" pull the corners in a little
-// first — the user can still drag them back out to the true edge.
-const FALLBACK_INSET_RATIO = 0.05;
-
-// Shared between drawing and hit-testing so the visible "catch" ring
-// always matches the actual draggable area.
-const getHandleRadii = (refWidth: number) => ({
-  dot: Math.max(9, refWidth / 100),
-  catchRing: Math.max(26, refWidth / 30),
-});
-
-const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: number, draggingIndex: number | null) => {
-  const points = CORNER_KEYS.map((key) => quad[key]);
-  const { dot, catchRing } = getHandleRadii(refWidth);
-
-  ctx.strokeStyle = '#22c55e';
-  ctx.lineWidth = Math.max(2, refWidth / 300);
-  ctx.beginPath();
-  points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-  ctx.closePath();
-  ctx.stroke();
-
-  ctx.font = `${Math.max(16, refWidth / 40)}px sans-serif`;
-  points.forEach((p, i) => {
-    const isActive = i === draggingIndex;
-    const color = isActive ? '#f97316' : '#22c55e';
-
-    // Larger translucent ring showing the actual grabbable area — this is
-    // the part that matters for touch, since a fingertip is much wider
-    // than the thin boundary line/solid dot alone.
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, isActive ? catchRing * 1.15 : catchRing, 0, 2 * Math.PI);
-    ctx.fillStyle = isActive ? 'rgba(249, 115, 22, 0.18)' : 'rgba(34, 197, 94, 0.15)';
-    ctx.fill();
-    ctx.strokeStyle = isActive ? 'rgba(249, 115, 22, 0.6)' : 'rgba(34, 197, 94, 0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Solid center dot marking the exact corner position.
-    ctx.beginPath();
-    ctx.fillStyle = color;
-    ctx.arc(p.x, p.y, isActive ? dot * 1.3 : dot, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = '#166534';
-    ctx.fillText(CORNER_LABELS[i], p.x + catchRing + 4, p.y - catchRing - 4);
-  });
-};
 
 /**
  * Dev-only page for visually validating the client-side receipt
@@ -82,7 +25,7 @@ const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: nu
  * the crop + enhancement.
  */
 const DevReceiptScanTestPage = () => {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
   const [detectedBoundary, setDetectedBoundary] = useState<Quad | null | undefined>(undefined);
   const [editableQuad, setEditableQuad] = useState<Quad | null>(null);
   const [enhanced, setEnhanced] = useState<EnhancedReceiptImage | null>(null);
@@ -90,29 +33,8 @@ const DevReceiptScanTestPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
 
-  // Draw the original image + the current (possibly hand-adjusted)
-  // boundary overlay whenever the quad or drag state changes.
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const img = imgRef.current;
-    if (!canvas || !img || !editableQuad) return;
-
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.drawImage(img, 0, 0);
-    drawQuadOverlay(ctx, editableQuad, img.naturalWidth, draggingIndex);
-  }, [editableQuad, draggingIndex]);
-
-  const runOutputs = useCallback(async (quad: Quad | null) => {
-    const img = imgRef.current;
-    if (!img) return;
+  const runOutputs = useCallback(async (img: HTMLImageElement, quad: Quad | null) => {
     setIsApplying(true);
     try {
       const [enhancedResult, binarizedResult] = await Promise.all([
@@ -137,22 +59,19 @@ const DevReceiptScanTestPage = () => {
     setBinarized(null);
     setDetectedBoundary(undefined);
     setEditableQuad(null);
+    setImgEl(null);
     setIsProcessing(true);
 
     try {
       const img = await loadImageFile(file);
-      imgRef.current = img;
-      setImageUrl((previous) => {
-        if (previous) URL.revokeObjectURL(previous);
-        return img.src;
-      });
+      setImgEl(img);
 
       const detected = await detectReceiptBoundary(img);
       setDetectedBoundary(detected);
 
-      const startingQuad = detected ?? insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
+      const startingQuad = computeStartingQuad(detected, img);
       setEditableQuad(startingQuad);
-      await runOutputs(startingQuad);
+      await runOutputs(img, startingQuad);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process image');
     } finally {
@@ -160,75 +79,25 @@ const DevReceiptScanTestPage = () => {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleQuadChange = (quad: Quad) => setEditableQuad(quad);
 
-  const getCanvasPoint = (e: ReactPointerEvent<HTMLCanvasElement>): Point => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    return {
-      x: Math.min(canvas.width, Math.max(0, (e.clientX - rect.left) * scaleX)),
-      y: Math.min(canvas.height, Math.max(0, (e.clientY - rect.top) * scaleY)),
-    };
-  };
-
-  const handlePointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (!editableQuad || !imgRef.current) return;
-    const p = getCanvasPoint(e);
-    const hitRadius = getHandleRadii(imgRef.current.naturalWidth).catchRing;
-
-    let closestIndex = -1;
-    let closestDist = Infinity;
-    CORNER_KEYS.forEach((key, i) => {
-      const corner = editableQuad[key];
-      const dist = Math.hypot(corner.x - p.x, corner.y - p.y);
-      if (dist < hitRadius && dist < closestDist) {
-        closestDist = dist;
-        closestIndex = i;
-      }
-    });
-
-    if (closestIndex >= 0) {
-      setDraggingIndex(closestIndex);
-      e.currentTarget.setPointerCapture(e.pointerId);
-    }
-  };
-
-  const handlePointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (draggingIndex === null || !editableQuad) return;
-    const p = getCanvasPoint(e);
-    const key = CORNER_KEYS[draggingIndex];
-    setEditableQuad({ ...editableQuad, [key]: p });
-  };
-
-  const handlePointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (draggingIndex === null) return;
-    setDraggingIndex(null);
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    void runOutputs(editableQuad);
+  const handleDragEnd = (quad: Quad) => {
+    if (!imgEl) return;
+    void runOutputs(imgEl, quad);
   };
 
   const resetToDetected = () => {
-    const img = imgRef.current;
-    if (!img) return;
-    const quad = detectedBoundary ?? insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
+    if (!imgEl) return;
+    const quad = computeStartingQuad(detectedBoundary ?? null, imgEl);
     setEditableQuad(quad);
-    void runOutputs(quad);
+    void runOutputs(imgEl, quad);
   };
 
   const useFullImage = () => {
-    const img = imgRef.current;
-    if (!img) return;
-    const quad = insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
+    if (!imgEl) return;
+    const quad = insetQuad(fullImageQuad(imgEl), FALLBACK_INSET_RATIO);
     setEditableQuad(quad);
-    void runOutputs(quad);
+    void runOutputs(imgEl, quad);
   };
 
   return (
@@ -249,16 +118,15 @@ const DevReceiptScanTestPage = () => {
         {error && <Alert type="error">{error}</Alert>}
       </Card>
 
-      {imageUrl && (
+      {imgEl && editableQuad && (
         <Card>
           <h3 className="font-medium mb-2 dark:text-white">Boundary (drag the corner handles to adjust)</h3>
-          <canvas
-            ref={canvasRef}
-            className="max-w-full border border-zinc-200 dark:border-zinc-700 rounded touch-none cursor-grab"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
+          <ReceiptBoundaryEditor
+            img={imgEl}
+            quad={editableQuad}
+            onChange={handleQuadChange}
+            onDragEnd={handleDragEnd}
+            className="max-w-full border border-zinc-200 dark:border-zinc-700 rounded"
           />
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
             {detectedBoundary === undefined
@@ -269,10 +137,10 @@ const DevReceiptScanTestPage = () => {
             {isApplying && ' Re-applying crop...'}
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="secondary" size="sm" onClick={resetToDetected} disabled={!imgRef.current}>
+            <Button variant="secondary" size="sm" onClick={resetToDetected}>
               Reset to detected
             </Button>
-            <Button variant="secondary" size="sm" onClick={useFullImage} disabled={!imgRef.current}>
+            <Button variant="secondary" size="sm" onClick={useFullImage}>
               Use full image
             </Button>
           </div>

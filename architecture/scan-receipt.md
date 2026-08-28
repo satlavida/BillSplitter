@@ -1,16 +1,20 @@
 # Scan Receipt
 
 ## Summary
-Upload or capture a photo of a receipt; a vision-capable LLM extracts line
-items, subtotal, and tax, which populate the bill's Items step. The image
-itself is stored (locally in IndexedDB, and on the server if the session is
-live) so it can be reviewed later. Scanning is async/non-blocking — the
-upload modal closes immediately and progress surfaces elsewhere in the UI.
+Upload or capture a photo of a receipt; the client detects the receipt's
+boundary, lets the user fine-tune it, perspective-crops and
+grayscale/contrast-enhances the image, and a vision-capable LLM extracts
+line items, subtotal, and tax from the enhanced image, populating the
+bill's Items step. The (cropped/enhanced) image itself is stored (locally
+in IndexedDB, and on the server if the session is live) so it can be
+reviewed later. Scanning is async/non-blocking — the upload modal closes
+immediately and progress surfaces elsewhere in the UI.
 
 ## Frontend
-- `src/Components/ScanReceiptButton.tsx` — upload/capture modal; on submit, resizes + stores the image locally, marks the bill `scanStatus: 'processing'`, closes immediately, fires `scanBillReceipt` without awaiting it. Used from `ItemsInput.tsx` ([bill-editing.md](bill-editing.md)). Also self-opens on mount if it receives router nav-state `{ autoOpenScan: true }` (immediately replaced with no state, so back/forward doesn't re-trigger it) — used by `SessionHomePage.tsx`'s "Scan New Bill" action, which creates an empty bill then navigates straight into its Items step with the scan modal already open.
+- `src/Components/ScanReceiptButton.tsx` — two-step upload/capture modal. **Step 1** (`ReceiptFilePicker`): pick/capture a photo; selecting a file immediately loads it and runs `detectReceiptBoundary` (`src/lib/receiptEnhance.ts`) rather than requiring a separate submit click. **Step 2** ("Crop Receipt"): shows the detected boundary (or, if none was found, the full image's corners) as draggable handles via `ReceiptBoundaryEditor` (`src/Components/ReceiptBoundaryEditor.tsx`), with "Redetect edges" (re-runs detection) and "Reset boundary" (reverts manual drags back to the last detected/fallback quad) buttons. No enhancement preview is shown at this step — only the crop selection. Confirming ("Use This Crop") runs `enhanceReceiptFromImageAndQuad` (perspective crop → grayscale+contrast enhance → resize to ≤2048px), stores the result, marks the bill `scanStatus: 'processing'`, closes immediately, fires `scanBillReceipt` without awaiting it. Used from `ItemsInput.tsx` ([bill-editing.md](bill-editing.md)). Also self-opens on mount if it receives router nav-state `{ autoOpenScan: true }` (immediately replaced with no state, so back/forward doesn't re-trigger it) — used by `SessionHomePage.tsx`'s "Scan New Bill" action, which creates an empty bill then navigates straight into its Items step with the scan modal already open.
+- `src/Components/ReceiptBoundaryEditor.tsx` — the shared draggable-corner-handle canvas overlay (pointer-event-driven, touch-friendly), controlled by the parent (`quad`/`onChange`/`onDragEnd`). Also exports `FALLBACK_INSET_RATIO` and `computeStartingQuad(detected, img)` — the "detected boundary, or an easy-to-grab inset full-image quad if nothing was detected" logic shared by `ScanReceiptButton.tsx` and the dev test page. See [receipt-enhance.md](receipt-enhance.md) for the underlying detection/crop/enhance pipeline.
 - `src/lib/receiptScan.ts` — `scanBillReceipt(sessionId, billId)`; calls `POST /api/scan`, writes results straight to `sessionStore` (has its own try/catch — safe if the triggering component unmounts mid-flight).
-- `src/lib/imageResize.ts` — resize math + `resizeImageToDataUrl`, used before storing scanned/uploaded images.
+- `src/lib/imageResize.ts` — `computeResizedDimensions`, the pure resize math reused by `receiptEnhance.ts`'s `resizeToMaxDimension`.
 - `src/lib/imageStore.ts` — IndexedDB (`idb` package) storage for receipt image blobs, keyed by `refKey`; only `{refKey, width, height}` lives on `Bill.receiptImage` since images are too large for localStorage.
 - `src/hooks/useOnlineStatus.ts` — tracks `navigator.onLine`, used by `ScanReceiptButton.tsx` to distinguish offline failures.
 - `src/schemas/receiptScan.schema.ts` — response shape from `/api/scan`, normalizes flat vs structured discount formats.
@@ -36,6 +40,7 @@ upload modal closes immediately and progress surfaces elsewhere in the UI.
 - [bill-editing.md](bill-editing.md) — scan results populate Step 2 items.
 - [live-collaboration.md](live-collaboration.md) — image upload endpoint used once a session is live.
 - [admin-panel.md](admin-panel.md) — scan usage analytics page.
+- [receipt-enhance.md](receipt-enhance.md) — the client-side boundary-detection/crop/enhancement pipeline this feature now uses (the pipeline module itself, its dev-only test page, and the library/testing rationale).
 
 ## Notes
 - **Deliberate quirk, preserved from the old Worker for frontend
@@ -58,3 +63,11 @@ upload modal closes immediately and progress surfaces elsewhere in the UI.
   [infrastructure.md](infrastructure.md)).
 - `VITE_LIVE_SERVER_URL` (frontend env var) must point at wherever `server/`
   is deployed — there's no working production default.
+- The real scan flow only ever sends the **grayscale + contrast-stretch**
+  enhanced image (`enhanceReceiptFromImageAndQuad`) — `receiptEnhance.ts`
+  also has an Otsu-threshold black-and-white binarization variant
+  (`binarizeReceiptFromImageAndQuad`), but that's deliberately not used
+  here, only shown as a comparison preview on the dev test page. No
+  enhancement/crop preview is shown to the user in the real flow either —
+  step 2 shows only the boundary-selection canvas; the enhanced result is
+  computed and sent directly on "Use This Crop".

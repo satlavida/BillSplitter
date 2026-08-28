@@ -18,7 +18,7 @@ existing file, plus a row in the tables below.
 | Bill Editing | 4-step wizard (People → Items → Assign → Summary) for building a bill | [bill-editing.md](bill-editing.md) |
 | Pass and Split | Full-screen "pass the phone" flow for in-person item claiming | [pass-and-split.md](pass-and-split.md) |
 | Scan Receipt | Upload/capture a receipt photo, extract items via vision LLM, store the image | [scan-receipt.md](scan-receipt.md) |
-| Receipt Enhance (experiment) | Client-side boundary detection, perspective crop, grayscale/contrast enhancement; not yet wired into the real scan flow | [receipt-enhance.md](receipt-enhance.md) |
+| Receipt Enhance | Client-side boundary detection, perspective crop, grayscale/contrast enhancement — wired into Scan Receipt's crop step | [receipt-enhance.md](receipt-enhance.md) |
 | Live Collaboration | Multi-device real-time sync: sessions, join/approve, claims, presence, SSE | [live-collaboration.md](live-collaboration.md) |
 | Settlement | Who-owes-who calculation and debt simplification | [settlement.md](settlement.md) |
 | Currency | Per-session/per-bill currency, exchange rate fetch/cache, conversion | [currency.md](currency.md) |

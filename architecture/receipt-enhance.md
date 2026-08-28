@@ -1,20 +1,21 @@
-# Receipt Enhance (client-side crop/boundary detection experiment)
+# Receipt Enhance (client-side crop/boundary detection)
 
 ## Summary
-An experiment (branch `feature/v3Major-ScannerUpgrade`) building a
-client-side pipeline that, given a receipt photo, detects the receipt's
-4-point boundary, perspective-corrects and crops to just the receipt,
-converts to grayscale with contrast enhancement, and resizes so neither
-dimension exceeds 2048px — entirely in the browser, no server involved. The
-intent is to send a tighter, cleaner image to `/api/scan` for better OCR
-accuracy (see [scan-receipt.md](scan-receipt.md)).
+A client-side pipeline that, given a receipt photo, detects the receipt's
+4-point boundary, lets the user fine-tune it, perspective-corrects and
+crops to just the receipt, converts to grayscale with contrast
+enhancement, and resizes so neither dimension exceeds 2048px — entirely in
+the browser, no server involved. Sends a tighter, cleaner image to
+`/api/scan` for better OCR accuracy.
 
-**Not yet wired into the real scan flow.** `ScanReceiptButton.tsx` and
-`src/lib/receiptScan.ts` are untouched — this module is validated in
-isolation via a dev-only test page first. If the experiment works out,
-integrating it into `ScanReceiptButton.tsx` (replacing/wrapping today's
-plain `resizeImageToDataUrl` call) is a follow-up piece of work, at which
-point this doc and `scan-receipt.md` both need updating.
+**Wired into the real scan flow**: `ScanReceiptButton.tsx`'s upload modal
+uses this pipeline's boundary detection + `ReceiptBoundaryEditor` for its
+crop-selection step, and `enhanceReceiptFromImageAndQuad` (grayscale +
+contrast only — see Notes) for the final image sent to the server. See
+[scan-receipt.md](scan-receipt.md) for that integration; this doc covers
+the pipeline module itself, the shared crop-editor component, and the
+dev-only test page used to validate/compare pipeline variants in
+isolation.
 
 ## Frontend
 - `src/lib/opencvLoader.ts` — `loadOpenCv()`, a memoized lazy loader for
@@ -69,16 +70,24 @@ point this doc and `scan-receipt.md` both need updating.
     is the function a future real-flow integration would call when no
     manual adjustment step is wanted.
   - `loadImageFile(file)` — File → `HTMLImageElement`, exported so
-    `enhanceReceiptImage` and the dev test page share one implementation.
+    `enhanceReceiptImage` and both UI consumers below share one
+    implementation.
+- `src/Components/ReceiptBoundaryEditor.tsx` — the shared, controlled
+  draggable-corner-handle canvas overlay: parent owns the `quad` state,
+  this renders the image + overlay (labeled TL/TR/BR/BL, pointer-event-
+  driven so it works with touch) and reports `onChange` during drags and
+  `onDragEnd` when a drag finishes. Also exports `FALLBACK_INSET_RATIO`
+  and `computeStartingQuad(detected, img)` (= `detected ??` an
+  easy-to-grab inset `fullImageQuad`) — used by both consumers below so
+  the "what boundary do we start from" logic lives in one place. Used by
+  `ScanReceiptButton.tsx` (real flow) and `DevReceiptScanTestPage.tsx`
+  (dev page) — see [scan-receipt.md](scan-receipt.md) for the former.
 - `src/Pages/DevReceiptScanTestPage.tsx` — dev-only page (route registered
   in `App.tsx` behind `import.meta.env.DEV`, so it's dead-code-eliminated
   from production builds entirely — verified via `npm run build`, no
   `opencv` string appears anywhere in the output bundle). Lets you pick a
-  local image, runs `detectReceiptBoundary`, and shows whatever it found
-  (or, if nothing was found, `fullImageQuad`'s full-image corners) as
-  **draggable** corner handles on a canvas overlay (labeled TL/TR/BR/BL,
-  pointer-event-driven so it works with touch too). Dragging a handle
-  updates the overlay live; releasing it re-runs both
+  local image, runs `detectReceiptBoundary`, and shows the result via
+  `ReceiptBoundaryEditor`. Releasing a drag re-runs both
   `enhanceReceiptFromImageAndQuad` and `binarizeReceiptFromImageAndQuad`
   (in parallel) with the adjusted quad and refreshes **two** side-by-side
   previews: the grayscale+contrast output and the Otsu black-and-white
@@ -86,14 +95,16 @@ point this doc and `scan-receipt.md` both need updating.
   either starting quad. **Zero network calls, no
   sessionStore/billStore/imageStore writes** — purely local validation.
   Reached by navigating directly to `#/dev/receipt-scan-test` (not linked
-  from the sidebar).
+  from the sidebar). Unlike the real flow, this page exists specifically
+  to show previews/compare pipeline variants — the real flow shows neither
+  (see Notes).
 
 ## Backend
 None — this feature is entirely client-side. No Go changes.
 
 ## Related features
-- [scan-receipt.md](scan-receipt.md) — the real upload/scan flow this is
-  meant to eventually feed into.
+- [scan-receipt.md](scan-receipt.md) — the real upload/scan flow this
+  pipeline is wired into.
 
 ## Notes
 - **Library choice**: `@techstark/opencv-js` (opencv.js wasm) is the only
@@ -130,6 +141,14 @@ None — this feature is entirely client-side. No Go changes.
   interaction itself (dragging a corner outward on the canvas visibly
   enlarges the output and changes its dimensions; "Reset to detected" and
   "Use full image" each reproduce their respective quad's output exactly).
+- **Real flow uses grayscale+contrast only, no preview**: `ScanReceiptButton.tsx`
+  calls `enhanceReceiptFromImageAndQuad` (never
+  `binarizeReceiptFromImageAndQuad`) and never shows the enhanced result to
+  the user — only the crop-selection canvas. The Otsu black-and-white
+  variant exists purely as a dev-page comparison tool; it wasn't judged a
+  clear OCR-quality improvement, and showing the user a preview of the
+  final image would slow the flow down for little benefit given the crop
+  step already gives them control over what gets sent.
 - **jsdom quirk**: jsdom (used by the Jest unit tests) doesn't implement
   the `ImageData` constructor even though every real browser does.
   `toGrayscaleImageData`/`stretchContrast` build their output via a small
