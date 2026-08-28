@@ -1,4 +1,5 @@
 import { loadOpenCv } from './opencvLoader';
+import { computeResizedDimensions } from './imageResize';
 
 export interface Point {
   x: number;
@@ -99,4 +100,226 @@ export const detectReceiptBoundary = async (source: HTMLImageElement | HTMLCanva
     contours.delete();
     hierarchy.delete();
   }
+};
+
+const distance = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * Output size for a perspective-corrected crop: the longer of the quad's
+ * two opposing edges on each axis, so the warp doesn't compress detail on
+ * the far side of a tilted receipt.
+ */
+export const computeWarpedDimensions = (quad: Quad): { width: number; height: number } => {
+  const { topLeft, topRight, bottomRight, bottomLeft } = quad;
+  const width = Math.round(Math.max(distance(topLeft, topRight), distance(bottomLeft, bottomRight)));
+  const height = Math.round(Math.max(distance(topLeft, bottomLeft), distance(topRight, bottomRight)));
+  return { width, height };
+};
+
+/**
+ * Perspective-corrects and crops the source image down to just the
+ * detected quad, mapped onto an axis-aligned output rectangle (deskewing a
+ * receipt photographed at an angle).
+ */
+export const cropToQuad = async (source: HTMLImageElement | HTMLCanvasElement, quad: Quad): Promise<HTMLCanvasElement> => {
+  const cv = await loadOpenCv();
+  const { width, height } = computeWarpedDimensions(quad);
+
+  const src = cv.imread(source);
+  const dst = new cv.Mat();
+  const srcPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [
+    quad.topLeft.x,
+    quad.topLeft.y,
+    quad.topRight.x,
+    quad.topRight.y,
+    quad.bottomRight.x,
+    quad.bottomRight.y,
+    quad.bottomLeft.x,
+    quad.bottomLeft.y,
+  ]);
+  const dstPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, width, 0, width, height, 0, height]);
+  const transform = cv.getPerspectiveTransform(srcPoints, dstPoints);
+
+  try {
+    cv.warpPerspective(src, dst, transform, new cv.Size(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    cv.imshow(canvas, dst);
+    return canvas;
+  } finally {
+    src.delete();
+    dst.delete();
+    srcPoints.delete();
+    dstPoints.delete();
+    transform.delete();
+  }
+};
+
+// jsdom (used by the Jest unit tests) doesn't implement the ImageData
+// constructor, even though it exists in every real browser. Falling back to
+// a plain object of the same shape keeps toGrayscaleImageData/
+// stretchContrast unit-testable without a real canvas/browser environment.
+const createImageData = (data: Uint8ClampedArray<ArrayBuffer>, width: number, height: number): ImageData =>
+  typeof ImageData !== 'undefined' ? new ImageData(data, width, height) : ({ data, width, height, colorSpace: 'srgb' } as ImageData);
+
+/**
+ * Converts to grayscale using standard luminance weights. Pure pixel math,
+ * no canvas/opencv dependency, so it's directly unit-testable.
+ */
+export const toGrayscaleImageData = (imageData: ImageData): ImageData => {
+  const { data, width, height } = imageData;
+  const output = createImageData(new Uint8ClampedArray(data.length), width, height);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    output.data[i] = gray;
+    output.data[i + 1] = gray;
+    output.data[i + 2] = gray;
+    output.data[i + 3] = data[i + 3];
+  }
+
+  return output;
+};
+
+/**
+ * Linear min/max contrast stretch: remaps each channel's observed
+ * [min, max] range to the full [0, 255] range. Pure pixel math, no
+ * canvas/opencv dependency.
+ */
+export const stretchContrast = (imageData: ImageData): ImageData => {
+  const { data, width, height } = imageData;
+  const output = createImageData(new Uint8ClampedArray(data), width, height);
+
+  let min = 255;
+  let max = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const v = data[i + c];
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+
+  const range = max - min;
+  if (range === 0) {
+    return output;
+  }
+
+  for (let i = 0; i < data.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      output.data[i + c] = Math.round(((data[i + c] - min) / range) * 255);
+    }
+    output.data[i + 3] = data[i + 3];
+  }
+
+  return output;
+};
+
+/**
+ * Thin canvas wrapper around toGrayscaleImageData + stretchContrast: reads
+ * pixels off the source canvas, runs both pure pixel-math passes, and
+ * draws the result onto a new canvas.
+ */
+export const enhanceForOcr = (source: HTMLCanvasElement): HTMLCanvasElement => {
+  const ctx = source.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+
+  const imageData = ctx.getImageData(0, 0, source.width, source.height);
+  const enhanced = stretchContrast(toGrayscaleImageData(imageData));
+
+  const output = document.createElement('canvas');
+  output.width = source.width;
+  output.height = source.height;
+  const outputCtx = output.getContext('2d');
+  if (!outputCtx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+  outputCtx.putImageData(enhanced, 0, 0);
+  return output;
+};
+
+/**
+ * Downscales (never upscales) a canvas so neither dimension exceeds
+ * maxDimension, reusing the same aspect-preserving math as
+ * resizeImageToDataUrl.
+ */
+export const resizeToMaxDimension = (canvas: HTMLCanvasElement, maxDimension = 2048): HTMLCanvasElement => {
+  const { width, height } = computeResizedDimensions(canvas.width, canvas.height, maxDimension, maxDimension);
+
+  if (width === canvas.width && height === canvas.height) {
+    return canvas;
+  }
+
+  const output = document.createElement('canvas');
+  output.width = width;
+  output.height = height;
+  const ctx = output.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+  ctx.drawImage(canvas, 0, 0, width, height);
+  return output;
+};
+
+export interface EnhancedReceiptImage {
+  dataUrl: string;
+  boundary: Quad | null;
+  width: number;
+  height: number;
+}
+
+const loadImageFile = (file: File): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image for enhancement'));
+    };
+    img.src = objectUrl;
+  });
+};
+
+/**
+ * Top-level orchestrator: File -> boundary detection -> perspective crop
+ * (skipped if no boundary was found) -> grayscale/contrast enhancement ->
+ * resize to <=2048px on either dimension -> JPEG data URL. This is the one
+ * entry point both the dev test page and (eventually) the real scan flow
+ * are meant to call.
+ */
+export const enhanceReceiptImage = async (file: File): Promise<EnhancedReceiptImage> => {
+  const img = await loadImageFile(file);
+  const boundary = await detectReceiptBoundary(img);
+
+  let canvas: HTMLCanvasElement;
+  if (boundary) {
+    canvas = await cropToQuad(img, boundary);
+  } else {
+    canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Could not get canvas 2d context');
+    }
+    ctx.drawImage(img, 0, 0);
+  }
+
+  const enhanced = enhanceForOcr(canvas);
+  const resized = resizeToMaxDimension(enhanced);
+
+  return {
+    dataUrl: resized.toDataURL('image/jpeg', 0.85),
+    boundary,
+    width: resized.width,
+    height: resized.height,
+  };
 };
