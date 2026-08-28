@@ -35,6 +35,9 @@ export default defineConfig({
     workbox: {
       // Simplified workbox configuration - just the globPatterns for precaching
       globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+      // opencv.js (wasm, ~15MB) is lazy-loaded on demand by the dev receipt
+      // scan test page only (see src/lib/opencvLoader.ts) — never precache it.
+      globIgnores: ['**/opencv-*.js'],
       navigateFallback: null
     },
     // For development testing
