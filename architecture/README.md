@@ -18,6 +18,7 @@ existing file, plus a row in the tables below.
 | Bill Editing | 4-step wizard (People → Items → Assign → Summary) for building a bill | [bill-editing.md](bill-editing.md) |
 | Pass and Split | Full-screen "pass the phone" flow for in-person item claiming | [pass-and-split.md](pass-and-split.md) |
 | Scan Receipt | Upload/capture a receipt photo, extract items via vision LLM, store the image | [scan-receipt.md](scan-receipt.md) |
+| Receipt Enhance (experiment) | Client-side boundary detection, perspective crop, grayscale/contrast enhancement; not yet wired into the real scan flow | [receipt-enhance.md](receipt-enhance.md) |
 | Live Collaboration | Multi-device real-time sync: sessions, join/approve, claims, presence, SSE | [live-collaboration.md](live-collaboration.md) |
 | Settlement | Who-owes-who calculation and debt simplification | [settlement.md](settlement.md) |
 | Currency | Per-session/per-bill currency, exchange rate fetch/cache, conversion | [currency.md](currency.md) |
@@ -42,5 +43,6 @@ existing file, plus a row in the tables below.
 | `/join/:code` | `Pages/JoinPage.tsx` | [live-collaboration.md](live-collaboration.md) |
 | `/join/:code/bills/:billId/step/:step` | `Pages/JoinerBillEditorPage.tsx` | [live-collaboration.md](live-collaboration.md) |
 | `/settings` | `Components/Settings.tsx` | [settings.md](settings.md) |
+| `/dev/receipt-scan-test` (dev-only, `import.meta.env.DEV`) | `Pages/DevReceiptScanTestPage.tsx` | [receipt-enhance.md](receipt-enhance.md) |
 
 Backend routes are listed per-feature in each doc's Backend section.
