@@ -405,15 +405,53 @@ const useSessionStore = create<SessionStore>()(
           sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, title }) : s)),
         })),
 
+      // Every bill's stored exchangeRate/exchangeRateDate/exchangeRateIsOverride
+      // is cleared here: those fields are only ever meaningful relative to the
+      // session currency they were fetched/overridden against, so leaving them
+      // in place after the session currency changes would silently apply a
+      // rate computed for the *old* session currency to the new one (see
+      // architecture/currency.md and getEffectiveRate in lib/settlement.ts).
+      // Clearing forces a fresh fetch/override next time the bill's currency
+      // differs from the new session currency — mirrored server-side by
+      // store.UpdateSessionCurrency.
       setSessionCurrency: (sessionId, currency) => {
         const session = get().sessions.find((s) => s.id === sessionId);
+        if (!session) return;
+
+        const billsToReset = session.bills.filter(
+          (b) => b.exchangeRate !== null || b.exchangeRateDate !== null || b.exchangeRateIsOverride
+        );
+        const resetBillIds = new Set(billsToReset.map((b) => b.id));
 
         set((state) => ({
-          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, currency }) : s)),
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? touchSession({
+                  ...s,
+                  currency,
+                  bills: s.bills.map((b) =>
+                    resetBillIds.has(b.id) ? { ...b, exchangeRate: null, exchangeRateDate: null, exchangeRateIsOverride: false } : b
+                  ),
+                })
+              : s
+          ),
         }));
 
-        if (session?.isLive && session.liveCode && session.liveCreatorToken) {
+        if (session.isLive && session.liveCode && session.liveCreatorToken) {
           pushSessionCurrencyLive(session.liveCode, currency, session.liveCreatorToken).catch(() => {});
+
+          const liveCode = session.liveCode;
+          billsToReset.forEach((b) => {
+            pushBillFieldsLive(liveCode, b.id, {
+              title: b.title,
+              currency: b.currency,
+              taxAmount: b.taxAmount,
+              paidByPersonId: b.paidByPersonId,
+              exchangeRate: null,
+              exchangeRateDate: null,
+              exchangeRateIsOverride: false,
+            }).catch(() => {});
+          });
         }
       },
 

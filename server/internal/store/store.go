@@ -116,15 +116,39 @@ func (s *Store) CreateSession(title string, people []models.Person, joinMode mod
 }
 
 // UpdateSessionCurrency sets a session's base currency (creator-only, see
-// api.UpdateSessionCurrency) — does not touch bill-level currency/rate data,
-// which is unaffected by a session's own currency changing.
+// api.UpdateSessionCurrency). Every bill's stored exchange_rate/
+// exchange_rate_date/exchange_rate_is_override is cleared in the same
+// transaction: those fields are only ever meaningful relative to the
+// session currency they were fetched/overridden against, so leaving them in
+// place after the session currency changes would silently apply a rate
+// computed for the *old* session currency to the new one (see
+// architecture/currency.md). Clearing forces a fresh fetch/override next
+// time the bill's currency differs from the new session currency —
+// mirrored on the frontend by sessionStore.ts's setSessionCurrency.
 func (s *Store) UpdateSessionCurrency(sessionID, currency string) error {
-	res, err := s.db.Exec(`UPDATE sessions SET currency = ? WHERE id = ?`, currency, sessionID)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec(`UPDATE sessions SET currency = ? WHERE id = ?`, currency, sessionID)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE bills SET exchange_rate = NULL, exchange_rate_date = NULL, exchange_rate_is_override = 0 WHERE session_id = ?`,
+		sessionID,
+	); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	return s.touchSession(sessionID)
 }

@@ -443,7 +443,9 @@ type updateSessionCurrencyRequest struct {
 
 // UpdateSessionCurrency handles PATCH /api/sessions/{code}/currency
 // (creator-only) — sets a live session's base currency from the Session
-// Settings panel. Bill-level currency/rate data is untouched by this call.
+// Settings panel. Every bill's stored exchange rate is cleared as part of
+// this (see store.UpdateSessionCurrency) since it was only valid against
+// the old session currency.
 func (a *API) UpdateSessionCurrency(w http.ResponseWriter, r *http.Request) {
 	if !a.requireCreator(w, r) {
 		return
