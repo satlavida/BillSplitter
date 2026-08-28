@@ -27,8 +27,15 @@ and flushable from the admin panel.
   `useCurrencyStore.getState().currency`; `setSessionCurrency` (Session
   Settings panel) updates it locally and, if the session is live, pushes it
   via `pushSessionCurrencyLive` → `liveApi.ts`'s `updateLiveSessionCurrency`.
-  `BILL_FIELD_KEYS` includes the three bill-level rate fields so they sync
-  live the same way `currency`/`taxAmount`/`paidByPersonId` do.
+  It also clears `exchangeRate`/`exchangeRateDate`/`exchangeRateIsOverride`
+  on every bill that had one set — those fields are only ever meaningful
+  relative to the session currency they were fetched/overridden against, so
+  leaving them in place after a session currency change would silently
+  apply a rate computed for the *old* session currency to the new one (see
+  Notes). Affected bills' cleared fields are pushed live the same way any
+  other bill-field edit is. `BILL_FIELD_KEYS` includes the three bill-level
+  rate fields so they sync live the same way `currency`/`taxAmount`/
+  `paidByPersonId` do.
 - `src/billStore.ts` — `exchangeRate`/`exchangeRateDate`/
   `exchangeRateIsOverride` state + `setExchangeRateInfo`, written only by
   `BillSettingsModal.tsx`; committed back to `sessionStore` by
@@ -115,6 +122,9 @@ and flushable from the admin panel.
 - `server/internal/api/session_handlers.go` — `CreateSession` accepts
   optional `currency` (defaults `"USD"`); `PATCH
   /api/sessions/{code}/currency` (`UpdateSessionCurrency`, creator-only).
+  `store.UpdateSessionCurrency` clears every bill's stored exchange-rate
+  fields in the same transaction as the currency update, mirroring the
+  frontend's `setSessionCurrency` — see Notes.
 - `server/internal/api/bill_handlers.go` — `UpdateBill`'s request DTO
   accepts optional `exchangeRate`/`exchangeRateDate`/
   `exchangeRateIsOverride`. `AddBill` is unchanged — a new bill always
@@ -148,6 +158,25 @@ and flushable from the admin panel.
 - [admin-panel.md](admin-panel.md) — the exchange-rate cache viewer/flush.
 
 ## Notes
+- **Changing a session's currency clears every bill's stored exchange rate.**
+  A bill's `exchangeRate`/`exchangeRateDate`/`exchangeRateIsOverride` are
+  only ever meaningful relative to the session currency they were
+  fetched/overridden against (e.g. a USD bill's rate fetched while the
+  session was INR is a USD→INR rate). Before this was fixed, switching the
+  session's currency (e.g. INR → SGD) left those fields untouched, so
+  `getEffectiveRate` would silently apply the stale USD→INR rate as if it
+  were USD→SGD — wrong settlement numbers with no error. Both
+  `sessionStore.ts`'s `setSessionCurrency` and
+  `store.UpdateSessionCurrency` now clear the three fields on every
+  affected bill (frontend: only bills that had a non-null/non-default
+  value, to avoid no-op writes/live-pushes; backend: unconditionally, in
+  the same transaction as the currency update) — the bill falls back to
+  "no rate set" (1:1, with the `console.warn`/settlement fallback already
+  in place) until the user reopens Bill Settings and fetches/enters a rate
+  against the new session currency. Covered by
+  `src/sessionStore.currency.test.ts` (unit) and
+  `e2e/session-currency-change.spec.ts` (offline UI + live/server, via the
+  real Go backend).
 - **The global `currencyStore` preference is not the same thing as a
   session's or bill's currency.** It seeds a new session's `currency` at
   creation and nothing else — it is not read anywhere an amount tied to a
