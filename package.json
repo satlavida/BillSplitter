@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.10",
+    "@techstark/opencv-js": "^5.0.0-release.1",
     "idb": "^8.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
