@@ -3,6 +3,7 @@ import { Card, FileUpload, Spinner, Alert, Button } from '../ui/components';
 import {
   detectReceiptBoundary,
   enhanceReceiptFromImageAndQuad,
+  binarizeReceiptFromImageAndQuad,
   loadImageFile,
   fullImageQuad,
   insetQuad,
@@ -85,6 +86,7 @@ const DevReceiptScanTestPage = () => {
   const [detectedBoundary, setDetectedBoundary] = useState<Quad | null | undefined>(undefined);
   const [editableQuad, setEditableQuad] = useState<Quad | null>(null);
   const [enhanced, setEnhanced] = useState<EnhancedReceiptImage | null>(null);
+  const [binarized, setBinarized] = useState<EnhancedReceiptImage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -108,13 +110,17 @@ const DevReceiptScanTestPage = () => {
     drawQuadOverlay(ctx, editableQuad, img.naturalWidth, draggingIndex);
   }, [editableQuad, draggingIndex]);
 
-  const runEnhance = useCallback(async (quad: Quad | null) => {
+  const runOutputs = useCallback(async (quad: Quad | null) => {
     const img = imgRef.current;
     if (!img) return;
     setIsApplying(true);
     try {
-      const result = await enhanceReceiptFromImageAndQuad(img, quad);
-      setEnhanced(result);
+      const [enhancedResult, binarizedResult] = await Promise.all([
+        enhanceReceiptFromImageAndQuad(img, quad),
+        binarizeReceiptFromImageAndQuad(img, quad),
+      ]);
+      setEnhanced(enhancedResult);
+      setBinarized(binarizedResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to enhance image');
     } finally {
@@ -128,6 +134,7 @@ const DevReceiptScanTestPage = () => {
 
     setError(null);
     setEnhanced(null);
+    setBinarized(null);
     setDetectedBoundary(undefined);
     setEditableQuad(null);
     setIsProcessing(true);
@@ -145,7 +152,7 @@ const DevReceiptScanTestPage = () => {
 
       const startingQuad = detected ?? insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
       setEditableQuad(startingQuad);
-      await runEnhance(startingQuad);
+      await runOutputs(startingQuad);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process image');
     } finally {
@@ -205,7 +212,7 @@ const DevReceiptScanTestPage = () => {
     if (draggingIndex === null) return;
     setDraggingIndex(null);
     e.currentTarget.releasePointerCapture(e.pointerId);
-    void runEnhance(editableQuad);
+    void runOutputs(editableQuad);
   };
 
   const resetToDetected = () => {
@@ -213,7 +220,7 @@ const DevReceiptScanTestPage = () => {
     if (!img) return;
     const quad = detectedBoundary ?? insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
     setEditableQuad(quad);
-    void runEnhance(quad);
+    void runOutputs(quad);
   };
 
   const useFullImage = () => {
@@ -221,7 +228,7 @@ const DevReceiptScanTestPage = () => {
     if (!img) return;
     const quad = insetQuad(fullImageQuad(img), FALLBACK_INSET_RATIO);
     setEditableQuad(quad);
-    void runEnhance(quad);
+    void runOutputs(quad);
   };
 
   return (
@@ -274,10 +281,24 @@ const DevReceiptScanTestPage = () => {
 
       {enhanced && (
         <Card>
-          <h3 className="font-medium mb-2 dark:text-white">Cropped + enhanced output</h3>
+          <h3 className="font-medium mb-2 dark:text-white">Cropped + enhanced output (grayscale + contrast)</h3>
           <img src={enhanced.dataUrl} alt="Enhanced receipt" className="max-w-full border border-zinc-200 dark:border-zinc-700 rounded" />
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
             {enhanced.width}×{enhanced.height}px, {enhanced.boundary ? 'perspective-cropped' : 'no crop applied'}
+          </p>
+        </Card>
+      )}
+
+      {binarized && (
+        <Card>
+          <h3 className="font-medium mb-2 dark:text-white">Black &amp; white preview (Otsu threshold)</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+            Histogram-based binarization: lighter pixels become pure white, darker pixels become pure black, instead of a
+            smoothed grayscale.
+          </p>
+          <img src={binarized.dataUrl} alt="Black and white receipt" className="max-w-full border border-zinc-200 dark:border-zinc-700 rounded" />
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
+            {binarized.width}×{binarized.height}px, {binarized.boundary ? 'perspective-cropped' : 'no crop applied'}
           </p>
         </Card>
       )}

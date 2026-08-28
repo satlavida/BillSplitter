@@ -3,6 +3,8 @@ import {
   computeWarpedDimensions,
   toGrayscaleImageData,
   stretchContrast,
+  otsuThreshold,
+  binarize,
   fullImageQuad,
   insetQuad,
   type Point,
@@ -217,5 +219,50 @@ describe('stretchContrast', () => {
     const output = stretchContrast(input);
 
     expect(Array.from(output.data)).toEqual(Array.from(input.data));
+  });
+});
+
+describe('otsuThreshold', () => {
+  test('finds the split point between two well-separated clusters of intensities', () => {
+    // Two pixels at 50, two at 200 — a clean bimodal histogram.
+    const input = makeImageData(
+      [50, 50, 50, 255, 50, 50, 50, 255, 200, 200, 200, 255, 200, 200, 200, 255],
+      4,
+      1
+    );
+
+    expect(otsuThreshold(input)).toBe(50);
+  });
+
+  test('returns 0 for a uniform (single-intensity) image', () => {
+    const input = makeImageData([100, 100, 100, 255, 100, 100, 100, 255], 2, 1);
+
+    expect(otsuThreshold(input)).toBe(0);
+  });
+});
+
+describe('binarize', () => {
+  test('maps pixels below the threshold to black and at/above it to white', () => {
+    const input = makeImageData([50, 50, 50, 255, 200, 200, 200, 255], 2, 1);
+
+    const output = binarize(input, 128);
+
+    expect(Array.from(output.data)).toEqual([0, 0, 0, 255, 255, 255, 255, 255]);
+  });
+
+  test('treats a pixel exactly at the threshold as white', () => {
+    const input = makeImageData([128, 128, 128, 255], 1, 1);
+
+    const output = binarize(input, 128);
+
+    expect(Array.from(output.data)).toEqual([255, 255, 255, 255]);
+  });
+
+  test('preserves alpha', () => {
+    const input = makeImageData([200, 200, 200, 128], 1, 1);
+
+    const output = binarize(input, 128);
+
+    expect(output.data[3]).toBe(128);
   });
 });

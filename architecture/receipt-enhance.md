@@ -42,17 +42,28 @@ point this doc and `scan-receipt.md` both need updating.
     pixel math (luminance grayscale, linear min/max contrast stretch), no
     opencv dependency; `enhanceForOcr(canvas)` is the thin canvas wrapper
     around both.
+  - `otsuThreshold(imageData)` / `binarize(imageData, threshold)` — pure
+    pixel math implementing Otsu's method (histogram-based automatic
+    thresholding: picks the intensity that maximizes the variance
+    *between* two pixel classes) and applying it to produce pure
+    black-and-white output, as an alternative to `enhanceForOcr`'s
+    smoother grayscale+contrast-stretch result; `binarizeForOcr(canvas)`
+    is the thin canvas wrapper around both (grayscale → Otsu threshold →
+    binarize).
   - `resizeToMaxDimension(canvas, maxDimension=2048)` — reuses
     `computeResizedDimensions` from `src/lib/imageResize.ts` rather than
     duplicating the scaling math.
   - `fullImageQuad(source)` — pure; the source's four corners, used as the
     starting boundary when `detectReceiptBoundary` finds nothing (so a
     caller/UI always has a quad to show and let the user drag in from).
-  - `enhanceReceiptFromImageAndQuad(img, quad)` — crop-or-skip → enhance →
-    resize → JPEG data URL for an already-loaded image and an explicit
-    quad (or `null` to skip cropping). Split out from `enhanceReceiptImage`
-    so a caller that lets the user hand-adjust the detected boundary can
-    re-run just this part without redoing file loading/detection.
+  - `enhanceReceiptFromImageAndQuad(img, quad)` /
+    `binarizeReceiptFromImageAndQuad(img, quad)` — crop-or-skip → enhance
+    (grayscale+contrast, or Otsu binarize, respectively) → resize → JPEG
+    data URL, for an already-loaded image and an explicit quad (or `null`
+    to skip cropping). Both share a private `cropOrFullImage` first step.
+    Split out from `enhanceReceiptImage` so a caller that lets the user
+    hand-adjust the detected boundary can re-run just this part without
+    redoing file loading/detection.
   - `enhanceReceiptImage(file)` — top-level orchestrator for a fully
     automatic run: File → detect → `enhanceReceiptFromImageAndQuad`. This
     is the function a future real-flow integration would call when no
@@ -67,13 +78,15 @@ point this doc and `scan-receipt.md` both need updating.
   (or, if nothing was found, `fullImageQuad`'s full-image corners) as
   **draggable** corner handles on a canvas overlay (labeled TL/TR/BR/BL,
   pointer-event-driven so it works with touch too). Dragging a handle
-  updates the overlay live; releasing it re-runs
-  `enhanceReceiptFromImageAndQuad` with the adjusted quad and refreshes the
-  cropped/enhanced preview shown alongside. "Reset to detected" and "Use
-  full image" buttons jump back to either starting quad. **Zero network
-  calls, no sessionStore/billStore/imageStore writes** — purely local
-  validation. Reached by navigating directly to `#/dev/receipt-scan-test`
-  (not linked from the sidebar).
+  updates the overlay live; releasing it re-runs both
+  `enhanceReceiptFromImageAndQuad` and `binarizeReceiptFromImageAndQuad`
+  (in parallel) with the adjusted quad and refreshes **two** side-by-side
+  previews: the grayscale+contrast output and the Otsu black-and-white
+  output. "Reset to detected" and "Use full image" buttons jump back to
+  either starting quad. **Zero network calls, no
+  sessionStore/billStore/imageStore writes** — purely local validation.
+  Reached by navigating directly to `#/dev/receipt-scan-test` (not linked
+  from the sidebar).
 
 ## Backend
 None — this feature is entirely client-side. No Go changes.
@@ -101,10 +114,12 @@ None — this feature is entirely client-side. No Go changes.
   for any `opencv` reference after `npm run build`.
 - **Testing split**: pure geometry/pixel-math functions
   (`orderQuadPoints`, `computeWarpedDimensions`, `fullImageQuad`,
-  `toGrayscaleImageData`, `stretchContrast`) are unit-tested in
-  `receiptEnhance.test.ts`. Functions that depend on opencv's wasm runtime
-  or real canvas pixel data (`detectReceiptBoundary`, `cropToQuad`,
-  `enhanceReceiptFromImageAndQuad`/`enhanceReceiptImage`) are not
+  `insetQuad`, `toGrayscaleImageData`, `stretchContrast`, `otsuThreshold`,
+  `binarize`) are unit-tested in `receiptEnhance.test.ts`. Functions that
+  depend on opencv's wasm runtime or real canvas pixel data
+  (`detectReceiptBoundary`, `cropToQuad`,
+  `enhanceReceiptFromImageAndQuad`/`enhanceReceiptImage`,
+  `binarizeReceiptFromImageAndQuad`) are not
   meaningfully mockable and are validated manually via the dev test page
   instead — verified during development against the synthetic photos in
   [test/images/](../test/images/) (`angled-receipt.jpg`, `no-boundary.jpg`

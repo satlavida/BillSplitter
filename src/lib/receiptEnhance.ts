@@ -217,6 +217,74 @@ export const stretchContrast = (imageData: ImageData): ImageData => {
 };
 
 /**
+ * Otsu's method: picks the grayscale intensity threshold that best splits
+ * an image's pixel histogram into two classes (background/foreground) by
+ * maximizing the variance *between* the two classes' means. Standard
+ * histogram-based technique for turning a scanned document into clean
+ * black text on white paper, rather than a smoothed grayscale image.
+ * Expects (near-)grayscale input — reads intensity from the red channel.
+ */
+export const otsuThreshold = (imageData: ImageData): number => {
+  const { data } = imageData;
+  const histogram = new Array(256).fill(0);
+  let totalPixels = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    histogram[data[i]]++;
+    totalPixels++;
+  }
+
+  let sumAll = 0;
+  for (let intensity = 0; intensity < 256; intensity++) {
+    sumAll += intensity * histogram[intensity];
+  }
+
+  let sumBackground = 0;
+  let weightBackground = 0;
+  let maxBetweenClassVariance = 0;
+  let threshold = 0;
+
+  for (let intensity = 0; intensity < 256; intensity++) {
+    weightBackground += histogram[intensity];
+    if (weightBackground === 0) continue;
+
+    const weightForeground = totalPixels - weightBackground;
+    if (weightForeground === 0) break;
+
+    sumBackground += intensity * histogram[intensity];
+    const meanBackground = sumBackground / weightBackground;
+    const meanForeground = (sumAll - sumBackground) / weightForeground;
+
+    const betweenClassVariance = weightBackground * weightForeground * (meanBackground - meanForeground) ** 2;
+    if (betweenClassVariance > maxBetweenClassVariance) {
+      maxBetweenClassVariance = betweenClassVariance;
+      threshold = intensity;
+    }
+  }
+
+  return threshold;
+};
+
+/**
+ * Pure black/white thresholding: pixels at or above the threshold become
+ * white, pixels below become black. Alpha preserved.
+ */
+export const binarize = (imageData: ImageData, threshold: number): ImageData => {
+  const { data, width, height } = imageData;
+  const output = createImageData(new Uint8ClampedArray(data.length), width, height);
+
+  for (let i = 0; i < data.length; i += 4) {
+    const value = data[i] >= threshold ? 255 : 0;
+    output.data[i] = value;
+    output.data[i + 1] = value;
+    output.data[i + 2] = value;
+    output.data[i + 3] = data[i + 3];
+  }
+
+  return output;
+};
+
+/**
  * Thin canvas wrapper around toGrayscaleImageData + stretchContrast: reads
  * pixels off the source canvas, runs both pure pixel-math passes, and
  * draws the result onto a new canvas.
@@ -238,6 +306,32 @@ export const enhanceForOcr = (source: HTMLCanvasElement): HTMLCanvasElement => {
     throw new Error('Could not get canvas 2d context');
   }
   outputCtx.putImageData(enhanced, 0, 0);
+  return output;
+};
+
+/**
+ * Thin canvas wrapper around toGrayscaleImageData + otsuThreshold +
+ * binarize: grayscales the source, picks a threshold from its own
+ * histogram, and produces a pure black-and-white result — an alternative
+ * to enhanceForOcr's smoother grayscale+contrast-stretch output.
+ */
+export const binarizeForOcr = (source: HTMLCanvasElement): HTMLCanvasElement => {
+  const ctx = source.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+
+  const gray = toGrayscaleImageData(ctx.getImageData(0, 0, source.width, source.height));
+  const binarized = binarize(gray, otsuThreshold(gray));
+
+  const output = document.createElement('canvas');
+  output.width = source.width;
+  output.height = source.height;
+  const outputCtx = output.getContext('2d');
+  if (!outputCtx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+  outputCtx.putImageData(binarized, 0, 0);
   return output;
 };
 
@@ -330,6 +424,27 @@ export const insetQuad = (quad: Quad, insetRatio: number): Quad => {
 };
 
 /**
+ * Perspective-crops to the given quad, or (if quad is null) just draws the
+ * full image onto a same-size canvas unchanged. The shared first step of
+ * every "given an already-loaded image and an explicit quad" pipeline
+ * variant below, so each one only has to add its own enhancement pass.
+ */
+const cropOrFullImage = async (img: HTMLImageElement, quad: Quad | null): Promise<HTMLCanvasElement> => {
+  if (quad) {
+    return cropToQuad(img, quad);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+  ctx.drawImage(img, 0, 0);
+  return canvas;
+};
+
+/**
  * Crop-or-skip -> grayscale/contrast enhancement -> resize to <=2048px on
  * either dimension -> JPEG data URL, given an already-loaded image and an
  * explicit quad (or null to skip cropping entirely). Split out from
@@ -341,22 +456,27 @@ export const enhanceReceiptFromImageAndQuad = async (
   img: HTMLImageElement,
   quad: Quad | null
 ): Promise<EnhancedReceiptImage> => {
-  let canvas: HTMLCanvasElement;
-  if (quad) {
-    canvas = await cropToQuad(img, quad);
-  } else {
-    canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Could not get canvas 2d context');
-    }
-    ctx.drawImage(img, 0, 0);
-  }
-
+  const canvas = await cropOrFullImage(img, quad);
   const enhanced = enhanceForOcr(canvas);
   const resized = resizeToMaxDimension(enhanced);
+
+  return {
+    dataUrl: resized.toDataURL('image/jpeg', 0.85),
+    boundary: quad,
+    width: resized.width,
+    height: resized.height,
+  };
+};
+
+/**
+ * Same as enhanceReceiptFromImageAndQuad, but using binarizeForOcr's
+ * histogram-thresholded black-and-white output instead of the smoother
+ * grayscale+contrast-stretch enhancement.
+ */
+export const binarizeReceiptFromImageAndQuad = async (img: HTMLImageElement, quad: Quad | null): Promise<EnhancedReceiptImage> => {
+  const canvas = await cropOrFullImage(img, quad);
+  const binarized = binarizeForOcr(canvas);
+  const resized = resizeToMaxDimension(binarized);
 
   return {
     dataUrl: resized.toDataURL('image/jpeg', 0.85),
