@@ -86,3 +86,27 @@ routes documented in [live-collaboration.md](live-collaboration.md).
   error left (previously every person had to individually be positive).
   `PercentageSplitInput.tsx`'s "must add up to 100%" rule is unchanged,
   just reworded.
+- `ItemAssignment.tsx`'s `ItemCard` now renders Quantity Split
+  (`item.splitType === 'fraction'`) items with an inline split-input
+  directly on the Assign card, instead of the `ToggleButton` row used for
+  equal/percentage items — moved out of `SplitTypeDrawer.tsx`'s modal so
+  most quantity edits never need to open it at all. It honors the same
+  `settingsStore.useDetailedQuantitySplit` setting the drawer reads: off
+  (default) inline-renders `DependentQuantitySplitInput`'s "Basic view"
+  number-grid (0..available buttons per person, dependent-pool — each
+  person's range shrinks live to `quantity - sum(others' current values)`);
+  on inline-renders `FractionalSplitInput`'s "Detailed view" `-`/value/`+`
+  stepper (independent per person, no shared cap). Either way, reaching 0
+  removes the person from `consumedBy` (deselects them); any value > 0
+  upserts their allocation (selects them) — there's no separate select
+  step, unlike the toggle-row split types. Wired through a new
+  `handleSetPersonQuantity` in `ItemAssignment.tsx` that calls
+  `assignItemFraction` directly (the drawer's own
+  `DependentQuantitySplitInput`/`FractionalSplitInput` instances are
+  untouched — still used when a fraction item's split type is being
+  changed from the drawer). The `SelectAllButton` (select
+  all/deselect-all-to-equal-split) is hidden for fraction items since
+  "select all" would silently flip `splitType` back to `'equal'`
+  (`assignAllPeopleEqual`'s existing behavior, unchanged) — a mismatch with
+  a per-person-quantity UI. The Split Type drawer is still reachable via
+  the "Split Type" button for switching split types.

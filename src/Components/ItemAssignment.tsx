@@ -1,6 +1,7 @@
 import { useMemo, memo, useCallback, useState } from 'react';
 import useBillStore, { useBillPersons, useBillItems, SPLIT_TYPES, getDiscountedItemPrice, type Allocation, type SplitType } from '../billStore';
 import useSessionStore from '../sessionStore';
+import useSettingsStore from '../settingsStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
 import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
@@ -12,6 +13,8 @@ interface ItemCardProps {
   item: Item;
   people: Person[];
   onTogglePerson: (personId: string, itemId: string) => void;
+  onSetPersonQuantity: (itemId: string, personId: string, value: number) => void;
+  useDetailedQuantitySplit: boolean;
   formatCurrency: (amount: number | null | undefined) => string;
   onOpenSplitDrawer: (item: Item) => void;
   // Only meaningful in a live session: a joiner's fraction stepper writes
@@ -27,7 +30,7 @@ interface ItemCardProps {
 const FRACTION_EPSILON = 1e-6;
 
 // Individual Item Card component
-const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSplitDrawer, isLive }: ItemCardProps) => {
+const ItemCard = memo(({ item, people, onTogglePerson, onSetPersonQuantity, useDetailedQuantitySplit, formatCurrency, onOpenSplitDrawer, isLive }: ItemCardProps) => {
   // Compute if all people are assigned to this item
   const allSelected = useMemo(() => {
     // Extract person IDs from consumedBy (handle both string and object formats)
@@ -138,23 +141,120 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
       </div>
 
       <div className="flex justify-between items-center mb-3">
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors">Select who consumed this:</p>
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors">
+          {item.splitType === SPLIT_TYPES.FRACTION ? 'How many did each person have:' : 'Select who consumed this:'}
+        </p>
 
-        <SelectAllButton allSelected={allSelected} onSelectAll={handleSelectAll} onDeselectAll={handleDeselectAll} />
+        {item.splitType !== SPLIT_TYPES.FRACTION && (
+          <SelectAllButton allSelected={allSelected} onSelectAll={handleSelectAll} onDeselectAll={handleDeselectAll} />
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-2">
-        {people.map((person) => {
-          // Check if person is in consumedBy (handling both formats)
-          const isSelected = item.consumedBy.some((c) => (typeof c === 'string' && c === person.id) || c.personId === person.id);
+      {item.splitType === SPLIT_TYPES.FRACTION ? (
+        // Quantity Split's split-input moved out of the Split Type drawer
+        // and onto the Assign card directly, so most quantity edits never
+        // need to open the drawer at all — honors the same
+        // useDetailedQuantitySplit setting the drawer uses to pick between
+        // FractionalSplitInput's independent +/- stepper ("Detailed view")
+        // and DependentQuantitySplitInput's dependent number-grid ("Basic
+        // view", each person's range shrinks live to `quantity -
+        // sum(everyone else's current value)`). Either way, tapping/
+        // stepping to 0 removes the person from consumedBy (deselects
+        // them); any value > 0 upserts their allocation (selects them) —
+        // there's no separate select step, unlike the toggle-row split
+        // types.
+        <div className="flex flex-col gap-3 mb-2">
+          {people.map((person) => {
+            const entry = item.consumedBy.find((c) => (typeof c === 'string' ? c === person.id : c.personId === person.id));
+            const value = entry ? (typeof entry === 'string' ? 1 : entry.value) : 0;
+            const othersTotal = item.consumedBy.reduce((sum, c) => {
+              const cid = typeof c === 'string' ? c : c.personId;
+              if (cid === person.id) return sum;
+              return sum + (typeof c === 'string' ? 1 : c.value);
+            }, 0);
+            const quantityFloor = Math.max(1, Math.floor(item.quantity));
+            const available = Math.max(0, quantityFloor - othersTotal);
 
-          return (
-            <ToggleButton key={person.id} selected={isSelected} onClick={() => onTogglePerson(person.id, item.id)}>
-              {person.name}
-            </ToggleButton>
-          );
-        })}
-      </div>
+            if (useDetailedQuantitySplit) {
+              return (
+                <div key={person.id} className="flex items-center justify-between gap-2">
+                  <span
+                    className={`text-sm truncate transition-colors ${
+                      value > 0 ? 'font-medium text-zinc-800 dark:text-white' : 'text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    {person.name}
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      aria-label={`Decrease ${person.name}'s quantity`}
+                      disabled={value <= 0}
+                      onClick={() => onSetPersonQuantity(item.id, person.id, value - 1)}
+                      className="h-8 w-8 rounded-md border border-zinc-300 dark:border-zinc-600 text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold text-zinc-800 dark:text-white transition-colors">{value}</span>
+                    <button
+                      type="button"
+                      aria-label={`Increase ${person.name}'s quantity`}
+                      onClick={() => onSetPersonQuantity(item.id, person.id, value + 1)}
+                      className="h-8 w-8 rounded-md border border-zinc-300 dark:border-zinc-600 text-base font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            const numbers = Array.from({ length: available + 1 }, (_, i) => i);
+
+            return (
+              <div key={person.id}>
+                <p
+                  className={`text-sm mb-1 transition-colors ${
+                    value > 0 ? 'font-medium text-zinc-800 dark:text-white' : 'text-zinc-500 dark:text-zinc-400'
+                  }`}
+                >
+                  {person.name}
+                </p>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {numbers.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => onSetPersonQuantity(item.id, person.id, n)}
+                      aria-label={`${person.name}: ${n}`}
+                      className={`h-9 rounded-md text-sm font-medium border transition-colors ${
+                        n === value
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'bg-white dark:bg-zinc-700 border-zinc-300 dark:border-zinc-600 text-zinc-800 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-600'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {people.map((person) => {
+            // Check if person is in consumedBy (handling both formats)
+            const isSelected = item.consumedBy.some((c) => (typeof c === 'string' && c === person.id) || c.personId === person.id);
+
+            return (
+              <ToggleButton key={person.id} selected={isSelected} onClick={() => onTogglePerson(person.id, item.id)}>
+                {person.name}
+              </ToggleButton>
+            );
+          })}
+        </div>
+      )}
 
       {/* Rendered outside the consumedBy.length > 0 gate below — a fraction
           item with zero claims so far is exactly the "under-claimed"
@@ -202,6 +302,7 @@ const ItemAssignment = () => {
   const people = useBillPersons();
   const items = useBillItems();
   const isLive = useSessionStore((s) => s.getCurrentSession()?.isLive ?? false);
+  const useDetailedQuantitySplit = useSettingsStore((s) => s.useDetailedQuantitySplit);
   const [splitDrawerItem, setSplitDrawerItem] = useState<Item | null>(null);
 
   const { assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople, nextStep, prevStep, getUnassignedItems, currency } =
@@ -299,6 +400,32 @@ const ItemAssignment = () => {
     [items, assignItemEqual, assignItemPercentage, assignItemFraction, assignAllPeopleEqual, removeAllPeople]
   );
 
+  const handleSetPersonQuantity = useCallback(
+    (itemId: string, personId: string, newValue: number) => {
+      const item = items.find((item) => item.id === itemId);
+      if (!item) return;
+
+      const clamped = Math.max(0, newValue);
+
+      if (clamped === 0) {
+        // 0 deselects: drop the allocation entirely rather than keeping a
+        // zero-value entry, matching handleTogglePerson's fraction "off" path.
+        const newAllocations = item.consumedBy.filter((c) => (typeof c === 'string' ? c !== personId : c.personId !== personId));
+        assignItemFraction(itemId, newAllocations);
+        return;
+      }
+
+      const normalized = item.consumedBy.map((c) => (typeof c === 'string' ? { personId: c, value: 1 } : c));
+      const exists = normalized.some((c) => c.personId === personId);
+      const newAllocations: Allocation[] = exists
+        ? normalized.map((c) => (c.personId === personId ? { personId, value: clamped } : c))
+        : [...normalized, { personId, value: clamped }];
+
+      assignItemFraction(itemId, newAllocations);
+    },
+    [items, assignItemFraction]
+  );
+
   const handleOpenSplitDrawer = useCallback((item: Item) => {
     setSplitDrawerItem(item);
   }, []);
@@ -368,6 +495,8 @@ const ItemAssignment = () => {
           item={item}
           people={people}
           onTogglePerson={handleTogglePerson}
+          onSetPersonQuantity={handleSetPersonQuantity}
+          useDetailedQuantitySplit={useDetailedQuantitySplit}
           formatCurrency={formatCurrency}
           onOpenSplitDrawer={handleOpenSplitDrawer}
           isLive={isLive}
