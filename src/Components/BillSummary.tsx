@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState, type ChangeEvent } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import useBillStore, { useBillPersonTotals, useBillPersons, useBillItems, type PersonTotal, type PersonTotalItem } from '../billStore';
 import { generateSplitSummaryText } from '../lib/splitSummary';
@@ -112,12 +112,11 @@ const PersonItemRow = memo(({ item, formatCurrency }: PersonItemRowProps) => {
 interface PersonCardProps {
   person: PersonTotal;
   formatCurrency: (amount: number | null | undefined) => string;
-  upiId: string;
   billTitle: string;
 }
 
 // PersonCard component for each person's summary
-const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }: PersonCardProps) => {
+const PersonCard = memo(({ person, formatCurrency, billTitle }: PersonCardProps) => {
   const handleShare = async () => {
     const breakdown = person.items
       .map((item) => {
@@ -125,7 +124,7 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }: PersonCar
         return `${item.name}: ${formatCurrency(item.share)} Split${discountText}`;
       })
       .join('\n');
-    const text = `${person.name} owes ${formatCurrency(person.total)}${upiId ? `; Split can be sent on "${upiId}"` : ''}\nBreakdown:\n${breakdown}`;
+    const text = `${person.name} owes ${formatCurrency(person.total)}\nBreakdown:\n${breakdown}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: billTitle || 'Bill Payment', text });
@@ -143,7 +142,6 @@ const PersonCard = memo(({ person, formatCurrency, upiId, billTitle }: PersonCar
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-700">
         <h3 className="text-lg font-bold text-zinc-800 dark:text-white transition-colors">{person.name}</h3>
         <div className="flex items-center gap-2">
-          {upiId && <span className="text-sm text-zinc-800 dark:text-zinc-300 transition-colors">{upiId}</span>}
           <Button size="sm" variant="secondary" onClick={handleShare} className="no-print">
             Share
           </Button>
@@ -229,11 +227,6 @@ const BillSummary = () => {
   // the editor's own default/other sessions use. See architecture/currency.md.
   const formatCurrency = (amount: number | null | undefined) => formatAmountInCurrency(amount, currency);
 
-  // User provided UPI ID
-  const [upiId, setUpiId] = useState('');
-  const [showUpiInput, setShowUpiInput] = useState(false);
-  const isInr = currency === 'INR';
-
   // Get person totals using the specialized hook
   const personTotals = useBillPersonTotals();
   const items = useBillItems();
@@ -308,39 +301,13 @@ const BillSummary = () => {
         </div>
       )}
 
-      {isInr && (
-        <div className="mb-4">
-          {showUpiInput ? (
-            <div className="flex items-center gap-2 no-print">
-              <input
-                type="text"
-                value={upiId}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setUpiId(e.target.value)}
-                placeholder="your-upi@bank"
-                className="flex-1 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md"
-              />
-              <Button size="sm" variant="secondary" onClick={() => setShowUpiInput(false)}>
-                Hide
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 no-print">
-              {upiId && <span className="text-zinc-800 dark:text-white">UPI ID: {upiId}</span>}
-              <Button size="sm" variant="secondary" onClick={() => setShowUpiInput(true)}>
-                {upiId ? 'Edit UPI ID' : 'Add UPI ID'}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
       <PrintWrapper>
         <div id="printable-bill">
           {/* Display bill title in printable section */}
           <BillTitle title={title} />
 
           {personTotals.map((person) => (
-            <PersonCard key={person.id} person={person} formatCurrency={formatCurrency} upiId={isInr ? upiId : ''} billTitle={title} />
+            <PersonCard key={person.id} person={person} formatCurrency={formatCurrency} billTitle={title} />
           ))}
 
           <BillTotalsSummary subtotal={subtotal} taxAmount={parseFloat(String(taxAmount)) || 0} grandTotal={grandTotal} formatCurrency={formatCurrency} className="mb-6" />

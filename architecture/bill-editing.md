@@ -55,3 +55,8 @@ routes documented in [live-collaboration.md](live-collaboration.md).
 - Zod `.default()` only applies during `.parse()`, not to hand-built object
   literals typed as `Bill` — every field must be present when constructing
   one directly (see `src/migrations/toSessionStore.ts` and test fixtures).
+- `BillSummary.tsx` no longer has a bill-level "Add/Edit UPI ID" section
+  (removed 2026-08-29 — local-only `upiId` state, never persisted to
+  `sessionStore`/the server). `PersonCard`'s share text no longer includes
+  a UPI line. Per-person UPI ID is a planned future feature (see
+  `changes/20260829_UIUXEnhance.md`), not yet implemented.
