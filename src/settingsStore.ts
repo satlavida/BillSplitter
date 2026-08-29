@@ -6,6 +6,11 @@ interface SettingsStore {
   selfName: string;
   setAutoAddSelf: (value: boolean) => void;
   setSelfName: (name: string) => void;
+  // Beta opt-in for the dynamic dependent-claim Quantity Split UI
+  // (DependentQuantitySplitInput.tsx) — off by default for every user; see
+  // architecture/bill-editing.md.
+  showDetailedQuantitySplit: boolean;
+  setShowDetailedQuantitySplit: (value: boolean) => void;
   // Tracks which one-time onboarding flows the user has already been
   // shown/completed, keyed by an id (e.g. "onboarding_v1"), so new
   // onboarding steps added later can be tracked independently without
@@ -24,6 +29,8 @@ const useSettingsStore = create<SettingsStore>()(
       selfName: '',
       setAutoAddSelf: (value) => set({ autoAddSelf: value }),
       setSelfName: (name) => set({ selfName: name }),
+      showDetailedQuantitySplit: false,
+      setShowDetailedQuantitySplit: (value) => set({ showDetailedQuantitySplit: value }),
       completedOnboarding: {},
       completeOnboarding: (id) => set((state) => ({ completedOnboarding: { ...state.completedOnboarding, [id]: true } })),
     }),

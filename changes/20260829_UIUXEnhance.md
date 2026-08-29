@@ -156,16 +156,28 @@ in the order G → A → C → D → B → E → F.
       `e2e/joiner-things-to-take-care-of.spec.ts`. Full `npx playwright
       test` confirmed stable at the same known 6 baseline failures (63
       passed, up from 62).
+- [x] **Phase B — "Show Detailed Quantity Split" beta setting** (2026-08-29):
+      new `showDetailedQuantitySplit` boolean in `src/settingsStore.ts`
+      (default `false`), exposed as a checkbox in `Settings.tsx`. New
+      `DependentQuantitySplitInput.tsx` — same `Allocation[]` props/output
+      shape as `FractionalSplitInput.tsx` — swapped in by
+      `SplitTypeDrawer.tsx` only when the setting is on: everyone starts at
+      0, and each person's selectable number grid shrinks live to
+      `quantity - sum(every other person's current value)` as others pick.
+      Setting off (default) leaves `FractionalSplitInput.tsx` untouched.
+      New tests: `settingsStore.test.ts`,
+      `DependentQuantitySplitInput.test.tsx` (shrinking-pool behavior,
+      save-blocked-at-zero, restoring existing allocations), and
+      `e2e/detailed-quantity-split-beta.spec.ts` (toggles the setting on
+      via the real Settings page, drives the dynamic UI end to end). Full
+      `npx playwright test` stayed at the same known 6 baseline failures
+      (64 passed, up from 63).
 
 ## Not started / deferred
 
 Bigger features from the same backlog message, left for later phases of
 Phase 2 (see the plan file above for the full phased design):
 
-- **Phase B** — "Show Detailed Quantity Split" beta setting: a dynamic
-  dependent-claim UI where each selected person's available count shrinks
-  live as others claim, gated behind a new settingsStore boolean (default
-  unchecked).
 - **Phase E** — Bill Summary redesign: "Split Breakdown" becomes a
   collapsible drawer with mini item-cards instead of a text list; "X/Y
   claimed" count added; shared card chrome reused on the joiner "Claim

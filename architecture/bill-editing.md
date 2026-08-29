@@ -17,6 +17,15 @@ non-persisted scratch store hydrated from the session on entry.
 - `src/Components/EditItemModal.tsx` — add/edit item modal.
 - `src/Components/SplitTypeDrawer.tsx` — equal/percentage/fraction split chooser.
 - `src/Components/PercentageSplitInput.tsx`, `src/Components/FractionalSplitInput.tsx` — split-type input widgets.
+- `src/Components/DependentQuantitySplitInput.tsx` — the "Show Detailed
+  Quantity Split" beta alternative to `FractionalSplitInput.tsx`, swapped
+  in by `SplitTypeDrawer.tsx` when `settingsStore.showDetailedQuantitySplit`
+  is on. Same props/output shape (`Allocation[]`), different interaction:
+  everyone starts at 0, and each person's selectable range (a number grid,
+  like the joiner's `ClaimQuantityModal.tsx` but inline for every person at
+  once, not one-at-a-time in a modal) shrinks live to `quantity - sum(every
+  other person's current value)` as others pick. Off by default for every
+  user.
 - `src/Components/BillTotalsSummary.tsx` — subtotal/tax/total display (shared with Summary step).
 - `src/Components/EditableTitle.tsx` — inline-editable bill/session title.
 - `src/Components/ImageLightbox.tsx` — click-to-view full-size image modal (built on `Modal`), used by `ReceiptImagePreview` in `BillSummary.tsx` and by `JoinerBillList.tsx` ([live-collaboration.md](live-collaboration.md)).

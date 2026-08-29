@@ -13,12 +13,14 @@ const Settings = () => {
     }))
   );
 
-  const { autoAddSelf, selfName, setAutoAddSelf, setSelfName } = useSettingsStore(
+  const { autoAddSelf, selfName, setAutoAddSelf, setSelfName, showDetailedQuantitySplit, setShowDetailedQuantitySplit } = useSettingsStore(
     useShallow((state) => ({
       autoAddSelf: state.autoAddSelf,
       selfName: state.selfName,
       setAutoAddSelf: state.setAutoAddSelf,
       setSelfName: state.setSelfName,
+      showDetailedQuantitySplit: state.showDetailedQuantitySplit,
+      setShowDetailedQuantitySplit: state.setShowDetailedQuantitySplit,
     }))
   );
 
@@ -62,6 +64,18 @@ const Settings = () => {
           />
         )}
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">This name will be added automatically to any new session you create.</p>
+      </div>
+
+      <div>
+        <Checkbox
+          id="show-detailed-quantity-split"
+          checked={showDetailedQuantitySplit}
+          onChange={(e) => setShowDetailedQuantitySplit(e.target.checked)}
+          label="Show Detailed Quantity Split (beta)"
+        />
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Split each item's quantity into a live pool — as one person claims units, the rest see fewer left to pick from.
+        </p>
       </div>
     </div>
   );

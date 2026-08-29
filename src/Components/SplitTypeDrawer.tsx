@@ -2,6 +2,8 @@ import { useState, useEffect, type ChangeEvent, type MouseEvent } from 'react';
 import { Dropdown } from '../ui/components';
 import PercentageSplitInput from './PercentageSplitInput';
 import FractionalSplitInput from './FractionalSplitInput';
+import DependentQuantitySplitInput from './DependentQuantitySplitInput';
+import useSettingsStore from '../settingsStore';
 import { SPLIT_TYPES, type Allocation, type SplitType } from '../billStore';
 import type { Item } from '../schemas/bill.schema';
 import type { Person } from '../schemas/bill.schema';
@@ -18,6 +20,7 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
   // Filter people to only those who are assigned to this item
   const [selectedPeople, setSelectedPeople] = useState<Person[]>([]);
   const [splitType, setSplitType] = useState<SplitType>(item.splitType || SPLIT_TYPES.EQUAL);
+  const showDetailedQuantitySplit = useSettingsStore((s) => s.showDetailedQuantitySplit);
 
   // Update selected people when item or people change
   useEffect(() => {
@@ -159,6 +162,8 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
             </div>
           ) : splitType === SPLIT_TYPES.PERCENTAGE ? (
             <PercentageSplitInput people={splitPeople} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
+          ) : showDetailedQuantitySplit ? (
+            <DependentQuantitySplitInput people={splitPeople} quantity={item.quantity} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
           ) : (
             <FractionalSplitInput people={splitPeople} quantity={item.quantity} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
           )}
