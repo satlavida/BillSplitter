@@ -32,7 +32,7 @@ test('switching an unassigned item to Quantity Split defaults parts to the item 
   // Step 2: nobody has been toggled on for this item yet — go straight to
   // configuring the split without clicking Alice/Bob first.
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
-  await page.getByLabel('Configure Split').click();
+  await page.getByLabel('Split Type').click();
   await page.locator('select').selectOption({ label: 'Quantity Split' });
 
   // Both people should have a part row, defaulting to the item's quantity

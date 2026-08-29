@@ -60,3 +60,7 @@ routes documented in [live-collaboration.md](live-collaboration.md).
   `sessionStore`/the server). `PersonCard`'s share text no longer includes
   a UPI line. Per-person UPI ID is a planned future feature (see
   `changes/20260829_UIUXEnhance.md`), not yet implemented.
+- `ItemAssignment.tsx`'s per-item split-type button reads "Split Type"
+  (plain text, not an icon) — the repo has no icon library, so this and
+  the separate `BillSettingsModal`/`SessionSettingsModal` gear icons are
+  all hand-written inline `<svg>`s where a gear is actually used.
