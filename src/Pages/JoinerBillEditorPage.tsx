@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getJoiner, getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
 import { getStoredJoinerId, getStoredJoinerToken } from '../lib/joinerStorage';
+import { markBillVisited } from '../lib/joinerVisitTracking';
 import { connectLiveSync } from '../lib/liveSync';
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat';
 import JoinerItemRow from '../Components/joiner/JoinerItemRow';
@@ -80,6 +81,11 @@ const JoinerBillEditorPage = () => {
       .then(setSession)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load session'));
   };
+
+  useEffect(() => {
+    if (!code || !billId) return;
+    markBillVisited(code, billId);
+  }, [code, billId]);
 
   useEffect(() => {
     if (!code) return;

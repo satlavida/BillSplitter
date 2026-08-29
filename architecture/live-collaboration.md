@@ -16,7 +16,7 @@ claim/unclaim history.
 
 **Joiner side** — `src/Components/joiner/`
 - `JoinerSessionView.tsx` — top-level joiner shell; presence heartbeat, settlement fetch. Used by `Pages/JoinPage.tsx`.
-- `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`; each bill's receipt thumbnail (`bill.imageRefKey`, served from `GET /api/images/{refKey}`) opens full-size in `ImageLightbox` on click, without following the card's link.
+- `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`; each bill's receipt thumbnail (`bill.imageRefKey`, served from `GET /api/images/{refKey}`) opens full-size in `ImageLightbox` on click, without following the card's link. Also renders the joiner-side "Things to Take Care of" signals per bill: a "New" badge (`src/lib/joinerVisitTracking.ts`, localStorage-only, keyed by `code:billId`, set by `JoinerBillEditorPage.tsx` on mount) for a bill this joiner hasn't opened yet, and — once visited — a lighter "N still unclaimed for you" note (`src/lib/joinerUnclaimedItems.ts`'s `getMyUnclaimedItemCount`, computed from the already-fetched `LiveBill`/`LiveItem` data: items this joiner hasn't claimed anything on and aren't already fully claimed by others). The two never show together for the same bill.
 - `JoinerItemRow.tsx` — claim/unclaim a live item.
 - `ClaimQuantityModal.tsx` — quantity picker for claiming; its number grid
   is capped at a `max` prop (own current value + whatever's still unclaimed

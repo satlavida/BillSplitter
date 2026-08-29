@@ -143,14 +143,25 @@ in the order G → A → C → D → B → E → F.
       to render a `Link`, which needed a `TextEncoder`/`TextDecoder`
       polyfill added to `jest.setup.js` — jsdom doesn't provide them and
       react-router-dom needs them at module-load time).
+- [x] **Phase D2 — "Things to Take Care of", joiner side** (2026-08-29):
+      new `src/lib/joinerVisitTracking.ts` (localStorage, keyed by
+      `code:billId`) marks a bill visited from `JoinerBillEditorPage.tsx`'s
+      mount effect; new `src/lib/joinerUnclaimedItems.ts` computes, from
+      live data only, how many items this joiner hasn't claimed anything on
+      and aren't already fully claimed by others. `JoinerBillList.tsx` now
+      shows a "New" badge for an unvisited bill, or — once visited — an "N
+      still unclaimed for you" note (never both for the same bill). New
+      tests: `joinerVisitTracking.test.ts`, `joinerUnclaimedItems.test.ts`,
+      `JoinerBillList.test.tsx`, plus a new
+      `e2e/joiner-things-to-take-care-of.spec.ts`. Full `npx playwright
+      test` confirmed stable at the same known 6 baseline failures (63
+      passed, up from 62).
 
 ## Not started / deferred
 
 Bigger features from the same backlog message, left for later phases of
 Phase 2 (see the plan file above for the full phased design):
 
-- **Phase D2** — "Things to Take Care of", joiner side: a client-side
-  (localStorage) unvisited/unclaimed tracker for a joiner's own bills.
 - **Phase B** — "Show Detailed Quantity Split" beta setting: a dynamic
   dependent-claim UI where each selected person's available count shrinks
   live as others claim, gated behind a new settingsStore boolean (default

@@ -69,7 +69,7 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
 
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
 
-      <JoinerBillList code={code} bills={session.bills} />
+      <JoinerBillList code={code} bills={session.bills} myPersonId={myPersonId} />
 
       <div className="mt-4">
         <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} bills={session.bills} people={session.people} />
