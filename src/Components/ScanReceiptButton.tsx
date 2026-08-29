@@ -352,7 +352,7 @@ const ScanReceiptButton = () => {
         isOpen={isModalOpen}
         onClose={closeModal}
         title={selectedImg ? 'Crop Receipt' : 'Upload Receipt'}
-        className={selectedImg ? 'max-w-2xl' : undefined}
+        className={selectedImg ? 'max-w-2xl max-h-[85vh] overflow-y-auto' : undefined}
       >
         {!selectedImg ? (
           <ReceiptFilePicker
@@ -395,13 +395,6 @@ const ScanReceiptButton = () => {
             )}
 
             {error && <Alert type="error">{error}</Alert>}
-
-            <Alert type="warning">
-              <p>
-                ⚠️ <strong>Privacy Notice:</strong> By uploading an image, you agree to send the data to Google for image analysis.
-                The data may be used for training AI models.
-              </p>
-            </Alert>
 
             <div className="flex justify-end space-x-2 mt-4">
               <Button variant="secondary" onClick={closeModal} type="button">

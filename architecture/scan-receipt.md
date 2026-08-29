@@ -71,3 +71,8 @@ immediately and progress surfaces elsewhere in the UI.
   enhancement/crop preview is shown to the user in the real flow either —
   step 2 shows only the boundary-selection canvas; the enhanced result is
   computed and sent directly on "Use This Crop".
+- The crop-step modal has no privacy-notice `Alert` (removed 2026-08-29 —
+  it was flagged as noise users didn't need to see on every scan) and is
+  capped at `max-h-[85vh] overflow-y-auto` so a tall receipt image's modal
+  scrolls instead of overflowing the viewport with no way to reach the
+  action buttons.
