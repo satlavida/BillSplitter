@@ -221,6 +221,7 @@ const BillSummary = () => {
   );
 
   const addBill = useSessionStore((state) => state.addBill);
+  const paidByPersonId = useSessionStore((s) => (sessionId && billId ? s.getBill(sessionId, billId)?.paidByPersonId : undefined));
 
   // This bill's own currency, not the user's global preference — a bill
   // paid for in USD should show "$" while being edited, regardless of what
@@ -242,6 +243,10 @@ const BillSummary = () => {
   // claimed" progress bar, sourced here from billStore's offline Item[]
   // rather than a LiveItem[] — works whether or not the session is live.
   const claimedCount = items.filter((item) => item.consumedBy.length > 0).length;
+
+  // Tell everyone where to actually pay — the payer's own UPI ID, not each
+  // claimer's, since the point is "who do I send money to."
+  const payer = people.find((p) => p.id === paidByPersonId);
 
   const handleEdit = useCallback(
     (step: number) => {
@@ -290,6 +295,11 @@ const BillSummary = () => {
       {sessionId && billId && (
         <div className="mb-4">
           <PaidBySelector sessionId={sessionId} billId={billId} />
+          {payer?.upiId && (
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Pay via UPI: <span className="font-medium text-zinc-800 dark:text-white">{payer.upiId}</span>
+            </p>
+          )}
         </div>
       )}
 

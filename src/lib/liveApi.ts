@@ -155,6 +155,17 @@ export const approveJoiner = (code: string, joinerId: string, creatorToken: stri
     { parse: () => undefined }
   );
 
+// Updates a person's name and/or upiId. Dual-mode auth mirroring
+// claimItem/unclaimItem: a joiner token (their own) can only update their
+// own upiId (server-enforced — see api.UpdatePerson); omitting it is the
+// creator's token-free path, which can edit any field on any person.
+export const updateLivePerson = (code: string, personId: string, updates: { name?: string; upiId?: string }, joinerToken?: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/people/${personId}`,
+    { method: 'PATCH', body: JSON.stringify(updates), headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    { parse: () => undefined }
+  );
+
 export const disapproveJoiner = (code: string, joinerId: string, creatorToken: string): Promise<void> =>
   request(
     `/api/sessions/${code}/joiners/${joinerId}/disapprove`,

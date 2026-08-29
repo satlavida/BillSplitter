@@ -20,6 +20,7 @@ func (a *API) Router() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{code}/settlement", a.GetSettlement)
 	mux.HandleFunc("POST /api/sessions/{code}/settle", a.Settle)
 	mux.HandleFunc("PATCH /api/sessions/{code}/currency", a.UpdateSessionCurrency)
+	mux.HandleFunc("PATCH /api/sessions/{code}/people/{personId}", a.UpdatePerson)
 
 	mux.HandleFunc("POST /api/sessions/{code}/join", a.Join)
 	mux.HandleFunc("GET /api/sessions/{code}/joiners", a.ListJoiners)

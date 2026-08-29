@@ -25,6 +25,17 @@ exported sessions.
 - `src/Components/PeopleSection.tsx` — session-level people list with live presence. `usePeoplePresence` also computes a per-person `nameEditLockedFor` (via `src/lib/presenceRules.ts`'s `isNameEditLocked`): the creator can't rename someone while they're claimed, currently online, and have been continuously active for under an hour.
 - `src/Components/EditPersonModal.tsx` — rename person modal, used from `PeopleSection`; `PeopleSection`'s `handleEditPerson` guards against opening it for a locked person as defense in depth (the trigger is already disabled in the list). Also edits a person's UPI ID (`Person.upiId`, optional, default `''`) — lets others know where to pay them back. `onSave(personId, name, upiId)` calls `sessionStore.ts`'s `updatePerson(sessionId, personId, {name, upiId})`, an options-object patch rather than positional args so more per-person fields can be added later without another signature change.
 - Creator induction: `src/Components/GoLiveSection.tsx`'s "Add myself as a new person…" path (Go Live time) includes an optional UPI ID field alongside the name field, set via `updatePerson` right after `addPerson` creates the person. Editing an *existing* person's UPI ID (including the creator picking themselves from the dropdown) goes through `EditPersonModal` instead, reachable from `PeopleSection`.
+- Live sync: `updatePerson` pushes to the live server (if the session is
+  live) via `sessionStore.ts`'s `pushPersonUpdateLive` → `liveApi.ts`'s
+  `updateLivePerson` → `PATCH /api/sessions/{code}/people/{personId}` (see
+  [live-collaboration.md](live-collaboration.md)). The creator's own edits
+  are token-free (any field); a joiner's own self-service UPI-ID nudge
+  (`JoinerUpiNudge.tsx`) passes their joiner token and can only touch their
+  own `upiId`.
+- Display: `src/Components/BillSummary.tsx` shows the bill's payer's own
+  UPI ID (not each claimer's — the point is "who do I pay") next to the
+  "Who Paid?" selector, when set; `JoinerBillEditorPage.tsx`'s Bill Summary
+  step mirrors this.
 - `src/Components/BillHistory/FileImport.tsx` — JSON file import control.
 - `src/sessionStore.ts` — persisted source of truth (`Session[]`, each with `people`/`bills`), zustand + `persist`. Also owns the live-push helpers — see [live-collaboration.md](live-collaboration.md).
 - `src/schemas/session.schema.ts` — `Session`, `Bill`, `ReceiptImageRef`, session-store state.

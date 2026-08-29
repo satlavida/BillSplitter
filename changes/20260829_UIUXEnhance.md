@@ -209,15 +209,33 @@ in the order G → A → C → D → B → E → F.
       patch-shaped `updatePerson`. Local-only so far — no live sync yet
       (Phase F2). Full `npx playwright test`, run four times to rule out
       flakiness, stayed at the same known 6 baseline failures (64 passed).
+- [x] **Phase F2 — Per-person UPI ID: backend + live sync + joiner
+      touchpoint + display** (2026-08-29): new migration
+      `0011_person_upi_id.sql` (`people.upi_id`); `models.Person.UpiID`
+      threaded through every insert/select path in `store.go`; new
+      `Store.UpdatePerson(sessionID, personID, name, upiID *string)`
+      (COALESCE-based partial patch) backing a new
+      `PATCH /api/sessions/{code}/people/{personId}` endpoint — dual auth
+      mirroring `ClaimItem`: token-free (creator) edits any field on any
+      person, a joiner's own token can only set their own `upiId` (403
+      otherwise, including trying to touch their own name or someone
+      else's row). `liveApi.ts` gained `updateLivePerson`; `sessionStore.ts`
+      gained `pushPersonUpdateLive`, wired into `updatePerson`. New joiner
+      touchpoint per the settlement-based design: `JoinerUpiNudge.tsx`,
+      rendered in `JoinerSessionView.tsx` above the bill list, shown only
+      when this joiner's own settlement balance is positive (owed money)
+      and their `upiId` is unset — no field was added to `JoinPage.tsx` or
+      the per-bill claim flow. Display: the bill's payer's own UPI ID (not
+      each claimer's) now shows next to "Who Paid?" in `BillSummary.tsx`
+      and on `JoinerBillEditorPage.tsx`'s Bill Summary step. New tests:
+      `server/internal/api/person_handlers_test.go` (both auth modes +
+      404), `JoinerUpiNudge.test.tsx`, and
+      `e2e/joiner-upi-nudge.spec.ts` (full flow: nudge appears only for the
+      owed joiner, saving clears it, the UPI ID then shows on another
+      joiner's bill summary). Full `npx playwright test` stayed at the
+      same known 6 baseline failures (65 passed, up from 64); `go test
+      ./...` and `go vet ./...` clean.
 
-## Not started / deferred
-
-Bigger features from the same backlog message, left for later phases of
-Phase 2 (see the plan file above for the full phased design):
-
-- **Phase F** — Per-person UPI ID, full scope: schema, `EditPersonModal`
-  and `GoLiveSection` editing, a brand-new backend endpoint + migration
-  (people currently have no live-update route at all) for live sync, and a
-  joiner-side nudge (in Phase D's "Things to Take Care of" list) to add
-  their UPI ID when they're owed money in settlement and haven't set one
-  yet.
+This closes out every item from the original backlog message — see the
+plan file (`/Users/satyajeetnigade/.claude/plans/check-changes-20260826-md-file-serialized-llama.md`)
+for the full phase-by-phase design record.

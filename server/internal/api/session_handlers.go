@@ -474,6 +474,51 @@ func (a *API) UpdateSessionCurrency(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"currency": req.Currency})
 }
 
+type updatePersonRequest struct {
+	Name  *string `json:"name"`
+	UpiID *string `json:"upiId"`
+}
+
+// UpdatePerson handles PATCH /api/sessions/{code}/people/{personId}. Dual
+// auth, mirroring ClaimItem's pattern in bill_handlers.go: the creator
+// (no X-Joiner-Token, same trust model as the rest of this file's
+// token-free creator paths) can update any field on any person; a joiner
+// (X-Joiner-Token present) can only update their own upiId, never their
+// name or anyone else's row — a joiner setting their own UPI ID from the
+// "Things to Take Care of" settlement nudge is the only self-service path
+// this unlocks.
+func (a *API) UpdatePerson(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	personID := r.PathValue("personId")
+
+	var req updatePersonRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if r.Header.Get("X-Joiner-Token") != "" {
+		if !a.requireJoiner(w, r, code, personID) {
+			return
+		}
+		if req.Name != nil {
+			writeError(w, http.StatusForbidden, "joiners can only update their own upiId")
+			return
+		}
+	}
+
+	if err := a.store.UpdatePerson(code, personID, req.Name, req.UpiID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "person not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update person")
+		return
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "session.updated", ID: code})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
 // DeleteLiveSession handles DELETE /api/sessions/{code} (creator-only, req
 // 15): permanently removes the online/live mirror of a session — never the
 // creator's own local/offline data, which lives entirely in this browser's

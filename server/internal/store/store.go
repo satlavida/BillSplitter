@@ -97,7 +97,7 @@ func (s *Store) CreateSession(title string, people []models.Person, joinMode mod
 	}
 
 	for _, p := range people {
-		if _, err := tx.Exec(`INSERT INTO people (id, session_id, name) VALUES (?, ?, ?)`, p.ID, code, p.Name); err != nil {
+		if _, err := tx.Exec(`INSERT INTO people (id, session_id, name, upi_id) VALUES (?, ?, ?, ?)`, p.ID, code, p.Name, p.UpiID); err != nil {
 			return nil, fmt.Errorf("insert person: %w", err)
 		}
 	}
@@ -149,6 +149,24 @@ func (s *Store) UpdateSessionCurrency(sessionID, currency string) error {
 
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+	return s.touchSession(sessionID)
+}
+
+// UpdatePerson patches a person's name and/or UpiID — nil leaves that field
+// unchanged (COALESCE against the existing value), so a caller only
+// updating one field doesn't need to fetch the other first. Scoped to
+// sessionID so a personID can't be updated cross-session.
+func (s *Store) UpdatePerson(sessionID, personID string, name, upiID *string) error {
+	res, err := s.db.Exec(
+		`UPDATE people SET name = COALESCE(?, name), upi_id = COALESCE(?, upi_id) WHERE id = ? AND session_id = ?`,
+		name, upiID, personID, sessionID,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 	return s.touchSession(sessionID)
 }
@@ -288,7 +306,7 @@ func (s *Store) GetSessionsStatus(codes []string) ([]models.SessionStatus, error
 }
 
 func (s *Store) listPeople(sessionID string) ([]models.Person, error) {
-	rows, err := s.db.Query(`SELECT id, name FROM people WHERE session_id = ?`, sessionID)
+	rows, err := s.db.Query(`SELECT id, name, upi_id FROM people WHERE session_id = ?`, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +315,7 @@ func (s *Store) listPeople(sessionID string) ([]models.Person, error) {
 	people := []models.Person{}
 	for rows.Next() {
 		var p models.Person
-		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.UpiID); err != nil {
 			return nil, err
 		}
 		people = append(people, p)
@@ -595,7 +613,7 @@ func (s *Store) CreateJoiner(sessionID, id, name string, existingPersonID *strin
 	defer tx.Rollback()
 
 	if newPersonID != nil {
-		if _, err := tx.Exec(`INSERT INTO people (id, session_id, name) VALUES (?, ?, ?)`, *newPersonID, sessionID, name); err != nil {
+		if _, err := tx.Exec(`INSERT INTO people (id, session_id, name, upi_id) VALUES (?, ?, ?, '')`, *newPersonID, sessionID, name); err != nil {
 			return nil, err
 		}
 	}

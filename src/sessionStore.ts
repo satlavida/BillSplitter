@@ -39,6 +39,13 @@ const pushBillFieldsLive = (
 const pushSessionCurrencyLive = (liveCode: string, currency: string, creatorToken: string) =>
   trackPendingLiveWrite(`session:${liveCode}:currency`, import('./lib/liveApi').then(({ updateLiveSessionCurrency }) => updateLiveSessionCurrency(liveCode, currency, creatorToken)));
 
+// Pushes a person's name/upiId patch live. Token-free (creator's own UI —
+// EditPersonModal/GoLiveSection) unless a joinerToken is passed (the
+// joiner's own self-service UPI nudge — see liveApi.ts's updateLivePerson
+// dual-mode auth).
+const pushPersonUpdateLive = (liveCode: string, personId: string, updates: { name?: string; upiId?: string }, joinerToken?: string) =>
+  trackPendingLiveWrite(`person:${personId}:fields`, import('./lib/liveApi').then(({ updateLivePerson }) => updateLivePerson(liveCode, personId, updates, joinerToken)));
+
 const pushItemFieldsLive = (liveCode: string, billId: string, item: Item) =>
   trackPendingLiveWrite(`item:${item.id}:fields`, import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item)));
 
@@ -604,7 +611,10 @@ const useSessionStore = create<SessionStore>()(
           }),
         })),
 
-      updatePerson: (sessionId, personId, updates) =>
+      updatePerson: (sessionId, personId, updates) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+        if (!session) return;
+
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== sessionId) return s;
@@ -613,7 +623,12 @@ const useSessionStore = create<SessionStore>()(
               people: s.people.map((p) => (p.id === personId ? { ...p, ...updates } : p)),
             });
           }),
-        })),
+        }));
+
+        if (session.isLive && session.liveCode) {
+          pushPersonUpdateLive(session.liveCode, personId, updates).catch(() => {});
+        }
+      },
 
       setSessionPeople: (sessionId, people) =>
         set((state) => ({

@@ -5,6 +5,7 @@ import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat';
 import { Alert } from '../../ui/components';
 import JoinerBillList from './JoinerBillList';
 import JoinerSettlementSummary from './JoinerSettlementSummary';
+import JoinerUpiNudge from './JoinerUpiNudge';
 import type { LiveSession, LiveSettlement } from '../../schemas/live.schema';
 
 interface JoinerSessionViewProps {
@@ -68,6 +69,15 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
       )}
 
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
+
+      <JoinerUpiNudge
+        code={code}
+        myPersonId={myPersonId}
+        myPersonUpiId={session.people.find((p) => p.id === myPersonId)?.upiId ?? ''}
+        joinerToken={joinerToken}
+        settlement={settlement}
+        onSaved={refreshRef.current}
+      />
 
       <JoinerBillList code={code} bills={session.bills} myPersonId={myPersonId} />
 

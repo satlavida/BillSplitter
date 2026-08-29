@@ -214,6 +214,14 @@ const JoinerBillEditorPage = () => {
             )}
             <p className="text-base text-zinc-500 dark:text-zinc-400 mb-3">
               Paid by {bill.paidByPersonId ? nameFor(bill.paidByPersonId) : 'no one yet'}
+              {(() => {
+                const payerUpiId = session.people.find((p) => p.id === bill.paidByPersonId)?.upiId;
+                return payerUpiId ? (
+                  <span className="block text-sm">
+                    Pay via UPI: <span className="font-medium text-zinc-800 dark:text-white">{payerUpiId}</span>
+                  </span>
+                ) : null;
+              })()}
             </p>
             <ul className="space-y-2 mb-3">
               {bill.items.map((item) => (

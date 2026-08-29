@@ -6,8 +6,9 @@
 package models
 
 type Person struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	UpiID string `json:"upiId"`
 }
 
 type Allocation struct {
