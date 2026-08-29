@@ -21,7 +21,7 @@ test('creator sees a pending joiner appear live and can approve them', async ({ 
 
   await page.getByRole('button', { name: 'Add Bill' }).click();
   await page.waitForURL(new RegExp(`#/session/${sessionId}/bill/[^/]+/step/1$`));
-  await page.getByRole('link', { name: '← Back to Session' }).click();
+  await page.getByRole('button', { name: '← Back to Session' }).click();
   await page.waitForURL(`http://localhost:5173/#/session/${sessionId}`);
 
   await page.getByRole('button', { name: 'Go Live' }).click();

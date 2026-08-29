@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import useBillStore, { useDocumentTitle } from '../billStore';
 import { getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
@@ -9,6 +9,7 @@ import ItemsInput from '../Components/ItemsInput';
 import ItemAssignment from '../Components/ItemAssignment';
 import BillSummary from '../Components/BillSummary';
 import BillSettingsModal from '../Components/BillSettingsModal';
+import { Button } from '../ui/components';
 
 /**
  * Scoped editor for a single bill within a session. billStore is a
@@ -155,10 +156,10 @@ const BillEditorPage = () => {
 
   return (
     <div>
-      <div className="mb-4 no-print flex justify-between items-center">
-        <Link to={`/session/${sessionId}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+      <div className="mb-4 no-print flex justify-between items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={() => navigate(`/session/${sessionId}`)}>
           ← Back to Session
-        </Link>
+        </Button>
         <button
           type="button"
           onClick={() => setBillSettingsOpen(true)}

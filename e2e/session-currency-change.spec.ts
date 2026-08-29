@@ -50,7 +50,7 @@ test.describe('Session currency change — offline', () => {
     await expect(page.getByText(/Using your own rate/)).toBeVisible();
     await page.getByLabel('Close', { exact: true }).click();
 
-    await page.getByRole('link', { name: '← Back to Session' }).click();
+    await page.getByRole('button', { name: '← Back to Session' }).click();
     await page.waitForURL(new RegExp(`#/session/${sessionId}$`));
 
     // Confirm the rate actually landed before switching currency.

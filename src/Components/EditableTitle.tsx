@@ -75,7 +75,7 @@ const EditableTitle = ({ title, onSave, placeholder }: EditableTitleProps) => {
   };
 
   return (
-    <div className="mb-6">
+    <div className="mb-6 flex-1 min-w-0">
       <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
         This bill is for:
       </label>
@@ -110,12 +110,12 @@ const EditableTitle = ({ title, onSave, placeholder }: EditableTitleProps) => {
             onClick={handleClick}
             className="cursor-text p-2 border-b-2 border-dashed border-zinc-300 dark:border-zinc-600
               text-lg font-medium text-zinc-800 dark:text-white min-h-[2.5rem] flex items-center
-              hover:border-zinc-500 dark:hover:border-zinc-400 transition-colors"
+              hover:border-zinc-500 dark:hover:border-zinc-400 transition-colors truncate"
           >
             {title ? (
-              title
+              <span className="truncate">{title}</span>
             ) : (
-              <span className="text-zinc-400 dark:text-zinc-500">
+              <span className="text-zinc-400 dark:text-zinc-500 truncate">
                 {placeholder || 'Click to add title (e.g., Pizza Hut 2025-03-20)'}
               </span>
             )}
