@@ -54,6 +54,11 @@ type Bill struct {
 	ImageRefKey *string `json:"imageRefKey"`
 	ImageWidth  *int    `json:"imageWidth"`
 	ImageHeight *int    `json:"imageHeight"`
+	// DeletedAt is set by SoftDeleteBill (RFC3339) and cleared by
+	// RestoreBill. Bills.listBills excludes soft-deleted rows entirely, so
+	// this only ever shows up on ListDeletedBills' response — the
+	// creator-only "Deleted Bills" review UI.
+	DeletedAt *string `json:"deletedAt"`
 }
 
 // JoinMode controls how POST /join is handled for a session.
@@ -144,10 +149,16 @@ type ItemActivity struct {
 	ItemName   string  `json:"itemName"`
 	PersonID   string  `json:"personId"`
 	PersonName string  `json:"personName"`
-	Action     string  `json:"action"` // "claim" | "unclaim"
+	Action     string  `json:"action"` // "claim" | "unclaim" | "reject" | "edit_item" | "delete_item"
 	DeltaValue float64 `json:"deltaValue"`
 	TotalValue float64 `json:"totalValue"`
-	CreatedAt  string  `json:"createdAt"`
+	// Details holds a human-readable summary of what changed for
+	// "edit_item"/"delete_item" entries (e.g. "price $10.00 -> $12.00,
+	// quantity 2 -> 3") — those actions don't reduce to a single
+	// before/after number the way DeltaValue/TotalValue do for claims.
+	// Empty for claim/unclaim/reject entries.
+	Details   string `json:"details"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ExchangeRate is a single cached rate lookup row (see migration

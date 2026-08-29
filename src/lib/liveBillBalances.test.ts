@@ -20,6 +20,7 @@ const liveBill = (overrides: Partial<LiveBill> = {}): LiveBill => ({
   imageRefKey: null,
   imageWidth: null,
   imageHeight: null,
+  deletedAt: null,
   items: [
     {
       id: 'item-1',

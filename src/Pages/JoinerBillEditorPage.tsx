@@ -6,8 +6,11 @@ import { markBillVisited } from '../lib/joinerVisitTracking';
 import { connectLiveSync } from '../lib/liveSync';
 import { usePresenceHeartbeat } from '../hooks/usePresenceHeartbeat';
 import JoinerItemRow from '../Components/joiner/JoinerItemRow';
+import JoinerItemListRow from '../Components/joiner/JoinerItemListRow';
 import AddItemForm from '../Components/joiner/AddItemForm';
-import { Alert, Card, ProgressBar, Checkbox } from '../ui/components';
+import JoinerScanReceiptButton from '../Components/joiner/JoinerScanReceiptButton';
+import { Alert, Card, ProgressBar, Checkbox, Button } from '../ui/components';
+import BillTotalsSummary from '../Components/BillTotalsSummary';
 import { toSessionCurrency } from '../lib/currencyConvert';
 import type { LiveSession } from '../schemas/live.schema';
 
@@ -150,7 +153,9 @@ const JoinerBillEditorPage = () => {
     const discount = item.discount || 0;
     return item.discountType === 'percentage' ? price - (price * discount) / 100 : price - discount;
   };
-  const billTotal = bill.items.reduce((sum, item) => sum + discountedPrice(item) * item.quantity, 0) + bill.taxAmount;
+  const subtotal = bill.items.reduce((sum, item) => sum + discountedPrice(item) * item.quantity, 0);
+  const billTotal = subtotal + bill.taxAmount;
+  const formatCurrency = (amount: number | null | undefined) => `${displayCurrency} ${displayAmount(amount ?? 0).toFixed(2)}`;
 
   const renderStep = () => {
     switch (step) {
@@ -163,16 +168,28 @@ const JoinerBillEditorPage = () => {
             ) : (
               <ul className="space-y-2 mb-2">
                 {bill.items.map((item) => (
-                  <li key={item.id} className="flex justify-between items-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-md border border-zinc-200 dark:border-zinc-600">
-                    <span className="text-zinc-800 dark:text-white">{item.name}</span>
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {displayCurrency} {displayAmount(item.price).toFixed(2)}
-                    </span>
-                  </li>
+                  <JoinerItemListRow
+                    key={item.id}
+                    code={code}
+                    billId={billId}
+                    item={item}
+                    currency={displayCurrency}
+                    unitPrice={displayAmount(discountedPrice(item))}
+                    myPersonId={myPersonId}
+                    joinerToken={joinerToken}
+                    disabled={readOnly}
+                    onChanged={refreshRef.current}
+                  />
                 ))}
               </ul>
             )}
-            <AddItemForm code={code} billId={billId} joinerToken={joinerToken} disabled={readOnly} onAdded={refreshRef.current} />
+            {bill.items.length > 0 && (
+              <BillTotalsSummary subtotal={subtotal} taxAmount={bill.taxAmount} grandTotal={billTotal} formatCurrency={formatCurrency} className="mb-4" />
+            )}
+            <div className="flex flex-wrap gap-2 items-start">
+              <AddItemForm code={code} billId={billId} joinerToken={joinerToken} disabled={readOnly} onAdded={refreshRef.current} />
+              <JoinerScanReceiptButton code={code} bill={bill} myPersonId={myPersonId} joinerToken={joinerToken} disabled={readOnly} onScanned={refreshRef.current} />
+            </div>
           </Card>
         );
       case 2:
@@ -182,7 +199,7 @@ const JoinerBillEditorPage = () => {
             {bill.items.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">No items to claim yet.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {bill.items.map((item) => (
                   <JoinerItemRow
                     key={item.id}
@@ -223,21 +240,31 @@ const JoinerBillEditorPage = () => {
                 ) : null;
               })()}
             </p>
-            <ul className="space-y-2 mb-3">
-              {bill.items.map((item) => (
-                <li key={item.id} className="text-base text-zinc-700 dark:text-zinc-300">
-                  {item.name} — {displayCurrency} {displayAmount(discountedPrice(item)).toFixed(2)}
-                  {item.consumedBy.length > 0 && (
-                    <span className="block text-sm text-zinc-500 dark:text-zinc-400">
-                      Claimed by {item.consumedBy.map((c) => nameFor(c.personId)).join(', ')}
-                    </span>
-                  )}
-                </li>
-              ))}
+            <ul className="space-y-3 mb-3">
+              {bill.items.map((item) => {
+                const unitPrice = displayAmount(discountedPrice(item));
+                return (
+                  <li
+                    key={item.id}
+                    className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 text-lg font-medium text-zinc-800 dark:text-white transition-colors"
+                  >
+                    {item.name} — {displayCurrency} {unitPrice.toFixed(2)}
+                    {item.quantity > 1 && (
+                      <>
+                        {' '}
+                        × {item.quantity} : {displayCurrency} {(unitPrice * item.quantity).toFixed(2)}
+                      </>
+                    )}
+                    {item.consumedBy.length > 0 && (
+                      <span className="block text-sm font-normal text-zinc-600 dark:text-zinc-400">
+                        Claimed by {item.consumedBy.map((c) => nameFor(c.personId)).join(', ')}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
-            <p className="text-base font-medium text-zinc-800 dark:text-white">
-              Total: {displayCurrency} {displayAmount(billTotal).toFixed(2)}
-            </p>
+            <BillTotalsSummary subtotal={subtotal} taxAmount={bill.taxAmount} grandTotal={billTotal} formatCurrency={formatCurrency} />
           </Card>
         );
       }
@@ -249,9 +276,9 @@ const JoinerBillEditorPage = () => {
   return (
     <div>
       <div className="mb-4 no-print">
-        <Link to={`/join/${code}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+        <Button variant="primary" size="sm" onClick={() => navigate(`/join/${code}`)}>
           ← Back to Session
-        </Link>
+        </Button>
       </div>
 
       <h1 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{bill.title}</h1>

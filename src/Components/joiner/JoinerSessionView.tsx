@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { getLiveSession, getLiveSettlement, LIVE_SERVER_URL } from '../../lib/liveApi';
+import { useNavigate } from 'react-router-dom';
+import { getLiveSession, getLiveSettlement, addLiveBill, LIVE_SERVER_URL } from '../../lib/liveApi';
 import { connectLiveSync } from '../../lib/liveSync';
 import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat';
-import { Alert } from '../../ui/components';
+import { generateId } from '../../lib/generateId';
+import { Alert, Button } from '../../ui/components';
 import JoinerBillList from './JoinerBillList';
 import JoinerSettlementSummary from './JoinerSettlementSummary';
 import JoinerUpiNudge from './JoinerUpiNudge';
@@ -19,6 +21,7 @@ interface JoinerSessionViewProps {
 // its own session fetch + live-sync subscription, independent of JoinPage's
 // pre-approval state.
 const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewProps) => {
+  const navigate = useNavigate();
   const [session, setSession] = useState<LiveSession | null>(null);
   const [settlement, setSettlement] = useState<LiveSettlement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +57,34 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
   }
 
   const nameFor = (personId: string) => session.people.find((p) => p.id === personId)?.name ?? 'Someone';
+  const readOnly = session.isSettled || session.permissionMode === 'read_only';
+
+  // Mirrors SessionHomePage.tsx's handleAddBill/handleScanNewBill for the
+  // creator, but pushes straight to the live server (addLiveBill) since a
+  // joiner has no local sessionStore to create the bill in first. The
+  // client-supplied id lets the newly-created bill be navigated to
+  // immediately without waiting for a refetch.
+  const handleAddBill = async () => {
+    const id = generateId();
+    try {
+      await addLiveBill(code, { id, title: 'Untitled Bill', currency: session.currency, taxAmount: 0 }, joinerToken);
+      navigate(`/join/${code}/bills/${id}/step/1`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add bill');
+    }
+  };
+
+  // Same as handleAddBill, but lands directly on step 1 with the scan modal
+  // already open (JoinerBillEditorPage.tsx's autoOpenScan nav-state flag).
+  const handleScanNewBill = async () => {
+    const id = generateId();
+    try {
+      await addLiveBill(code, { id, title: 'Untitled Bill', currency: session.currency, taxAmount: 0 }, joinerToken);
+      navigate(`/join/${code}/bills/${id}/step/1`, { state: { autoOpenScan: true } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add bill');
+    }
+  };
 
   return (
     <div>
@@ -79,7 +110,18 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
         onSaved={refreshRef.current}
       />
 
-      <JoinerBillList code={code} bills={session.bills} myPersonId={myPersonId} />
+      {!readOnly && (
+        <div className="flex justify-end gap-2 mb-2">
+          <Button variant="secondary" size="sm" onClick={handleScanNewBill}>
+            Scan New Bill
+          </Button>
+          <Button size="sm" onClick={handleAddBill}>
+            Add Bill
+          </Button>
+        </div>
+      )}
+
+      <JoinerBillList code={code} bills={session.bills} myPersonId={myPersonId} joinerToken={joinerToken} disabled={readOnly} onChanged={refreshRef.current} />
 
       <div className="mt-4">
         <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} bills={session.bills} people={session.people} />

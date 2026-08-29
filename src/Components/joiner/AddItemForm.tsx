@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { addLiveItem } from '../../lib/liveApi';
 import { generateId } from '../../lib/generateId';
+import useSettingsStore from '../../settingsStore';
+import { defaultSplitTypeForQuantity } from '../../lib/defaultSplitType';
 import { Button, Dropdown } from '../../ui/components';
 import type { SplitType } from '../../schemas/bill.schema';
 
@@ -20,14 +22,26 @@ const AddItemForm = ({ code, billId, joinerToken, disabled, onAdded }: AddItemFo
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [splitType, setSplitType] = useState<SplitType>('equal');
+  // Tracks whether the user has explicitly picked a split type, so the
+  // quantity-driven auto-default below (mirrors ItemsInput.tsx/
+  // billStore.addItem's same rule) never overwrites their own choice.
+  const [splitTypeTouched, setSplitTypeTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleQuantityChange = (value: string) => {
+    setQuantity(value);
+    if (!splitTypeTouched) {
+      setSplitType(defaultSplitTypeForQuantity(parseInt(value, 10) || 1, useSettingsStore.getState().autoQuantitySplit));
+    }
+  };
 
   const reset = () => {
     setName('');
     setPrice('');
     setQuantity('1');
     setSplitType('equal');
+    setSplitTypeTouched(false);
   };
 
   const handleSubmit = async () => {
@@ -96,14 +110,17 @@ const AddItemForm = ({ code, billId, joinerToken, disabled, onAdded }: AddItemFo
             min="1"
             step="1"
             value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            onChange={(e) => handleQuantityChange(e.target.value)}
             placeholder="Qty"
             className="w-1/2 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-sm"
           />
         </div>
         <Dropdown
           value={splitType}
-          onChange={(e) => setSplitType(e.target.value as SplitType)}
+          onChange={(e) => {
+            setSplitType(e.target.value as SplitType);
+            setSplitTypeTouched(true);
+          }}
           options={[
             { value: 'equal', label: 'Split equally' },
             { value: 'percentage', label: 'Split by percentage' },

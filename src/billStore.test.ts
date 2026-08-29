@@ -15,6 +15,7 @@ import useBillStore, {
     useBillSubtotal,
     useBillGrandTotal
   } from '../src/billStore'; // Adjust the path if your store is located elsewhere
+import useSettingsStore from '../src/settingsStore';
 import { renderHook, act } from '@testing-library/react';
 
 // Mock localStorage for testing persistence
@@ -225,18 +226,36 @@ describe('billStore - People Management', () => {
 
 // Test suite for item management actions
 describe('billStore - Item Management', () => {
-  test('should add an item with default quantity and split type', () => {
+  test('should add a multi-quantity item defaulting to Quantity Split (autoQuantitySplit setting on by default)', () => {
     const { addItem } = useBillStore.getState();
-    
+
     act(() => addItem({ name: 'Pasta', price: 15.5, quantity: 2 })); // [cite: 8]
-    
+
     const items = useBillStore.getState().items;
     expect(items.length).toBe(1);
     expect(items[0].name).toBe('Pasta');
     expect(items[0].price).toBe(15.5);
     expect(items[0].quantity).toBe(2);
     expect(items[0].consumedBy).toEqual([]); // Initially empty [cite: 20]
-    expect(items[0].splitType).toBe(SPLIT_TYPES.EQUAL); // Default split type [cite: 21]
+    expect(items[0].splitType).toBe(SPLIT_TYPES.FRACTION);
+  });
+
+  test('should default a quantity-1 item to Equal Split', () => {
+    const { addItem } = useBillStore.getState();
+
+    act(() => addItem({ name: 'Soda', price: 3, quantity: 1 }));
+
+    expect(useBillStore.getState().items[0].splitType).toBe(SPLIT_TYPES.EQUAL);
+  });
+
+  test('should keep a multi-quantity item as Equal Split when autoQuantitySplit is off', () => {
+    const { addItem } = useBillStore.getState();
+    useSettingsStore.getState().setAutoQuantitySplit(false);
+
+    act(() => addItem({ name: 'Pasta', price: 15.5, quantity: 2 }));
+
+    expect(useBillStore.getState().items[0].splitType).toBe(SPLIT_TYPES.EQUAL);
+    useSettingsStore.getState().setAutoQuantitySplit(true);
   });
 
   test('should update an item', () => {

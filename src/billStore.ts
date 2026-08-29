@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import { useShallow } from 'zustand/shallow';
 import { BillStateSchema, type Item, type Person } from './schemas/bill.schema';
 import { calculatePersonTotals, getDiscountedItemPrice, type PersonTotal, type PersonTotalItem } from './lib/personTotals';
+import { defaultSplitTypeForQuantity } from './lib/defaultSplitType';
+import useSettingsStore from './settingsStore';
 import type { Bill } from './schemas/session.schema';
 
 // Define constants for split types
@@ -180,21 +182,24 @@ const useBillStore = create<BillStore>()((set, get) => ({
 
       // Item management with enhanced consumedBy structure
       addItem: (item) =>
-        set((state) => ({
-          items: [
-            ...state.items,
-            {
-              id: Date.now().toString() + Math.random().toString(36),
-              name: item.name,
-              price: parseFloat(String(item.price)),
-              quantity: parseInt(String(item.quantity), 10) || 1,
-              discount: parseFloat(String(item.discount)) || 0,
-              discountType: item.discountType || 'flat',
-              consumedBy: [],
-              splitType: SPLIT_TYPES.EQUAL, // default split type
-            },
-          ],
-        })),
+        set((state) => {
+          const quantity = parseInt(String(item.quantity), 10) || 1;
+          return {
+            items: [
+              ...state.items,
+              {
+                id: Date.now().toString() + Math.random().toString(36),
+                name: item.name,
+                price: parseFloat(String(item.price)),
+                quantity,
+                discount: parseFloat(String(item.discount)) || 0,
+                discountType: item.discountType || 'flat',
+                consumedBy: [],
+                splitType: defaultSplitTypeForQuantity(quantity, useSettingsStore.getState().autoQuantitySplit),
+              },
+            ],
+          };
+        }),
 
       removeItem: (id) =>
         set((state) => ({

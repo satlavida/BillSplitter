@@ -6,6 +6,8 @@ import type { LiveBill } from '../../schemas/live.schema';
 
 jest.mock('../../lib/liveApi', () => ({
   LIVE_SERVER_URL: 'http://localhost:8080',
+  deleteLiveBill: jest.fn().mockResolvedValue(undefined),
+  LiveApiError: class LiveApiError extends Error {},
 }));
 
 function makeBill(overrides: Partial<LiveBill>): LiveBill {
@@ -23,6 +25,7 @@ function makeBill(overrides: Partial<LiveBill>): LiveBill {
     imageRefKey: null,
     imageWidth: null,
     imageHeight: null,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -36,7 +39,7 @@ describe('JoinerBillList — things-to-take-care-of signals', () => {
     const bill = makeBill({ id: 'b1', items: [{ id: 'i1', name: 'Pizza', price: 10, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] }] });
     render(
       <MemoryRouter>
-        <JoinerBillList code="ABC123" bills={[bill]} myPersonId="me" />
+        <JoinerBillList code="ABC123" bills={[bill]} myPersonId="me" joinerToken="tok" disabled={false} onChanged={jest.fn()} />
       </MemoryRouter>
     );
 
@@ -49,7 +52,7 @@ describe('JoinerBillList — things-to-take-care-of signals', () => {
     const bill = makeBill({ id: 'b1', items: [{ id: 'i1', name: 'Pizza', price: 10, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [] }] });
     render(
       <MemoryRouter>
-        <JoinerBillList code="ABC123" bills={[bill]} myPersonId="me" />
+        <JoinerBillList code="ABC123" bills={[bill]} myPersonId="me" joinerToken="tok" disabled={false} onChanged={jest.fn()} />
       </MemoryRouter>
     );
 
@@ -62,7 +65,7 @@ describe('JoinerBillList — things-to-take-care-of signals', () => {
     const bill = makeBill({ id: 'b1', items: [{ id: 'i1', name: 'Pizza', price: 10, quantity: 1, discount: 0, discountType: 'flat', splitType: 'equal', consumedBy: [{ personId: 'me', value: 1 }] }] });
     render(
       <MemoryRouter>
-        <JoinerBillList code="ABC123" bills={[bill]} myPersonId="me" />
+        <JoinerBillList code="ABC123" bills={[bill]} myPersonId="me" joinerToken="tok" disabled={false} onChanged={jest.fn()} />
       </MemoryRouter>
     );
 

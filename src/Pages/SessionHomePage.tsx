@@ -10,6 +10,7 @@ import PeopleSection from '../Components/PeopleSection';
 import SessionSettingsModal from '../Components/SessionSettingsModal';
 import ThingsToTakeCareOf from '../Components/ThingsToTakeCareOf';
 import { scanBillReceipt } from '../lib/receiptScan';
+import { resolveSelfPersonId } from '../lib/selfPerson';
 import type { Bill } from '../schemas/session.schema';
 import type { Person } from '../schemas/bill.schema';
 
@@ -54,9 +55,10 @@ const SessionHomePage = () => {
   const autoExpandGoLive = Boolean((location.state as { goLive?: boolean } | null)?.goLive);
 
   const session = useSessionStore(useShallow((s) => (sessionId ? s.sessions.find((sess) => sess.id === sessionId) : undefined)));
-  const { addBill, setSessionTitle, setCurrentSession, setBillPaidBy, setSessionCurrency } = useSessionStore(
+  const { addBill, deleteBill, setSessionTitle, setCurrentSession, setBillPaidBy, setSessionCurrency } = useSessionStore(
     useShallow((s) => ({
       addBill: s.addBill,
+      deleteBill: s.deleteBill,
       setSessionTitle: s.setSessionTitle,
       setCurrentSession: s.setCurrentSession,
       setBillPaidBy: s.setBillPaidBy,
@@ -92,7 +94,10 @@ const SessionHomePage = () => {
   // effect), rather than making the user create a bill and then find/click
   // Scan Receipt themselves.
   const handleScanNewBill = () => {
-    const bill = addBill(sessionId);
+    // If we can tell who's scanning (auto-add-self matches an existing
+    // session person), default the bill's payer to them — mirrors the same
+    // default applied on the joiner side (JoinerScanReceiptButton.tsx).
+    const bill = addBill(sessionId, { paidByPersonId: resolveSelfPersonId(session.people) });
     if (bill) navigate(`/session/${sessionId}/bill/${bill.id}/step/1`, { state: { autoOpenScan: true } });
   };
 
@@ -105,6 +110,16 @@ const SessionHomePage = () => {
   const handleDismissScanError = (e: MouseEvent, billId: string) => {
     e.stopPropagation();
     useSessionStore.getState().updateBill(sessionId, billId, { scanStatus: 'idle', scanError: null });
+  };
+
+  // Removes the bill locally immediately; if the session is live, also
+  // soft-deletes it server-side (deleteBill's internal push) so it
+  // disappears for joiners too, but stays recoverable by the creator via
+  // the Activity Log's Restore action until permanently removed there.
+  const handleDeleteBill = (e: MouseEvent, billId: string, title: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${title}"? ${session.isLive ? 'You can restore it later from the Activity Log.' : "This can't be undone."}`)) return;
+    deleteBill(sessionId, billId);
   };
 
   return (
@@ -170,16 +185,27 @@ const SessionHomePage = () => {
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPaidByEditBillId(bill.id);
-                    }}
-                    className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors shrink-0"
-                  >
-                    Paid by {session.people.find((p) => p.id === bill.paidByPersonId)?.name || '—'}
-                  </button>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPaidByEditBillId(bill.id);
+                      }}
+                      className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                    >
+                      Paid by {session.people.find((p) => p.id === bill.paidByPersonId)?.name || '—'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteBill(e, bill.id, bill.title)}
+                      aria-label={`Delete ${bill.title}`}
+                      title="Delete bill"
+                      className="text-xs text-zinc-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </Card>
               {bill.scanStatus === 'error' && (

@@ -335,7 +335,7 @@ func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 		 LEFT JOIN images i ON i.ref_key = (
 		   SELECT ref_key FROM images WHERE bill_id = b.id ORDER BY rowid DESC LIMIT 1
 		 )
-		 WHERE b.session_id = ?`, sessionID,
+		 WHERE b.session_id = ? AND b.deleted_at IS NULL`, sessionID,
 	)
 	if err != nil {
 		return nil, err
@@ -482,6 +482,91 @@ func (s *Store) UpdateBill(sessionID, billID, title, currency string, taxAmount 
 	return s.touchSession(sessionID)
 }
 
+// ListDeletedBills returns a session's soft-deleted bills (deleted_at set),
+// for the creator-only "Deleted Bills" review UI (restore/permanently
+// remove) — see api.ListDeletedBills. Doesn't bother loading items/images
+// (bill identity + when-deleted is all that UI needs); Restore brings back
+// whatever items the bill already had, untouched, since only bills.deleted_at
+// changes on delete/restore.
+func (s *Store) ListDeletedBills(sessionID string) ([]models.Bill, error) {
+	rows, err := s.db.Query(
+		`SELECT id, title, date, tax_amount, currency, paid_by_person_id, deleted_at
+		 FROM bills WHERE session_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC`, sessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	bills := []models.Bill{}
+	for rows.Next() {
+		var b models.Bill
+		var paidBy, deletedAt sql.NullString
+		if err := rows.Scan(&b.ID, &b.Title, &b.Date, &b.TaxAmount, &b.Currency, &paidBy, &deletedAt); err != nil {
+			return nil, err
+		}
+		if paidBy.Valid {
+			b.PaidByPersonID = &paidBy.String
+		}
+		if deletedAt.Valid {
+			b.DeletedAt = &deletedAt.String
+		}
+		// Non-nil so the JSON response serializes "items" as [] rather than
+		// null — same reasoning as AddItem/AddBill's ConsumedBy/Items fix
+		// (see architecture/live-collaboration.md's Notes). This list
+		// intentionally doesn't load a deleted bill's items (not needed for
+		// the restore/permanently-remove UI), so it'd otherwise be nil.
+		b.Items = []models.Item{}
+		bills = append(bills, b)
+	}
+	return bills, rows.Err()
+}
+
+// SoftDeleteBill marks a bill deleted without removing its row — it drops
+// out of listBills (so GetSession/joiners stop seeing it) but stays
+// recoverable via RestoreBill until a creator permanently removes it via
+// HardDeleteBill. Only ever un-deletes via RestoreBill, never re-deletable
+// while already deleted (RowsAffected 0 -> ErrNotFound covers "not found or
+// already deleted", same as every other not-found case here).
+func (s *Store) SoftDeleteBill(sessionID, billID string) error {
+	res, err := s.db.Exec(`UPDATE bills SET deleted_at = ? WHERE id = ? AND session_id = ? AND deleted_at IS NULL`, now(), billID, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
+// RestoreBill reverses a SoftDeleteBill.
+func (s *Store) RestoreBill(sessionID, billID string) error {
+	res, err := s.db.Exec(`UPDATE bills SET deleted_at = NULL WHERE id = ? AND session_id = ? AND deleted_at IS NOT NULL`, billID, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
+// HardDeleteBill permanently removes a bill row — cascades to its items,
+// their allocations, and its images (see migrations/0001_init.sql's
+// ON DELETE CASCADE chain). Creator-only, irreversible; unlike
+// SoftDeleteBill this doesn't require deleted_at to already be set, so a
+// creator can permanently remove a bill that was never soft-deleted too.
+func (s *Store) HardDeleteBill(sessionID, billID string) error {
+	res, err := s.db.Exec(`DELETE FROM bills WHERE id = ? AND session_id = ?`, billID, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
 // AddItem inserts a new item (with no allocations yet) into a bill.
 func (s *Store) AddItem(sessionID, billID string, item models.Item) error {
 	_, err := s.db.Exec(
@@ -504,6 +589,19 @@ func (s *Store) UpdateItem(sessionID, itemID, name string, price float64, quanti
 		`UPDATE items SET name = ?, price = ?, quantity = ?, discount = ?, discount_type = ?, split_type = ? WHERE id = ?`,
 		name, price, quantity, discount, discountType, splitType, itemID,
 	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
+// DeleteItem removes an item and, via ON DELETE CASCADE, its
+// item_allocations rows (see migrations/0001_init.sql).
+func (s *Store) DeleteItem(sessionID, itemID string) error {
+	res, err := s.db.Exec(`DELETE FROM items WHERE id = ?`, itemID)
 	if err != nil {
 		return err
 	}
@@ -543,17 +641,17 @@ func (s *Store) UnclaimItem(sessionID, itemID, personID string) error {
 // see migrations/0003 for why.
 func (s *Store) RecordItemActivity(sessionID string, entry models.ItemActivity) error {
 	_, err := s.db.Exec(
-		`INSERT INTO item_activity (session_id, item_id, item_name, person_id, person_name, action, delta_value, total_value, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sessionID, entry.ItemID, entry.ItemName, entry.PersonID, entry.PersonName, entry.Action, entry.DeltaValue, entry.TotalValue, now(),
+		`INSERT INTO item_activity (session_id, item_id, item_name, person_id, person_name, action, delta_value, total_value, details, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionID, entry.ItemID, entry.ItemName, entry.PersonID, entry.PersonName, entry.Action, entry.DeltaValue, entry.TotalValue, entry.Details, now(),
 	)
 	return err
 }
 
-// ListItemActivity returns a session's claim/unclaim log, newest first.
+// ListItemActivity returns a session's claim/unclaim/edit/delete log, newest first.
 func (s *Store) ListItemActivity(sessionID string) ([]models.ItemActivity, error) {
 	rows, err := s.db.Query(
-		`SELECT id, item_id, item_name, person_id, person_name, action, delta_value, total_value, created_at
+		`SELECT id, item_id, item_name, person_id, person_name, action, delta_value, total_value, details, created_at
 		 FROM item_activity WHERE session_id = ? ORDER BY id DESC`, sessionID,
 	)
 	if err != nil {
@@ -564,7 +662,7 @@ func (s *Store) ListItemActivity(sessionID string) ([]models.ItemActivity, error
 	entries := []models.ItemActivity{}
 	for rows.Next() {
 		var e models.ItemActivity
-		if err := rows.Scan(&e.ID, &e.ItemID, &e.ItemName, &e.PersonID, &e.PersonName, &e.Action, &e.DeltaValue, &e.TotalValue, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.ItemID, &e.ItemName, &e.PersonID, &e.PersonName, &e.Action, &e.DeltaValue, &e.TotalValue, &e.Details, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		entries = append(entries, e)

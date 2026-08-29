@@ -224,6 +224,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
           imageRefKey: null,
           imageWidth: null,
           imageHeight: null,
+          deletedAt: null,
         },
       ],
     });
@@ -277,6 +278,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
           imageRefKey: null,
           imageWidth: null,
           imageHeight: null,
+          deletedAt: null,
         },
       ],
     });
@@ -336,6 +338,7 @@ describe('sessionStore - mergeLiveSnapshot respects in-flight pending writes', (
         imageRefKey: null,
         imageWidth: null,
         imageHeight: null,
+        deletedAt: null,
       },
     ],
   });

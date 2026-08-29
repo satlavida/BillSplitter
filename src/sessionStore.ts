@@ -32,6 +32,15 @@ const pushBillFieldsLive = (
   bill: Pick<Bill, 'title' | 'currency' | 'taxAmount' | 'paidByPersonId' | 'exchangeRate' | 'exchangeRateDate' | 'exchangeRateIsOverride'>
 ) => trackPendingLiveWrite(`bill:${billId}:fields`, import('./lib/liveApi').then(({ updateLiveBill }) => updateLiveBill(liveCode, billId, bill)));
 
+// Pushes a creator-initiated (token-free) bill deletion — soft-delete on
+// the server, see architecture/live-collaboration.md's bill-deletion
+// notes. deleteBill below removes the bill from local state immediately
+// (optimistic), this is the best-effort server-side mirror; a failure here
+// just means the bill reappears for the creator on the next live snapshot
+// (mergeLiveSessionInto only drops locally-known bills the server also
+// agrees are gone).
+const pushDeleteBillLive = (liveCode: string, billId: string) => import('./lib/liveApi').then(({ deleteLiveBill }) => deleteLiveBill(liveCode, billId));
+
 // Pushes a session-currency change to the live server (creator-only). Kept
 // separate from the per-bill push helpers above since it targets the
 // session row, not a bill — mirrors their trackPendingLiveWrite/fire-and-
@@ -344,15 +353,24 @@ function mergeLiveBill(local: Bill | undefined, remote: LiveSession['bills'][num
 }
 
 function mergeLiveSessionInto(session: Session, liveSession: LiveSession): Session {
+  const remoteBillIds = new Set(liveSession.bills.map((b) => b.id));
   const billsById = new Map(session.bills.map((b) => [b.id, b]));
   for (const remoteBill of liveSession.bills) {
     billsById.set(remoteBill.id, mergeLiveBill(billsById.get(remoteBill.id), remoteBill));
   }
 
+  // A bill known locally but missing from the remote snapshot has either
+  // been deleted server-side (GetSession excludes soft-deleted bills — see
+  // architecture/live-collaboration.md's bill-deletion notes) or is still
+  // being pushed (pushNewBillLive's in-flight write guards that case) —
+  // drop it from the local view so a deletion actually takes effect for the
+  // creator too, not just for joiners reading straight from the server.
+  const bills = Array.from(billsById.values()).filter((b) => remoteBillIds.has(b.id) || isPendingLiveWrite(`bill:${b.id}:fields`));
+
   return touchSession({
     ...session,
     people: upsertById<Person>(session.people, liveSession.people),
-    bills: Array.from(billsById.values()),
+    bills,
   });
 }
 
@@ -543,17 +561,21 @@ const useSessionStore = create<SessionStore>()(
         }
       },
 
-      deleteBill: (sessionId, billId) =>
+      deleteBill: (sessionId, billId) => {
+        let liveCode: string | null = null;
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== sessionId) return s;
+            liveCode = s.isLive ? s.liveCode : null;
             return touchSession({
               ...s,
               bills: s.bills.filter((b) => b.id !== billId),
               currentBillId: s.currentBillId === billId ? null : s.currentBillId,
             });
           }),
-        })),
+        }));
+        if (liveCode) pushDeleteBillLive(liveCode, billId).catch(() => {});
+      },
 
       setCurrentBill: (sessionId, billId) =>
         set((state) => ({

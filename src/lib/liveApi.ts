@@ -88,10 +88,20 @@ export const getSessionsStatus = (codes: string[]): Promise<SessionStatus[]> =>
 // id on both sides (server accepts a client-supplied id) so sessionStore's
 // entity-id merge updates it in place instead of duplicating it once the
 // next live snapshot comes back.
+// joinerToken is optional — only the joiner UI (JoinerSessionView.tsx's Add
+// Bill/Scan New Bill) sends it, so requireEditPermission server-side
+// actually gates a read-only joiner's attempt; the creator's own token-free
+// UI is always allowed, same as every other dual-mode endpoint here.
 export const addLiveBill = (
   code: string,
-  bill: { id: string; title: string; currency: string; taxAmount: number }
-): Promise<LiveBill> => request(`/api/sessions/${code}/bills`, { method: 'POST', body: JSON.stringify(bill) }, LiveBillSchema);
+  bill: { id: string; title: string; currency: string; taxAmount: number },
+  joinerToken?: string
+): Promise<LiveBill> =>
+  request(
+    `/api/sessions/${code}/bills`,
+    { method: 'POST', body: JSON.stringify(bill), headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    LiveBillSchema
+  );
 
 export const addLiveItem = (
   code: string,
@@ -109,6 +119,7 @@ export const addLiveItem = (
 // never sends consumedBy/allocations — those stay server-authoritative,
 // driven only by the claim endpoints, so an edit here can't clobber a
 // joiner's claim.
+// joinerToken is optional, same reasoning as addLiveBill's.
 export const updateLiveBill = (
   code: string,
   billId: string,
@@ -120,8 +131,40 @@ export const updateLiveBill = (
     exchangeRate: number | null;
     exchangeRateDate: string | null;
     exchangeRateIsOverride: boolean;
-  }
-): Promise<void> => request(`/api/sessions/${code}/bills/${billId}`, { method: 'PATCH', body: JSON.stringify(bill) }, { parse: () => undefined });
+  },
+  joinerToken?: string
+): Promise<void> =>
+  request(
+    `/api/sessions/${code}/bills/${billId}`,
+    { method: 'PATCH', body: JSON.stringify(bill), headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    { parse: () => undefined }
+  );
+
+// Soft-deletes a bill — it drops out of getLiveSession's bills for both the
+// creator and joiners, but stays recoverable via restoreLiveBill until a
+// creator permanently removes it (permanentlyDeleteLiveBill). personId/
+// joinerToken are optional (personId as a query param, since DELETE carries
+// no body here) — only sent by the joiner UI, to attribute the deletion in
+// the activity log; the creator's own UI omits both.
+export const deleteLiveBill = (code: string, billId: string, personId?: string, joinerToken?: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/bills/${billId}${personId ? `?personId=${encodeURIComponent(personId)}` : ''}`,
+    { method: 'DELETE', headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    { parse: () => undefined }
+  );
+
+// Reverses deleteLiveBill. Creator-only (requireCreator server-side).
+export const restoreLiveBill = (code: string, billId: string, creatorToken: string): Promise<void> =>
+  request(`/api/sessions/${code}/bills/${billId}/restore`, { method: 'POST', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
+
+// Irreversibly removes a bill (and its items/allocations/images). Creator-only.
+export const permanentlyDeleteLiveBill = (code: string, billId: string, creatorToken: string): Promise<void> =>
+  request(`/api/sessions/${code}/bills/${billId}/permanent`, { method: 'DELETE', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
+
+// Lists a session's soft-deleted bills, for the creator-only "Deleted
+// Bills" review UI (restore/permanently remove). Creator-only.
+export const listDeletedLiveBills = (code: string, creatorToken: string): Promise<LiveBill[]> =>
+  request(`/api/sessions/${code}/bills/deleted`, { method: 'GET', headers: { 'X-Creator-Token': creatorToken } }, z.array(LiveBillSchema));
 
 // Updates a live session's base currency (creator-only — see
 // api.requireCreator server-side). Session Settings panel writes here.
@@ -132,13 +175,37 @@ export const updateLiveSessionCurrency = (code: string, currency: string, creato
     { parse: () => undefined }
   );
 
+// personId/joinerToken are optional and only sent by the joiner UI
+// (EditLiveItemModal.tsx) — they attribute the edit to that joiner in the
+// activity log (see bill_handlers.go's UpdateItem). The creator's own
+// live-editing UI omits both and the edit goes unlogged, as before.
 export const updateLiveItem = (
   code: string,
   billId: string,
   itemId: string,
-  item: Pick<Item, 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>
+  item: Pick<Item, 'name' | 'price' | 'quantity' | 'discount' | 'discountType' | 'splitType'>,
+  personId?: string,
+  joinerToken?: string
 ): Promise<void> =>
-  request(`/api/sessions/${code}/bills/${billId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(item) }, { parse: () => undefined });
+  request(
+    `/api/sessions/${code}/bills/${billId}/items/${itemId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ ...item, personId: personId ?? '' }),
+      headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {},
+    },
+    { parse: () => undefined }
+  );
+
+// Removes an item entirely (and, server-side, any claims on it). personId/
+// joinerToken are optional for the same reason as updateLiveItem's — only
+// the joiner UI sends them, to attribute+log the deletion.
+export const deleteLiveItem = (code: string, billId: string, itemId: string, personId?: string, joinerToken?: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/bills/${billId}/items/${itemId}${personId ? `?personId=${encodeURIComponent(personId)}` : ''}`,
+    { method: 'DELETE', headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    { parse: () => undefined }
+  );
 
 export const joinLiveSession = (code: string, name: string, existingPersonId?: string | null): Promise<LiveJoiner> =>
   request(`/api/sessions/${code}/join`, { method: 'POST', body: JSON.stringify({ name, existingPersonId }) }, LiveJoinerSchema);
@@ -176,13 +243,24 @@ export const disapproveJoiner = (code: string, joinerId: string, creatorToken: s
 // Not built on request() — a multipart upload must let the browser set its
 // own Content-Type (with the multipart boundary); request() always forces
 // 'Content-Type: application/json'.
-export const uploadLiveImage = async (code: string, billId: string, blob: Blob, width: number, height: number): Promise<{ refKey: string }> => {
+export const uploadLiveImage = async (
+  code: string,
+  billId: string,
+  blob: Blob,
+  width: number,
+  height: number,
+  joinerToken?: string
+): Promise<{ refKey: string }> => {
   const form = new FormData();
   form.append('image', blob, 'receipt.jpg');
   form.append('width', String(width));
   form.append('height', String(height));
 
-  const res = await fetch(`${LIVE_SERVER_URL}/api/sessions/${code}/bills/${billId}/images`, { method: 'POST', body: form });
+  const res = await fetch(`${LIVE_SERVER_URL}/api/sessions/${code}/bills/${billId}/images`, {
+    method: 'POST',
+    body: form,
+    headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {},
+  });
   if (!res.ok) {
     throw new LiveApiError(`Request failed (${res.status})`, res.status);
   }

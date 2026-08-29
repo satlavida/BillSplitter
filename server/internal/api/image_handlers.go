@@ -18,6 +18,13 @@ func (a *API) UploadImage(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	billID := r.PathValue("billId")
 
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+	if !a.requireEditPermission(w, r, code) {
+		return
+	}
+
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid multipart form")
 		return

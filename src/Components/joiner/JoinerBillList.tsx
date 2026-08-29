@@ -2,7 +2,7 @@ import { useState, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../ui/components';
 import ImageLightbox from '../ImageLightbox';
-import { LIVE_SERVER_URL } from '../../lib/liveApi';
+import { LIVE_SERVER_URL, deleteLiveBill, LiveApiError } from '../../lib/liveApi';
 import { hasBillBeenVisited } from '../../lib/joinerVisitTracking';
 import { getMyUnclaimedItemCount } from '../../lib/joinerUnclaimedItems';
 import type { LiveBill } from '../../schemas/live.schema';
@@ -11,14 +11,18 @@ interface JoinerBillListProps {
   code: string;
   bills: LiveBill[];
   myPersonId: string;
+  joinerToken: string | null;
+  disabled: boolean;
+  onChanged: () => void;
 }
 
 // Req 4: clicking a bill takes a joiner to its own step-wise wizard
 // (JoinerBillEditorPage, mirroring the creator's BillEditorPage) rather
 // than expanding it inline here — this list is now just a picker, like
 // SessionHomePage's bill list is for the creator.
-const JoinerBillList = ({ code, bills, myPersonId }: JoinerBillListProps) => {
+const JoinerBillList = ({ code, bills, myPersonId, joinerToken, disabled, onChanged }: JoinerBillListProps) => {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (bills.length === 0) {
     return <p className="text-zinc-500 dark:text-zinc-400">No bills yet.</p>;
@@ -32,8 +36,25 @@ const JoinerBillList = ({ code, bills, myPersonId }: JoinerBillListProps) => {
     setLightboxSrc(src);
   };
 
+  // Soft-deletes only — the bill drops out of everyone's view but the
+  // creator can restore it (or permanently remove it) from the Activity
+  // Log. See architecture/live-collaboration.md's bill-deletion notes.
+  const handleDelete = async (e: MouseEvent, bill: LiveBill) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${bill.title}"? The host can restore it later.`)) return;
+    setError(null);
+    try {
+      await deleteLiveBill(code, bill.id, myPersonId, joinerToken ?? undefined);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof LiveApiError ? err.message : 'Failed to delete bill');
+    }
+  };
+
   return (
     <>
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>}
       <ul className="space-y-2">
         {bills.map((bill) => {
           const imageSrc = bill.imageRefKey ? `${LIVE_SERVER_URL}/api/images/${bill.imageRefKey}` : null;
@@ -58,6 +79,17 @@ const JoinerBillList = ({ code, bills, myPersonId }: JoinerBillListProps) => {
                       <span className="text-xs text-zinc-500 dark:text-zinc-400">
                         {bill.items.length} item{bill.items.length !== 1 ? 's' : ''}
                       </span>
+                      {!disabled && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDelete(e, bill)}
+                          aria-label={`Delete ${bill.title}`}
+                          title="Delete bill"
+                          className="text-xs text-zinc-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </span>
                   </div>
                   {!unvisited && myUnclaimedCount > 0 && (

@@ -55,6 +55,10 @@ export const LiveBillSchema = z.object({
   imageRefKey: z.string().nullable().default(null),
   imageWidth: z.number().nullable().default(null),
   imageHeight: z.number().nullable().default(null),
+  // Set only on entries returned by GET .../bills/deleted (creator-only
+  // "Deleted Bills" review list) — a normal GetSession response never
+  // includes a soft-deleted bill at all, so this is always null there.
+  deletedAt: z.string().nullable().default(null),
 });
 export type LiveBill = z.infer<typeof LiveBillSchema>;
 
@@ -99,9 +103,13 @@ export const LiveActivityEntrySchema = z.object({
   itemName: z.string(),
   personId: z.string(),
   personName: z.string(),
-  action: z.enum(['claim', 'unclaim']),
+  action: z.enum(['claim', 'unclaim', 'edit_item', 'delete_item', 'delete_bill', 'restore_bill', 'permanent_delete_bill']),
   deltaValue: z.number(),
   totalValue: z.number(),
+  // Human-readable diff for 'edit_item'/'delete_item' entries (e.g. "price
+  // $10.00 -> $12.00") — empty for claim/unclaim, see bill_handlers.go's
+  // describeItemEdit.
+  details: z.string().default(''),
   createdAt: z.string(),
 });
 export type LiveActivityEntry = z.infer<typeof LiveActivityEntrySchema>;

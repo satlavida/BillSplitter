@@ -30,8 +30,13 @@ func (a *API) Router() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/sessions/{code}/bills", a.AddBill)
 	mux.HandleFunc("PATCH /api/sessions/{code}/bills/{billId}", a.UpdateBill)
+	mux.HandleFunc("DELETE /api/sessions/{code}/bills/{billId}", a.DeleteBill)
+	mux.HandleFunc("POST /api/sessions/{code}/bills/{billId}/restore", a.RestoreBill)
+	mux.HandleFunc("DELETE /api/sessions/{code}/bills/{billId}/permanent", a.PermanentlyDeleteBill)
+	mux.HandleFunc("GET /api/sessions/{code}/bills/deleted", a.ListDeletedBills)
 	mux.HandleFunc("POST /api/sessions/{code}/bills/{billId}/items", a.AddItem)
 	mux.HandleFunc("PATCH /api/sessions/{code}/bills/{billId}/items/{itemId}", a.UpdateItem)
+	mux.HandleFunc("DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}", a.DeleteItem)
 	mux.HandleFunc("POST /api/sessions/{code}/bills/{billId}/items/{itemId}/claims", a.ClaimItem)
 	mux.HandleFunc("DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}/claims/{personId}", a.UnclaimItem)
 	mux.HandleFunc("GET /api/sessions/{code}/activity", a.GetActivityLog)

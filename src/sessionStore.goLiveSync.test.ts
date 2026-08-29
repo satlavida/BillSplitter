@@ -12,6 +12,7 @@ const mockGetLiveSession = jest.fn();
 const mockUploadLiveImage = jest.fn().mockResolvedValue({});
 const mockClaimItem = jest.fn().mockResolvedValue({ status: 'approved' });
 const mockUnclaimItem = jest.fn().mockResolvedValue(undefined);
+const mockDeleteLiveBill = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('./lib/liveApi', () => ({
   addLiveBill: (...args: unknown[]) => mockAddLiveBill(...args),
@@ -22,9 +23,11 @@ jest.mock('./lib/liveApi', () => ({
   uploadLiveImage: (...args: unknown[]) => mockUploadLiveImage(...args),
   claimItem: (...args: unknown[]) => mockClaimItem(...args),
   unclaimItem: (...args: unknown[]) => mockUnclaimItem(...args),
+  deleteLiveBill: (...args: unknown[]) => mockDeleteLiveBill(...args),
 }));
 
 import useSessionStore from './sessionStore';
+import type { LiveBill } from './schemas/live.schema';
 
 const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -105,6 +108,7 @@ describe('markSessionLive — existing-bills sync (req 5)', () => {
           imageRefKey: null,
           imageWidth: null,
           imageHeight: null,
+          deletedAt: null,
         },
       ],
     });
@@ -274,6 +278,7 @@ describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim',
           imageRefKey: null,
           imageWidth: null,
           imageHeight: null,
+          deletedAt: null,
         },
       ],
     });
@@ -313,10 +318,74 @@ describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim',
           imageRefKey: null,
           imageWidth: null,
           imageHeight: null,
+          deletedAt: null,
         },
       ],
     });
 
     expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
+  });
+});
+
+// Covers bill deletion: mergeLiveSnapshot must actually drop a bill that's
+// vanished from the server (soft-deleted), not just add/update — otherwise
+// a deletion (creator's own, or a joiner's) would never take effect for the
+// creator's own local view.
+describe('mergeLiveSnapshot — bill removal on delete', () => {
+  const emptySnapshot = (bills: LiveBill[]) => ({
+    id: 'ABCDE',
+    title: 'Trip',
+    createdAt: '',
+    updatedAt: '',
+    joinMode: 'open_link' as const,
+    permissionMode: 'edit' as const,
+    creatorPersonId: null,
+    isSettled: false,
+    settledAt: null,
+    currency: 'INR',
+    people: [],
+    bills,
+  });
+
+  test('drops a local bill missing from the remote snapshot', async () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Dinner' })!;
+    useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
+    await flushMicrotasks();
+
+    // First snapshot still has it (server caught up with the push).
+    useSessionStore.getState().mergeLiveSnapshot(session.id, emptySnapshot([{ ...bill, exchangeRate: null, exchangeRateDate: null, exchangeRateIsOverride: false, imageRefKey: null, imageWidth: null, imageHeight: null, deletedAt: null }]));
+    expect(useSessionStore.getState().getBill(session.id, bill.id)).toBeDefined();
+
+    // A later snapshot with the bill soft-deleted server-side omits it.
+    useSessionStore.getState().mergeLiveSnapshot(session.id, emptySnapshot([]));
+    expect(useSessionStore.getState().getBill(session.id, bill.id)).toBeUndefined();
+  });
+
+  test('keeps a bill still mid-push even if the snapshot does not have it yet', async () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
+    await flushMicrotasks();
+
+    // addBill's push is in flight (mockAddLiveBill hasn't resolved this
+    // microtask queue yet) when a snapshot arrives without it.
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Dinner' })!;
+    useSessionStore.getState().mergeLiveSnapshot(session.id, emptySnapshot([]));
+
+    expect(useSessionStore.getState().getBill(session.id, bill.id)).toBeDefined();
+  });
+
+  test('deleteBill removes the bill locally and pushes a live delete', async () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const bill = useSessionStore.getState().addBill(session.id, { title: 'Dinner' })!;
+    useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
+    await flushMicrotasks();
+    mockDeleteLiveBill.mockClear();
+
+    useSessionStore.getState().deleteBill(session.id, bill.id);
+    await flushMicrotasks();
+
+    expect(useSessionStore.getState().getBill(session.id, bill.id)).toBeUndefined();
+    expect(mockDeleteLiveBill).toHaveBeenCalledWith('ABCDE', bill.id);
   });
 });

@@ -62,6 +62,12 @@ func (a *API) AddBill(w http.ResponseWriter, r *http.Request) {
 		Date:      time.Now().UTC().Format(time.RFC3339),
 		Currency:  currency,
 		TaxAmount: req.TaxAmount,
+		// Non-nil so the JSON response below serializes "items" as [] rather
+		// than null — LiveBillSchema (live.schema.ts) requires an array,
+		// same bug/fix as AddItem's ConsumedBy (see
+		// architecture/live-collaboration.md's Notes). This response is
+		// used as-is, not re-fetched from the DB.
+		Items: []models.Item{},
 	}
 	// Date is a display field (matches the frontend's ISO-8601 Bill.date),
 	// unrelated to the SQLite-comparable timestamps store.go uses internally.
@@ -117,6 +123,157 @@ func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
 
 	a.hub.Broadcast(code, sse.Event{Kind: "bill.updated", ID: billID})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+// findBillTitle looks up a bill's title among sess.Bills (already loaded,
+// excludes soft-deleted bills — see listBills), for the activity-log
+// snapshot on a fresh delete. Returns "" if not found (e.g. the bill was
+// already soft-deleted by someone else in the meantime).
+func findBillTitle(sess *models.Session, billID string) string {
+	for _, b := range sess.Bills {
+		if b.ID == billID {
+			return b.Title
+		}
+	}
+	return ""
+}
+
+// DeleteBill handles DELETE /api/sessions/{code}/bills/{billId} — soft
+// deletes: the bill drops out of GetSession (so joiners/the creator's own
+// bill list stop seeing it) but stays recoverable. Dual-mode auth like
+// UpdateItem/DeleteItem: an optional personId (query param, since DELETE
+// carries no body here) attributes the deletion to a joiner in the
+// activity log when paired with a matching X-Joiner-Token; the creator's
+// own UI omits both and the deletion goes unlogged-by-person (still
+// findable by title/time). Only ever soft-deletes — see
+// PermanentlyDeleteBill for the creator-only irreversible version.
+func (a *API) DeleteBill(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	billID := r.PathValue("billId")
+	personID := r.URL.Query().Get("personId")
+
+	if r.Header.Get("X-Joiner-Token") != "" && personID != "" && !a.requireJoiner(w, r, code, personID) {
+		return
+	}
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+	if !a.requireEditPermission(w, r, code) {
+		return
+	}
+
+	sess, err := a.store.GetSession(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load session")
+		return
+	}
+	billTitle := findBillTitle(sess, billID)
+
+	if err := a.store.SoftDeleteBill(code, billID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "bill not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete bill")
+		return
+	}
+
+	if personID != "" {
+		personName := findPersonName(sess, personID)
+		a.recordItemActivity(code, billID, billTitle, personID, personName, "delete_bill", 0, 0, fmt.Sprintf("deleted bill %q", billTitle))
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "bill.updated", ID: billID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// RestoreBill handles POST /api/sessions/{code}/bills/{billId}/restore —
+// creator-only, reverses a DeleteBill.
+func (a *API) RestoreBill(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+	billID := r.PathValue("billId")
+
+	deleted, err := a.store.ListDeletedBills(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load deleted bills")
+		return
+	}
+	billTitle := ""
+	for _, b := range deleted {
+		if b.ID == billID {
+			billTitle = b.Title
+			break
+		}
+	}
+
+	if err := a.store.RestoreBill(code, billID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "deleted bill not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to restore bill")
+		return
+	}
+
+	a.recordItemActivity(code, billID, billTitle, "", "", "restore_bill", 0, 0, fmt.Sprintf("restored bill %q", billTitle))
+	a.hub.Broadcast(code, sse.Event{Kind: "bill.updated", ID: billID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "restored"})
+}
+
+// PermanentlyDeleteBill handles DELETE /api/sessions/{code}/bills/{billId}/permanent
+// — creator-only, irreversible. Works on a bill whether or not it was
+// already soft-deleted (a creator can jump straight to permanent removal).
+func (a *API) PermanentlyDeleteBill(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+	billID := r.PathValue("billId")
+
+	billTitle := ""
+	if sess, err := a.store.GetSession(code); err == nil {
+		billTitle = findBillTitle(sess, billID)
+	}
+	if billTitle == "" {
+		if deleted, err := a.store.ListDeletedBills(code); err == nil {
+			for _, b := range deleted {
+				if b.ID == billID {
+					billTitle = b.Title
+					break
+				}
+			}
+		}
+	}
+
+	if err := a.store.HardDeleteBill(code, billID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "bill not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to permanently delete bill")
+		return
+	}
+
+	a.recordItemActivity(code, billID, billTitle, "", "", "permanent_delete_bill", 0, 0, fmt.Sprintf("permanently removed bill %q", billTitle))
+	a.hub.Broadcast(code, sse.Event{Kind: "bill.updated", ID: billID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
+}
+
+// ListDeletedBills handles GET /api/sessions/{code}/bills/deleted —
+// creator-only, backs the "Deleted Bills" review UI (restore/permanently
+// remove).
+func (a *API) ListDeletedBills(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+
+	bills, err := a.store.ListDeletedBills(code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load deleted bills")
+		return
+	}
+	writeJSON(w, http.StatusOK, bills)
 }
 
 type addItemRequest struct {
@@ -178,6 +335,11 @@ func (a *API) AddItem(w http.ResponseWriter, r *http.Request) {
 		Discount:     req.Discount,
 		DiscountType: discountType,
 		SplitType:    splitType,
+		// Non-nil so the JSON response below serializes "consumedBy" as []
+		// rather than null — LiveItemSchema (live.schema.ts) requires an
+		// array, and this response is used as-is, not re-fetched from the DB
+		// (store.listItems always returns a non-nil slice).
+		ConsumedBy: []models.Allocation{},
 	}
 
 	if err := a.store.AddItem(code, billID, item); errors.Is(err, store.ErrNotFound) {
@@ -199,6 +361,44 @@ type updateItemRequest struct {
 	Discount     float64 `json:"discount"`
 	DiscountType string  `json:"discountType"`
 	SplitType    string  `json:"splitType"`
+	// PersonID identifies who made this edit, for the activity log — only
+	// sent by the joiner UI (EditLiveItemModal.tsx); the creator's own
+	// live-editing UI omits it and edits go unlogged, same as before this
+	// field existed. When present alongside X-Joiner-Token, it must
+	// authenticate as that same person (requireJoiner) — a joiner can only
+	// attribute an edit to themselves, not impersonate someone else.
+	PersonID string `json:"personId"`
+}
+
+// describeItemEdit builds a human-readable summary of which fields changed,
+// e.g. "price $10.00 -> $12.00, quantity 2 -> 3" — used for edit_item's
+// activity-log Details, since a name/price/quantity/discount/splitType edit
+// isn't a single before/after number the way a claim's delta_value is.
+func describeItemEdit(old models.Item, name string, price float64, quantity int, discount float64, discountType, splitType string) string {
+	var changes []string
+	if old.Name != name {
+		changes = append(changes, fmt.Sprintf("name %q -> %q", old.Name, name))
+	}
+	if old.Price != price {
+		changes = append(changes, fmt.Sprintf("price %.2f -> %.2f", old.Price, price))
+	}
+	if old.Quantity != quantity {
+		changes = append(changes, fmt.Sprintf("quantity %d -> %d", old.Quantity, quantity))
+	}
+	if old.Discount != discount || old.DiscountType != discountType {
+		changes = append(changes, fmt.Sprintf("discount %.2f%s -> %.2f%s", old.Discount, old.DiscountType, discount, discountType))
+	}
+	if old.SplitType != splitType {
+		changes = append(changes, fmt.Sprintf("split type %s -> %s", old.SplitType, splitType))
+	}
+	if len(changes) == 0 {
+		return "no changes"
+	}
+	result := changes[0]
+	for _, c := range changes[1:] {
+		result += ", " + c
+	}
+	return result
 }
 
 // UpdateItem handles PATCH /api/sessions/{code}/bills/{billId}/items/{itemId}
@@ -220,6 +420,9 @@ func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if r.Header.Get("X-Joiner-Token") != "" && req.PersonID != "" && !a.requireJoiner(w, r, code, req.PersonID) {
+		return
+	}
 
 	quantity := req.Quantity
 	if quantity <= 0 {
@@ -234,6 +437,19 @@ func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		splitType = "equal"
 	}
 
+	// Loaded before the write (when we'll need it for the activity log) so
+	// the "old" side of the diff reflects the item's state right before
+	// this edit, not after.
+	var sess *models.Session
+	if req.PersonID != "" {
+		var err error
+		sess, err = a.store.GetSession(code)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load session")
+			return
+		}
+	}
+
 	if err := a.store.UpdateItem(code, itemID, req.Name, req.Price, quantity, req.Discount, discountType, splitType); errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "item not found")
 		return
@@ -242,8 +458,67 @@ func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if sess != nil {
+		if old := findItem(sess, itemID); old != nil {
+			personName := findPersonName(sess, req.PersonID)
+			details := describeItemEdit(*old, req.Name, req.Price, quantity, req.Discount, discountType, splitType)
+			a.recordItemActivity(code, itemID, old.Name, req.PersonID, personName, "edit_item", 0, 0, details)
+		}
+	}
+
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+// DeleteItem handles DELETE /api/sessions/{code}/bills/{billId}/items/{itemId}
+// — removes an item (and, via ON DELETE CASCADE, any claims on it). personId
+// is optional (query string, since DELETE requests carry no JSON body here)
+// and works the same as UpdateItem's: only used to attribute+log a joiner's
+// deletion, dual-mode with the creator's own token-free UI.
+func (a *API) DeleteItem(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	itemID := r.PathValue("itemId")
+	personID := r.URL.Query().Get("personId")
+
+	if r.Header.Get("X-Joiner-Token") != "" && personID != "" && !a.requireJoiner(w, r, code, personID) {
+		return
+	}
+	if !a.requireNotSettled(w, r, code) {
+		return
+	}
+	if !a.requireEditPermission(w, r, code) {
+		return
+	}
+
+	var sess *models.Session
+	if personID != "" {
+		var err error
+		sess, err = a.store.GetSession(code)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load session")
+			return
+		}
+	}
+	itemName := ""
+	if sess != nil {
+		itemName = findItemName(sess, itemID)
+	}
+
+	if err := a.store.DeleteItem(code, itemID); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "item not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete item")
+		return
+	}
+
+	if sess != nil {
+		personName := findPersonName(sess, personID)
+		a.recordItemActivity(code, itemID, itemName, personID, personName, "delete_item", 0, 0, fmt.Sprintf("removed %q", itemName))
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 type claimItemRequest struct {
@@ -390,20 +665,20 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to claim item")
 		return
 	}
-	a.recordClaimActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value)
+	a.recordItemActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value, "")
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
 
-// recordClaimActivity logs a claim/unclaim and broadcasts it; logging
-// failures are swallowed (not surfaced to the caller) since the claim/
-// unclaim itself already succeeded by the time this runs — the log is a
+// recordItemActivity logs a claim/unclaim/edit/delete and broadcasts it;
+// logging failures are swallowed (not surfaced to the caller) since the
+// mutation itself already succeeded by the time this runs — the log is a
 // secondary audit trail, not something worth failing the user-visible
 // request over.
-func (a *API) recordClaimActivity(code, itemID, itemName, personID, personName, action string, delta, total float64) {
+func (a *API) recordItemActivity(code, itemID, itemName, personID, personName, action string, delta, total float64, details string) {
 	if err := a.store.RecordItemActivity(code, models.ItemActivity{
 		ItemID: itemID, ItemName: itemName, PersonID: personID, PersonName: personName,
-		Action: action, DeltaValue: delta, TotalValue: total,
+		Action: action, DeltaValue: delta, TotalValue: total, Details: details,
 	}); err != nil {
 		return
 	}
@@ -445,7 +720,7 @@ func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.recordClaimActivity(code, itemID, itemName, personID, personName, "unclaim", -oldValue, 0)
+	a.recordItemActivity(code, itemID, itemName, personID, personName, "unclaim", -oldValue, 0, "")
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "unclaimed"})
 }

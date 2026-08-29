@@ -1,8 +1,10 @@
 import useSessionStore from '../sessionStore';
 import useBillStore from '../billStore';
+import useSettingsStore from '../settingsStore';
 import { getImageBlob } from './imageStore';
 import { ReceiptScanResponseSchema, type ReceiptScanResponse } from '../schemas/receiptScan.schema';
 import { scannedTitle, isUnsetTitle } from './receiptTitle';
+import { defaultSplitTypeForQuantity } from './defaultSplitType';
 
 // Same base URL as liveApi.ts — receipt scanning is now served by the Go
 // live-collaboration server's POST /api/scan (migrated off the external
@@ -51,6 +53,7 @@ const applyScanResults = (sessionId: string, billId: string, data: ReceiptScanRe
 
   const bill = useSessionStore.getState().getBill(sessionId, billId);
   const existingItems = bill?.items ?? [];
+  const autoQuantitySplit = useSettingsStore.getState().autoQuantitySplit;
   const newItems = data.items.map((item) => ({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     name: item.name,
@@ -59,7 +62,7 @@ const applyScanResults = (sessionId: string, billId: string, data: ReceiptScanRe
     discount: item.discount?.value ?? 0,
     discountType: item.discount?.discountType ?? ('flat' as const),
     consumedBy: [],
-    splitType: 'equal' as const,
+    splitType: defaultSplitTypeForQuantity(item.quantity, autoQuantitySplit),
   }));
 
   useSessionStore.getState().updateBill(sessionId, billId, {

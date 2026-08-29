@@ -6,23 +6,35 @@ publishes a join code/link, joiners request access (approval-code or
 open-link mode), and once in, everyone sees bills/items update in real time
 via Server-Sent Events and can claim items as their own. Presence tracking
 shows who's currently online; a per-session activity log records
-claim/unclaim history.
+claim/unclaim history, item edits/deletes, and bill deletions/restores.
 
 ## Frontend
 **Creator side**
 - `src/Components/GoLiveSection.tsx` — seeds the server-side session mirror, shows the join code/link. Used by `SessionHomePage.tsx`.
 - `src/Components/LiveSessionPanel.tsx` — joiners list, approve/disapprove, settle action, SSE connection status. Used by `SessionHomePage.tsx`. Also pushes toast notifications (`src/toastStore.ts` + `src/ui/Toast.tsx`) on `joiner.pending`/`joiner.approved`/`joiner.disapproved` (diffs the freshly-refetched joiners list against the previous one) and on `activity.created` (refetches the activity log and toasts the newest entry via `src/lib/activityLine.ts`'s `formatActivityLine`, shared with `ActivityLogPage.tsx`). The `claim.*` SSE kinds `connectLiveSync` still subscribes to are not wired to toasts — they're dead/unemitted server-side since migration `0006_remove_claims.sql`; see Notes.
-- `src/Pages/ActivityLogPage.tsx` — route `/session/:sessionId/activity`; creator-only claim/unclaim audit log, filterable by person/action.
+- `src/Pages/ActivityLogPage.tsx` — route `/session/:sessionId/activity`; creator-only activity audit log (claims/unclaims, item edits/deletes, bill deletions/restores), filterable by person/action. `delete_bill` entries get inline "Restore"/"Permanently Remove" buttons (`restoreLiveBill`/`permanentlyDeleteLiveBill`, creator-only) — a failed click (the bill was already restored/removed by then) surfaces an inline error rather than needing a separate "is this bill still deleted" state to track. This is also the only place a creator can undo or finalize a bill deletion — see Notes.
+- `src/Pages/SessionHomePage.tsx` — its bill list now has a small "Delete" button per bill (`handleDeleteBill`), calling `sessionStore.deleteBill` — immediate/permanent for a local-only session, soft-delete-and-recoverable (via the Activity Log above) for a live one, since `deleteBill` best-effort-pushes to the server when the session is live.
 
 **Joiner side** — `src/Components/joiner/`
-- `JoinerSessionView.tsx` — top-level joiner shell; presence heartbeat, settlement fetch. Used by `Pages/JoinPage.tsx`.
-- `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`; each bill's receipt thumbnail (`bill.imageRefKey`, served from `GET /api/images/{refKey}`) opens full-size in `ImageLightbox` on click, without following the card's link. Also renders the joiner-side "Things to Take Care of" signals per bill: a "New" badge (`src/lib/joinerVisitTracking.ts`, localStorage-only, keyed by `code:billId`, set by `JoinerBillEditorPage.tsx` on mount) for a bill this joiner hasn't opened yet, and — once visited — a lighter "N still unclaimed for you" note (`src/lib/joinerUnclaimedItems.ts`'s `getMyUnclaimedItemCount`, computed from the already-fetched `LiveBill`/`LiveItem` data: items this joiner hasn't claimed anything on and aren't already fully claimed by others). The two never show together for the same bill.
+- `JoinerSessionView.tsx` — top-level joiner shell; presence heartbeat, settlement fetch. Used by `Pages/JoinPage.tsx`. Also renders "Scan New Bill"/"Add Bill" buttons above the bill list (hidden when read-only for this joiner) — mirrors `SessionHomePage.tsx`'s creator-side pair: both call `addLiveBill` directly (a joiner has no local `sessionStore` to create the bill in first) with a client-generated id, then navigate into `JoinerBillEditorPage`'s step 1, "Scan New Bill" additionally passing the `{ autoOpenScan: true }` nav-state flag `JoinerScanReceiptButton.tsx` self-opens on.
+- `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`; each bill's receipt thumbnail (`bill.imageRefKey`, served from `GET /api/images/{refKey}`) opens full-size in `ImageLightbox` on click, without following the card's link. Also renders the joiner-side "Things to Take Care of" signals per bill: a "New" badge (`src/lib/joinerVisitTracking.ts`, localStorage-only, keyed by `code:billId`, set by `JoinerBillEditorPage.tsx` on mount) for a bill this joiner hasn't opened yet, and — once visited — a lighter "N still unclaimed for you" note (`src/lib/joinerUnclaimedItems.ts`'s `getMyUnclaimedItemCount`, computed from the already-fetched `LiveBill`/`LiveItem` data: items this joiner hasn't claimed anything on and aren't already fully claimed by others). The two never show together for the same bill. Also has a per-bill "Delete" button (hidden when read-only) — always a *soft* delete (`deleteLiveBill` with the joiner's own `personId`/token for activity-log attribution); only the creator (via `ActivityLogPage.tsx`) can restore or permanently remove it — see Notes.
 - `JoinerItemRow.tsx` — claim/unclaim a live item.
+- `JoinerItemListRow.tsx` — one row in step 1's item list ("What items are
+  you splitting?"); mirrors `ItemsInput.tsx`'s edit/remove icons for the
+  creator, but writes through `updateLiveItem`/`deleteLiveItem` and is
+  hidden entirely when the session is read-only for this joiner. Edits/
+  deletes send the joiner's own `personId` + `X-Joiner-Token` so the server
+  attributes the change in the activity log (`edit_item`/`delete_item`
+  actions — see Backend below).
+- `EditLiveItemModal.tsx` — the edit form `JoinerItemListRow.tsx` opens;
+  same fields as `EditItemModal.tsx` (name/price/quantity/discount/split
+  type) but typed against `LiveItem` instead of the local `Item`.
 - `ClaimQuantityModal.tsx` — quantity picker for claiming; its number grid
   is capped at a `max` prop (own current value + whatever's still unclaimed
   by everyone else on that item), separate from the `quantity` prop used
   only for its "How many of these N did you have?" copy — see Notes.
-- `AddItemForm.tsx` — joiner adds a new item to a live bill.
+- `AddItemForm.tsx` — joiner adds a new item to a live bill. A quantity edit auto-defaults the split-type dropdown to Quantity Split (via `defaultSplitTypeForQuantity`, [bill-editing.md](bill-editing.md)) as long as the user hasn't manually picked a split type themselves for this add (`splitTypeTouched`).
+- `JoinerScanReceiptButton.tsx` — joiner-side receipt scanning; see [scan-receipt.md](scan-receipt.md) for the full pipeline. Requires edit permission (`disabled` when read-only, same as `AddItemForm`/`JoinerItemListRow`).
 - `JoinerUpiNudge.tsx` — the joiner's only UPI-ID entry point (Phase F):
   shown above the bill list when this joiner is owed money in settlement
   (`settlement.balances` for their own `personId` is positive) and their
@@ -59,17 +71,21 @@ claim/unclaim history.
   - `PATCH /api/sessions/{code}/people/{personId}` — dual auth like `ClaimItem`: token-free (creator) can update any field on any person; a joiner's own `X-Joiner-Token` can only update their own `upiId` (never `name`, never another person's row) — 403 otherwise. Broadcasts `session.updated`.
   - Shared auth helpers: `requireCreator`, `requireJoiner`, `requireEditPermission`, `requireNotSettled`.
 - `server/internal/api/bill_handlers.go`
-  - `POST /api/sessions/{code}/bills`, `PATCH .../bills/{billId}` — add/update a bill.
-  - `POST .../items`, `PATCH .../items/{itemId}` — add/update an item (never touches claims).
+  - `POST /api/sessions/{code}/bills`, `PATCH .../bills/{billId}` — add/update a bill; both gated by `requireEditPermission` and now reachable from the joiner UI (`JoinerSessionView.tsx`'s Add Bill/Scan New Bill, `JoinerScanReceiptButton.tsx`'s payer default), so `liveApi.ts`'s `addLiveBill`/`updateLiveBill` accept an optional `joinerToken` to actually exercise that gate (a token-free call is always treated as the creator, same as every other dual-mode endpoint here) — omitted, they behave exactly as before this existed.
+  - `POST .../items`, `PATCH .../items/{itemId}`, `DELETE .../items/{itemId}` — add/update/delete an item (never touches claims; delete cascades to that item's allocations via `ON DELETE CASCADE`). `PATCH`/`DELETE` accept an optional `personId` (`DELETE`'s is a query param, since it has no body) — sent only by the joiner UI (`JoinerItemListRow.tsx`) to attribute the change to that joiner in the activity log as `edit_item`/`delete_item`; the creator's own live-editing UI omits it and edits/deletes go unlogged, as before this existed. When paired with `X-Joiner-Token`, the header must authenticate as that same `personId` (a joiner can't attribute a change to someone else).
   - `POST .../items/{itemId}/claims`, `DELETE .../claims/{personId}` — claim/unclaim (free-select, no approval queue). For a Quantity Split (`splitType: "fraction"`) item, `ClaimItem` rejects (409, "Only N left to claim on this item") a value that would push the item's total claimed quantity across everyone past its own `quantity` — see Notes. Equal-split items have no such cap.
+  - `DELETE /api/sessions/{code}/bills/{billId}` — soft-deletes a bill (sets `deleted_at`; `listBills`/`GetSession` exclude it from then on). Same dual-mode `personId` (query param)/`X-Joiner-Token` attribution pattern as the item endpoints above, logged as `delete_bill`. Gated by `requireEditPermission`, so both the creator and an edit-permission joiner can do this — see `JoinerBillList.tsx`/`SessionHomePage.tsx`.
+  - `POST .../bills/{billId}/restore` — creator-only (`requireCreator`), reverses a soft-delete. Logs `restore_bill`.
+  - `DELETE .../bills/{billId}/permanent` — creator-only, irreversibly deletes the bill row (cascades to items/allocations/images). Works whether or not the bill was already soft-deleted. Logs `permanent_delete_bill`.
+  - `GET .../bills/deleted` — creator-only; lists soft-deleted bills (id/title/date/`deletedAt`, no items) for review — though in practice `ActivityLogPage.tsx`'s `delete_bill` entries plus their inline Restore/Permanently Remove buttons cover this same job without a separate fetch, so this endpoint is mostly for programmatic/future use.
   - `GET /api/sessions/{code}/settlement` — see [settlement.md](settlement.md).
-- `server/internal/api/activity_handlers.go` — `GET /api/sessions/{code}/activity`, creator-only.
+- `server/internal/api/activity_handlers.go` — `GET /api/sessions/{code}/activity`, creator-only; entries are `claim`/`unclaim`/`edit_item`/`delete_item`/`delete_bill`/`restore_bill`/`permanent_delete_bill`. The item-level edit/delete entries carry a human-readable `details` diff (`describeItemEdit`) instead of a `deltaValue`/`totalValue` pair; the three bill-level actions reuse the same `item_activity` table with `item_id`/`item_name` doubling as `billId`/bill title (a pragmatic reuse to keep one audit log rather than splitting bill activity into its own table+endpoint — see Notes) and `personId`/`personName` empty for `restore_bill`/`permanent_delete_bill` (creator-only, unattributed to a specific person the way a joiner's delete is).
 - `server/internal/api/presence_handlers.go` — `POST .../presence/heartbeat`, `GET .../presence` (public list of online personIds, plus an `activeSince` map of each online personId's continuous-activity-start timestamp — RFC3339 — used by the frontend to gate renaming an active/claimed person). Consumed by `src/lib/liveApi.ts`'s `getPresence` and `src/lib/presenceRules.ts`'s `isNameEditLocked` (see [session-management.md](session-management.md)'s `PeopleSection.tsx`).
 - `server/internal/api/sse_handlers.go` — `GET /api/sessions/{code}/events`, delegates to `sse.Hub.ServeHTTP`.
 - `server/internal/sse/hub.go` — per-session-code pub/sub. Payloads are entity-id-only (`{Kind, ID}`); subscribers refetch via REST. Event kinds: `joiner.pending`, `joiner.approved`, `joiner.disapproved`, `item.updated`, `bill.updated`, `session.settled`, `session.deleted`, `activity.created`. A stuck subscriber is dropped rather than blocking others.
 - `server/internal/presence/presence.go` — in-memory (non-DB) online/offline tracker + identity-reclaim-lock, own sweep loop (`RunPresenceSweeper` in `api/api.go`). Also tracks each person's continuous-activity-since timestamp (`ActiveSince`): a `Touch` resets it only if the gap since the previous touch exceeds `GapThreshold` (60s — above the 1.5s heartbeat cadence, below the 1hr name-edit-lock bar), so normal heartbeating accrues a stable duration instead of resetting every beat. Not persisted, lost on server restart — matches the tracker's existing non-DB pattern, acceptable given sessions are short-lived/purged after 48h.
 - `server/internal/store/store.go` — sessions, people, bills, items, item allocations (claims), item activity, joiners (including upsert-on-rejoin and token verify/reveal).
-- Migrations: `0001_init.sql` (sessions/people/bills/items/item_allocations/joiners), `0003_joiner_token_and_activity_log.sql`, `0004_claim_activity_reject.sql`, `0005_permission_and_identity.sql` (permission_mode, creator_person_id), `0006_remove_claims.sql` (drops the old approval-queue `item_claims` table), `0007_joiners_unique_person.sql` (dedupe + unique index for rejoin-as-upsert), `0009_currency.sql`/`0010_exchange_rate_cache.sql` (session/bill currency + exchange-rate cache — see [currency.md](currency.md)), `0011_person_upi_id.sql` (`people.upi_id`, `NOT NULL DEFAULT ''`).
+- Migrations: `0001_init.sql` (sessions/people/bills/items/item_allocations/joiners), `0003_joiner_token_and_activity_log.sql`, `0004_claim_activity_reject.sql`, `0005_permission_and_identity.sql` (permission_mode, creator_person_id), `0006_remove_claims.sql` (drops the old approval-queue `item_claims` table), `0007_joiners_unique_person.sql` (dedupe + unique index for rejoin-as-upsert), `0009_currency.sql`/`0010_exchange_rate_cache.sql` (session/bill currency + exchange-rate cache — see [currency.md](currency.md)), `0011_person_upi_id.sql` (`people.upi_id`, `NOT NULL DEFAULT ''`), `0012_item_edit_delete_activity.sql` (widens `item_activity.action`'s CHECK to add `edit_item`/`delete_item`, adds a `details TEXT` column for their human-readable diff), `0013_bill_soft_delete.sql` (`bills.deleted_at`; widens `item_activity.action`'s CHECK again to add `delete_bill`/`restore_bill`/`permanent_delete_bill`).
 
 ## Related features
 - [scan-receipt.md](scan-receipt.md) — image upload route lives under the same session/bill path structure.
@@ -79,6 +95,56 @@ claim/unclaim history.
 - [currency.md](currency.md) — session `currency` column, per-bill exchange-rate columns, and the fields those add to `LiveSession`/`LiveBill`.
 
 ## Notes
+- **Bill deletion is soft by default, permanent only through the
+  creator.** A joiner (or the creator) deleting a bill only ever sets
+  `deleted_at` (`DeleteBill`); it's hidden from `GetSession` from then on
+  (both the creator's own bill list and every joiner's) but stays intact in
+  the DB. Only the creator can `RestoreBill` (undo) or
+  `PermanentlyDeleteBill` (irreversible row delete) — both `requireCreator`,
+  not reachable by a joiner even with edit permission. This was a
+  deliberate asymmetry: a joiner's mistaken/malicious delete shouldn't be
+  able to destroy data, only hide it pending the creator's review in
+  `ActivityLogPage.tsx`. `sessionStore.ts`'s local `deleteBill` (creator's
+  own, offline-first UI) is the one exception that's still immediate for a
+  **local-only** (non-live) session — there's no other party to protect
+  against and no server to soft-delete against, so it just removes the bill
+  from local state directly; only once a session is live does the same
+  local removal also get mirrored to the server as (recoverable) soft
+  delete.
+- **`mergeLiveSessionInto` must actually remove a bill the server no longer
+  has**, not just add/update ones it does. Before bill deletion existed,
+  `upsertById`-style merging only ever grew or updated the local bill list
+  (a `LiveSession`'s `bills` was always a superset in practice). Once
+  `GetSession` could legitimately omit a bill (soft-deleted), the merge
+  needed a removal path too — added by diffing local bill ids against the
+  remote snapshot's, dropping any local id missing from the remote unless
+  it's still mid-push (`isPendingLiveWrite('bill:<id>:fields')`, the same
+  guard `pushNewBillLive` already tracked under, protecting a
+  just-added-locally bill from being wrongly dropped before its own
+  `addLiveBill` call has even resolved).
+- **Joiners with edit permission can now add bills and scan receipts**,
+  not just items on existing bills — `JoinerSessionView.tsx`'s Add
+  Bill/Scan New Bill buttons and `JoinerScanReceiptButton.tsx`. This
+  required threading an optional `joinerToken` through `addLiveBill`/
+  `updateLiveBill`/`uploadLiveImage` (previously creator-only call sites,
+  so none of them sent `X-Joiner-Token`) and adding permission gating to
+  `UploadImage` (previously ungated). See [scan-receipt.md](scan-receipt.md)
+  for the scan pipeline itself.
+- **`AddItem`/`AddBill` responses must set their slice fields to non-nil
+  empty slices.** `models.Item.ConsumedBy` and `models.Bill.Items` have no
+  `omitempty`, so Go's `encoding/json` serializes a nil slice as `null` —
+  which used to happen on every `POST .../items` and `POST .../bills`
+  response (the newly-built `models.Item`/`models.Bill` literals never set
+  those fields), failing `LiveItemSchema`/`LiveBillSchema`'s `z.array(...)`
+  parse on the client (a raw Zod validation error instead of the item/bill
+  appearing — hit first via a joiner adding an item, then again via a
+  joiner's new "Add Bill" button). Fixed by explicitly setting `ConsumedBy:
+  []models.Allocation{}` / `Items: []models.Item{}` in `AddItem`/`AddBill`.
+  `store.listItems`/`store.listBills` were already returning non-nil
+  slices, so `GetSession`/other reads were never affected — only these two
+  directly-returned, not-re-fetched responses were. Worth checking any
+  future directly-returned (not re-fetched-via-GetSession) handler for the
+  same pattern.
 - **Quantity Split items have a server-enforced claim cap.** Before this
   was added, `ClaimItem` (`server/internal/api/bill_handlers.go`) did an
   unconditional upsert of a claim's value with no check against the item's

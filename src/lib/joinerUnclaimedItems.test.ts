@@ -57,6 +57,7 @@ describe('getMyUnclaimedItemCount', () => {
       imageRefKey: null,
       imageWidth: null,
       imageHeight: null,
+      deletedAt: null,
     };
 
     expect(getMyUnclaimedItemCount(bill, 'me')).toBe(1);
