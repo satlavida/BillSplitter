@@ -3,8 +3,8 @@ import ItemSplitCard from './ItemSplitCard';
 import type { Item, Person } from '../schemas/bill.schema';
 
 const people: Person[] = [
-  { id: 'p1', name: 'Alice' },
-  { id: 'p2', name: 'Bob' },
+  { id: 'p1', name: 'Alice', upiId: '' },
+  { id: 'p2', name: 'Bob', upiId: '' },
 ];
 
 const formatCurrency = (amount: number | null | undefined) => `$${(amount ?? 0).toFixed(2)}`;

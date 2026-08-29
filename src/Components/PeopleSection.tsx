@@ -134,8 +134,8 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
   );
 
   const handleSavePerson = useCallback(
-    (id: string, name: string) => {
-      updatePerson(session.id, id, name);
+    (id: string, name: string, upiId: string) => {
+      updatePerson(session.id, id, { name, upiId });
     },
     [updatePerson, session.id]
   );

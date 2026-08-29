@@ -153,6 +153,7 @@ const useBillStore = create<BillStore>()((set, get) => ({
         const newPerson: Person = {
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // cleaner ID
           name,
+          upiId: '',
         };
 
         set((state) => ({

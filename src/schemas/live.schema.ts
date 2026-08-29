@@ -15,6 +15,9 @@ export type CreateLiveSessionResponse = z.infer<typeof CreateLiveSessionResponse
 export const LivePersonSchema = z.object({
   id: z.string(),
   name: z.string(),
+  // Mirrors bill.schema.ts's Person.upiId — see architecture/session-management.md
+  // and architecture/live-collaboration.md's per-person UPI ID sync notes.
+  upiId: z.string().default(''),
 });
 
 export const LiveAllocationSchema = z.object({

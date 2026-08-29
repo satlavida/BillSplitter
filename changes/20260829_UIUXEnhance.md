@@ -192,6 +192,23 @@ in the order G → A → C → D → B → E → F.
       now-closed-by-default drawer opened first. New test:
       `ItemSplitCard.test.tsx`. Full `npx playwright test` stayed at the
       same known 6 baseline failures.
+- [x] **Phase F1 — Per-person UPI ID: schema + local editing** (2026-08-29):
+      `Person.upiId` (optional, default `''`) added to `bill.schema.ts` and
+      mirrored in `live.schema.ts`'s `LivePersonSchema` (Zod's `.default()`
+      handles a server response that doesn't send the field yet, since it
+      applies during `.parse()` — only hand-built object literals typed as
+      `Person` needed the field added explicitly, which touched every
+      existing `{id, name}` literal across the frontend, mostly in tests —
+      see `bill.schema.ts`'s own comment on this Zod gotcha). `EditPersonModal.tsx`
+      gained a UPI ID field; `onSave` now takes `(personId, name, upiId)`;
+      `sessionStore.ts`'s `updatePerson` changed from positional `name` to
+      an options-object patch `{name?, upiId?}` for future-proofing.
+      `GoLiveSection.tsx`'s "Add myself as a new person…" path at Go-Live
+      time gained an optional UPI ID field. New tests:
+      `EditPersonModal.test.tsx`, a `sessionStore.test.ts` case for the
+      patch-shaped `updatePerson`. Local-only so far — no live sync yet
+      (Phase F2). Full `npx playwright test`, run four times to rule out
+      flakiness, stayed at the same known 6 baseline failures (64 passed).
 
 ## Not started / deferred
 

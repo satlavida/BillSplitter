@@ -1,8 +1,8 @@
 import { generateSplitSummaryText } from './splitSummary';
 
 const people = [
-  { id: 'p1', name: 'Lisa' },
-  { id: 'p2', name: 'John' },
+  { id: 'p1', name: 'Lisa', upiId: '' },
+  { id: 'p2', name: 'John', upiId: '' },
 ];
 
 describe('generateSplitSummaryText', () => {

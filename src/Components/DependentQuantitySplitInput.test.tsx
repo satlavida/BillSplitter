@@ -3,9 +3,9 @@ import DependentQuantitySplitInput from './DependentQuantitySplitInput';
 import type { Person } from '../schemas/bill.schema';
 
 const people: Person[] = [
-  { id: 'john', name: 'John' },
-  { id: 'jane', name: 'Jane' },
-  { id: 'don', name: 'Don' },
+  { id: 'john', name: 'John', upiId: '' },
+  { id: 'jane', name: 'Jane', upiId: '' },
+  { id: 'don', name: 'Don', upiId: '' },
 ];
 
 describe('DependentQuantitySplitInput', () => {

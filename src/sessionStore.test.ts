@@ -92,6 +92,19 @@ describe('sessionStore - Shared people pool', () => {
     expect(updated?.bills[0].paidByPersonId).toBeNull();
     expect(updated?.bills[0].items[0].consumedBy).toEqual([]);
   });
+
+  test('updatePerson patches only the given fields, leaving others untouched', () => {
+    const session = useSessionStore.getState().createSession('Trip');
+    const alice = useSessionStore.getState().addPerson(session.id, 'Alice')!;
+
+    useSessionStore.getState().updatePerson(session.id, alice.id, { upiId: 'alice@bank' });
+    let updated = useSessionStore.getState().getSession(session.id);
+    expect(updated?.people[0]).toEqual({ id: alice.id, name: 'Alice', upiId: 'alice@bank' });
+
+    useSessionStore.getState().updatePerson(session.id, alice.id, { name: 'Alicia' });
+    updated = useSessionStore.getState().getSession(session.id);
+    expect(updated?.people[0]).toEqual({ id: alice.id, name: 'Alicia', upiId: 'alice@bank' });
+  });
 });
 
 describe('sessionStore - Multi-bill', () => {
@@ -184,7 +197,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
       isSettled: false,
       settledAt: null,
       currency: 'USD',
-      people: [{ id: 'p1', name: 'Alice' }],
+      people: [{ id: 'p1', name: 'Alice', upiId: '' }],
       bills: [
         {
           id: 'b1',
@@ -216,7 +229,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
     });
 
     const updated = useSessionStore.getState().getSession(session.id);
-    expect(updated?.people).toEqual([{ id: 'p1', name: 'Alice' }]);
+    expect(updated?.people).toEqual([{ id: 'p1', name: 'Alice', upiId: '' }]);
     expect(updated?.bills).toHaveLength(1);
     expect(updated?.bills[0]).toMatchObject({
       id: 'b1',
@@ -248,7 +261,7 @@ describe('sessionStore - mergeLiveSnapshot', () => {
       isSettled: false,
       settledAt: null,
       currency: 'USD',
-      people: [{ id: 'p1', name: 'Bob' }],
+      people: [{ id: 'p1', name: 'Bob', upiId: '' }],
       bills: [
         {
           id: bill.id,
@@ -296,7 +309,7 @@ describe('sessionStore - mergeLiveSnapshot respects in-flight pending writes', (
     isSettled: false,
     settledAt: null,
     currency: 'USD',
-    people: [] as { id: string; name: string }[],
+    people: [] as { id: string; name: string; upiId: string }[],
     bills: [
       {
         id: bill.id,

@@ -9,6 +9,12 @@ export type DiscountType = z.infer<typeof DiscountTypeSchema>;
 export const PersonSchema = z.object({
   id: z.string(),
   name: z.string(),
+  // Optional — set via EditPersonModal/GoLiveSection so people know where
+  // to pay this person back. Empty string means unset (same "no value"
+  // convention as other optional string fields in this schema), never
+  // null/undefined, so hand-built Person literals don't need extra
+  // null-guards. See architecture/session-management.md.
+  upiId: z.string().default(''),
 });
 export type Person = z.infer<typeof PersonSchema>;
 

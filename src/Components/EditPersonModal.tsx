@@ -6,17 +6,19 @@ interface EditPersonModalProps {
   isOpen: boolean;
   onClose: () => void;
   person: Person | null;
-  onSave: (personId: string, name: string) => void;
+  onSave: (personId: string, name: string, upiId: string) => void;
 }
 
 const EditPersonModal = ({ isOpen, onClose, person, onSave }: EditPersonModalProps) => {
   const [name, setName] = useState('');
+  const [upiId, setUpiId] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Initialize name when modal opens
   useEffect(() => {
     if (isOpen && person) {
       setName(person.name);
+      setUpiId(person.upiId);
       // Focus the input when the modal opens
       setTimeout(() => {
         inputRef.current?.focus();
@@ -27,7 +29,7 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }: EditPersonModalPro
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (name.trim() && person) {
-      onSave(person.id, name.trim());
+      onSave(person.id, name.trim(), upiId.trim());
       onClose();
     }
   };
@@ -52,6 +54,24 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }: EditPersonModalPro
               transition-colors"
             placeholder="Enter name"
           />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="personUpiId" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            UPI ID (optional)
+          </label>
+          <input
+            id="personUpiId"
+            type="text"
+            value={upiId}
+            onChange={(e) => setUpiId(e.target.value)}
+            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
+              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
+              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
+              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
+              transition-colors"
+            placeholder="name@bank"
+          />
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Lets others know where to pay this person back.</p>
         </div>
         <div className="flex justify-end space-x-2">
           <Button variant="secondary" onClick={onClose} type="button">

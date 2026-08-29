@@ -25,6 +25,7 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
   const markSessionLive = useSessionStore((s) => s.markSessionLive);
   const unmarkSessionLive = useSessionStore((s) => s.unmarkSessionLive);
   const addPerson = useSessionStore((s) => s.addPerson);
+  const updatePerson = useSessionStore((s) => s.updatePerson);
   const [joinMode, setJoinMode] = useState<'approval_code' | 'open_link'>('approval_code');
   const [permissionMode, setPermissionMode] = useState<'edit' | 'read_only'>('edit');
   const [creatorPersonId, setCreatorPersonId] = useState<string>(() => {
@@ -39,6 +40,7 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
     return match?.id ?? '';
   });
   const [newPersonName, setNewPersonName] = useState('');
+  const [newPersonUpiId, setNewPersonUpiId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -148,8 +150,12 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
           setLoading(false);
           return;
         }
+        const trimmedUpiId = newPersonUpiId.trim();
+        if (trimmedUpiId) {
+          updatePerson(session.id, created.id, { upiId: trimmedUpiId });
+        }
         resolvedCreatorPersonId = created.id;
-        people = [...session.people, created];
+        people = [...session.people, { ...created, upiId: trimmedUpiId }];
       }
 
       const result = await createLiveSession(session.title, people, joinMode, 'free_select', permissionMode, resolvedCreatorPersonId, session.currency);
@@ -211,13 +217,22 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
           ]}
         />
         {creatorPersonId === NEW_PERSON && (
-          <input
-            type="text"
-            value={newPersonName}
-            onChange={(e) => setNewPersonName(e.target.value)}
-            placeholder="Your name"
-            className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
-          />
+          <>
+            <input
+              type="text"
+              value={newPersonName}
+              onChange={(e) => setNewPersonName(e.target.value)}
+              placeholder="Your name"
+              className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+            />
+            <input
+              type="text"
+              value={newPersonUpiId}
+              onChange={(e) => setNewPersonUpiId(e.target.value)}
+              placeholder="Your UPI ID (optional)"
+              className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+            />
+          </>
         )}
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">No one else will be able to join as this person (req 8).</p>
       </div>

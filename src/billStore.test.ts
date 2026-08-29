@@ -855,7 +855,7 @@ describe('billStore - Custom Hooks (Selectors)', () => {
 
 describe('billStore - hydrateFromSession (scratch editor)', () => {
   test('hydrates people/items/tax/currency/title from a session bill', () => {
-    const people = [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }];
+    const people = [{ id: 'p1', name: 'Alice', upiId: '' }, { id: 'p2', name: 'Bob', upiId: '' }];
     const bill = {
       id: 'bill-1',
       title: 'Dinner',
@@ -899,7 +899,7 @@ describe('billStore - hydrateFromSession (scratch editor)', () => {
   });
 
   test('re-hydrating with a different bill replaces the previous scratch state entirely', () => {
-    const people = [{ id: 'p1', name: 'Alice' }];
+    const people = [{ id: 'p1', name: 'Alice', upiId: '' }];
     act(() => {
       useBillStore.getState().hydrateFromSession(people, {
         id: 'bill-1',
@@ -948,7 +948,7 @@ describe('billStore - hydrateFromSession (scratch editor)', () => {
 });
 
 describe('billStore - syncItemsFromLive (live-sync refresh)', () => {
-  const people = [{ id: 'p1', name: 'Alice' }];
+  const people = [{ id: 'p1', name: 'Alice', upiId: '' }];
   const baseBill = {
     id: 'bill-1',
     title: 'Dinner',
@@ -987,7 +987,7 @@ describe('billStore - syncItemsFromLive (live-sync refresh)', () => {
     // must reach billStore too, or their name won't resolve in e.g.
     // ItemAssignment's "Split between: ..." list.
     const liveItems = [{ ...baseBill.items[0], consumedBy: [{ personId: 'p1', value: 1 }, { personId: 'p2', value: 1 }] }];
-    const livePeople = [...people, { id: 'p2', name: 'Bob' }];
+    const livePeople = [...people, { id: 'p2', name: 'Bob', upiId: '' }];
     act(() => {
       useBillStore.getState().syncItemsFromLive('bill-1', liveItems, livePeople);
     });

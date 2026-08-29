@@ -3,8 +3,8 @@ import { calculateBillBalances } from './settlement';
 import type { LiveBill } from '../schemas/live.schema';
 
 const people = [
-  { id: 'alice', name: 'Alice' },
-  { id: 'bob', name: 'Bob' },
+  { id: 'alice', name: 'Alice', upiId: '' },
+  { id: 'bob', name: 'Bob', upiId: '' },
 ];
 
 const liveBill = (overrides: Partial<LiveBill> = {}): LiveBill => ({

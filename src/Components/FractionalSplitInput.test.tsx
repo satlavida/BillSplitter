@@ -3,8 +3,8 @@ import FractionalSplitInput from './FractionalSplitInput';
 import type { Person } from '../schemas/bill.schema';
 
 const people: Person[] = [
-  { id: 'p1', name: 'Alice' },
-  { id: 'p2', name: 'Bob' },
+  { id: 'p1', name: 'Alice', upiId: '' },
+  { id: 'p2', name: 'Bob', upiId: '' },
 ];
 
 describe('FractionalSplitInput', () => {

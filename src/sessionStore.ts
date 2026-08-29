@@ -250,7 +250,7 @@ interface SessionStoreActions {
 
   addPerson: (sessionId: string, name: string) => Person | undefined;
   removePerson: (sessionId: string, personId: string) => void;
-  updatePerson: (sessionId: string, personId: string, name: string) => void;
+  updatePerson: (sessionId: string, personId: string, updates: { name?: string; upiId?: string }) => void;
   // Bulk replace of the shared people pool, used by the bill-editor scratch
   // store (billStore) to commit its locally-edited people list back.
   setSessionPeople: (sessionId: string, people: Person[]) => void;
@@ -363,7 +363,7 @@ const useSessionStore = create<SessionStore>()(
           title: title || 'Untitled Session',
           createdAt: now,
           updatedAt: now,
-          people: autoAddSelf && trimmedSelfName ? [{ id: generateId(), name: trimmedSelfName }] : [],
+          people: autoAddSelf && trimmedSelfName ? [{ id: generateId(), name: trimmedSelfName, upiId: '' }] : [],
           bills: [],
           currentBillId: null,
           isLive: false,
@@ -570,6 +570,7 @@ const useSessionStore = create<SessionStore>()(
         const newPerson: Person = {
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           name,
+          upiId: '',
         };
         let created = false;
 
@@ -603,13 +604,13 @@ const useSessionStore = create<SessionStore>()(
           }),
         })),
 
-      updatePerson: (sessionId, personId, name) =>
+      updatePerson: (sessionId, personId, updates) =>
         set((state) => ({
           sessions: state.sessions.map((s) => {
             if (s.id !== sessionId) return s;
             return touchSession({
               ...s,
-              people: s.people.map((p) => (p.id === personId ? { ...p, name } : p)),
+              people: s.people.map((p) => (p.id === personId ? { ...p, ...updates } : p)),
             });
           }),
         })),

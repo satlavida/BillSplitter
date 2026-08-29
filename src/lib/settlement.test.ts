@@ -2,7 +2,7 @@ import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettl
 import type { Bill } from '../schemas/session.schema';
 import type { Person } from '../schemas/bill.schema';
 
-const person = (id: string, name: string): Person => ({ id, name });
+const person = (id: string, name: string): Person => ({ id, name, upiId: '' });
 
 // Builds a bill with a single item split equally among the given person ids.
 const makeBill = (
