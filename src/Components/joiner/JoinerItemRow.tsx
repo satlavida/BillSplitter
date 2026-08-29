@@ -37,6 +37,12 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
   const othersClaimed = item.consumedBy.filter((c) => c.personId !== myPersonId).reduce((sum, c) => sum + c.value, 0);
   const maxSelectable = Math.max(0, item.quantity - othersClaimed);
 
+  // Kept in sync with billStore.getDiscountedItemPrice / personTotals.ts's
+  // copy of the same formula — duplicated rather than imported since
+  // LiveItem's discountType is a plain string, not the narrower literal
+  // union those helpers are typed against.
+  const unitPrice = item.discountType === 'percentage' ? item.price - (item.price * item.discount) / 100 : item.price - item.discount;
+
   const claimedLine =
     item.consumedBy.length > 0 ? `Claimed by ${item.consumedBy.map((c) => `${nameFor(c.personId)}${item.splitType === 'fraction' ? ` (${c.value})` : ''}`).join(', ')}` : null;
 
@@ -69,14 +75,20 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
   const controlsDisabled = disabled || busy;
 
   return (
-    <li className="flex justify-between items-center gap-2">
+    <li className="flex justify-between items-center gap-2 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 transition-colors">
       <div className="min-w-0">
-        <span className="text-zinc-800 dark:text-white transition-colors">{item.name}</span>
-        <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
-          {currency} {item.price.toFixed(2)}
+        <span className="text-lg font-medium text-zinc-800 dark:text-white transition-colors">{item.name}</span>
+        <span className="ml-2 text-sm text-zinc-600 dark:text-zinc-400">
+          {currency} {unitPrice.toFixed(2)}
+          {item.quantity > 1 && (
+            <>
+              {' '}
+              × {item.quantity} : {currency} {(unitPrice * item.quantity).toFixed(2)}
+            </>
+          )}
         </span>
-        {claimedLine && <span className="block text-xs text-zinc-500 dark:text-zinc-400">{claimedLine}</span>}
-        {error && <span className="block text-xs text-red-600 dark:text-red-400">{error}</span>}
+        {claimedLine && <span className="block text-sm text-zinc-600 dark:text-zinc-400">{claimedLine}</span>}
+        {error && <span className="block text-sm text-red-600 dark:text-red-400">{error}</span>}
       </div>
 
       {item.splitType === 'fraction' ? (

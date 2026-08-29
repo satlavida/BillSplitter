@@ -13,16 +13,19 @@ const Settings = () => {
     }))
   );
 
-  const { autoAddSelf, selfName, setAutoAddSelf, setSelfName, showDetailedQuantitySplit, setShowDetailedQuantitySplit } = useSettingsStore(
-    useShallow((state) => ({
-      autoAddSelf: state.autoAddSelf,
-      selfName: state.selfName,
-      setAutoAddSelf: state.setAutoAddSelf,
-      setSelfName: state.setSelfName,
-      showDetailedQuantitySplit: state.showDetailedQuantitySplit,
-      setShowDetailedQuantitySplit: state.setShowDetailedQuantitySplit,
-    }))
-  );
+  const { autoAddSelf, selfName, setAutoAddSelf, setSelfName, useDetailedQuantitySplit, setUseDetailedQuantitySplit, autoQuantitySplit, setAutoQuantitySplit } =
+    useSettingsStore(
+      useShallow((state) => ({
+        autoAddSelf: state.autoAddSelf,
+        selfName: state.selfName,
+        setAutoAddSelf: state.setAutoAddSelf,
+        setSelfName: state.setSelfName,
+        useDetailedQuantitySplit: state.useDetailedQuantitySplit,
+        setUseDetailedQuantitySplit: state.setUseDetailedQuantitySplit,
+        autoQuantitySplit: state.autoQuantitySplit,
+        setAutoQuantitySplit: state.setAutoQuantitySplit,
+      }))
+    );
 
   const currencyOptions = useMemo(() => getCurrencyOptions(), []);
 
@@ -68,13 +71,25 @@ const Settings = () => {
 
       <div>
         <Checkbox
-          id="show-detailed-quantity-split"
-          checked={showDetailedQuantitySplit}
-          onChange={(e) => setShowDetailedQuantitySplit(e.target.checked)}
-          label="Show Detailed Quantity Split (beta)"
+          id="use-detailed-quantity-split"
+          checked={useDetailedQuantitySplit}
+          onChange={(e) => setUseDetailedQuantitySplit(e.target.checked)}
+          label="Use Detailed Quantity Split (beta)"
         />
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Split each item's quantity into a live pool — as one person claims units, the rest see fewer left to pick from.
+          Give each person an independent share number instead of the default Basic view's live pool that shrinks as others pick.
+        </p>
+      </div>
+
+      <div>
+        <Checkbox
+          id="auto-quantity-split"
+          checked={autoQuantitySplit}
+          onChange={(e) => setAutoQuantitySplit(e.target.checked)}
+          label="Default multi-quantity items to Quantity Split"
+        />
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          A newly-added item with more than 1 quantity (manually or via receipt scan) starts as Quantity Split instead of Equal Split.
         </p>
       </div>
     </div>

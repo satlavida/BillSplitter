@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 
-// Covers the "Show Detailed Quantity Split" beta setting end to end: off by
-// default (existing FractionalSplitInput numeric-stepper UI, covered by
-// quantity-split-defaults.spec.ts), on shows the dynamic dependent-claim
-// number-grid UI (DependentQuantitySplitInput.tsx) instead.
+// Covers the "Use Detailed Quantity Split" beta setting end to end: off by
+// default (Basic view — the dynamic dependent-claim number-grid UI,
+// DependentQuantitySplitInput.tsx, covered by quantity-split-defaults.spec.ts),
+// on swaps in the legacy independent-entry Detailed view (FractionalSplitInput.tsx)
+// instead.
 
-test('enabling "Show Detailed Quantity Split" swaps in the dynamic pool UI for Quantity Split', async ({ page }) => {
+test('enabling "Use Detailed Quantity Split" swaps in the independent-entry UI for Quantity Split', async ({ page }) => {
   await page.goto('/#/settings');
-  await page.getByLabel('Show Detailed Quantity Split (beta)').check();
+  await page.getByLabel('Use Detailed Quantity Split (beta)').check();
 
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
@@ -32,19 +33,16 @@ test('enabling "Show Detailed Quantity Split" swaps in the dynamic pool UI for Q
   await page.locator('select').selectOption({ label: 'Quantity Split' });
 
   const drawer = page.locator('.animate-slide-up');
-  // The dynamic UI's own copy, distinct from FractionalSplitInput's.
-  await expect(drawer.getByText(/as others pick, the pool left for everyone else shrinks/)).toBeVisible();
+  // The independent-entry Detailed view's own copy, distinct from the
+  // Basic view's dynamic-pool copy.
+  await expect(drawer.getByText(/Give each person a number of shares/)).toBeVisible();
 
-  // Both start at the full quantity available (nobody's picked yet).
-  await expect(drawer.getByRole('button', { name: 'John: 10' })).toBeVisible();
-  await expect(drawer.getByRole('button', { name: 'Jane: 10' })).toBeVisible();
+  // Defaults to the item's quantity split evenly across both people.
+  await expect(drawer.getByLabel("John's share")).toHaveValue('5');
+  await expect(drawer.getByLabel("Jane's share")).toHaveValue('5');
 
-  await drawer.getByRole('button', { name: 'John: 6' }).click();
-  // Jane's pool shrinks to 4 (10 - John's 6).
-  await expect(drawer.getByRole('button', { name: 'Jane: 4' })).toBeVisible();
-  await expect(drawer.getByRole('button', { name: 'Jane: 5' })).not.toBeVisible();
-
-  await drawer.getByRole('button', { name: 'Jane: 4' }).click();
+  await drawer.getByLabel("John's share").fill('6');
+  await drawer.getByLabel("Jane's share").fill('4');
   await drawer.getByRole('button', { name: 'Save' }).click();
 
   await expect(page.getByText('Split between:', { exact: false })).toBeVisible();

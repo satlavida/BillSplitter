@@ -81,16 +81,14 @@ const ItemCard = memo(({ item, people, onTogglePerson, formatCurrency, onOpenSpl
       return allocations.join(', ');
     }
 
-    // For fractional splits, show fractions or ratio
+    // For fractional (quantity) splits, show the quantity each person was
+    // allocated rather than a derived percentage.
     if (item.splitType === SPLIT_TYPES.FRACTION) {
-      const totalValue = item.consumedBy.reduce((sum, c) => sum + (typeof c === 'string' ? 1 : c.value), 0);
-
       const allocations = item.consumedBy
         .map((c) => {
           if (typeof c === 'string') return null;
           const person = people.find((p) => p.id === c.personId);
-          const percentage = totalValue > 0 ? ((c.value / totalValue) * 100).toFixed(0) : 0;
-          return person ? `${person.name}: ${percentage}%` : null;
+          return person ? `${person.name}: ${c.value}` : null;
         })
         .filter(Boolean);
 

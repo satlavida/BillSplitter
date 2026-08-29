@@ -5,9 +5,9 @@ import { test, expect } from '@playwright/test';
 // Quantity Split before anyone had been toggled on (item.consumedBy still
 // empty) left SplitTypeDrawer.tsx's Percentage/Quantity Split screens with
 // no people to configure and Save permanently disabled — see
-// FractionalSplitInput.tsx/SplitTypeDrawer.tsx's splitPeople fallback.
+// DependentQuantitySplitInput.tsx/SplitTypeDrawer.tsx's splitPeople fallback.
 
-test('switching an unassigned item to Quantity Split defaults parts to the item quantity', async ({ page }) => {
+test('switching an unassigned item to Quantity Split shows both people to configure', async ({ page }) => {
   await page.goto('/');
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
@@ -35,13 +35,22 @@ test('switching an unassigned item to Quantity Split defaults parts to the item 
   await page.getByLabel('Split Type').click();
   await page.locator('select').selectOption({ label: 'Quantity Split' });
 
-  // Both people should have a part row, defaulting to the item's quantity
-  // (3) split evenly between them, and Save should be enabled immediately.
+  // Both people should have a row to configure (the fallback fix), each
+  // starting able to claim up to the full quantity (3) since nobody's
+  // picked yet in this Basic-view (default) dynamic pool UI.
   const drawer = page.locator('.animate-slide-up');
   await expect(drawer.getByText('Alice')).toBeVisible();
   await expect(drawer.getByText('Bob')).toBeVisible();
   await expect(drawer.getByText('item has 3')).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Alice: 3' })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Bob: 3' })).toBeVisible();
+
+  // Nobody's claimed anything yet, so Save should stay disabled until at
+  // least one person has a share above 0.
   const saveButton = drawer.getByRole('button', { name: 'Save' });
+  await expect(saveButton).toBeDisabled();
+
+  await drawer.getByRole('button', { name: 'Alice: 2' }).click();
   await expect(saveButton).toBeEnabled();
 
   await saveButton.click();

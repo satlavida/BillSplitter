@@ -20,7 +20,7 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
   // Filter people to only those who are assigned to this item
   const [selectedPeople, setSelectedPeople] = useState<Person[]>([]);
   const [splitType, setSplitType] = useState<SplitType>(item.splitType || SPLIT_TYPES.EQUAL);
-  const showDetailedQuantitySplit = useSettingsStore((s) => s.showDetailedQuantitySplit);
+  const useDetailedQuantitySplit = useSettingsStore((s) => s.useDetailedQuantitySplit);
 
   // Update selected people when item or people change
   useEffect(() => {
@@ -162,10 +162,10 @@ const SplitTypeDrawer = ({ isOpen, onClose, item, people, onSave }: SplitTypeDra
             </div>
           ) : splitType === SPLIT_TYPES.PERCENTAGE ? (
             <PercentageSplitInput people={splitPeople} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
-          ) : showDetailedQuantitySplit ? (
-            <DependentQuantitySplitInput people={splitPeople} quantity={item.quantity} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
-          ) : (
+          ) : useDetailedQuantitySplit ? (
             <FractionalSplitInput people={splitPeople} quantity={item.quantity} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
+          ) : (
+            <DependentQuantitySplitInput people={splitPeople} quantity={item.quantity} allocations={getAllocations()} onSave={handleSaveSplit} onCancel={onClose} />
           )}
         </div>
       </div>

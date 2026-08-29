@@ -11,14 +11,15 @@ interface DependentQuantitySplitInputProps {
   onCancel: () => void;
 }
 
-// The "Show Detailed Quantity Split" beta UI (src/settingsStore.ts) — a
-// dynamic, dependent-claim take on Quantity Split: instead of everyone
-// entering an independent number (FractionalSplitInput.tsx), each person's
-// selectable range shrinks live as the others pick, inspired by the
-// joiner's ClaimQuantityModal.tsx number grid but rendered inline for every
-// person at once rather than one person at a time in a modal. Same
-// props/output shape as FractionalSplitInput.tsx (Allocation[]) so
-// SplitTypeDrawer.tsx's onSave callback doesn't need to change shape.
+// The "Basic view" of Quantity Split (default; src/settingsStore.ts's
+// useDetailedQuantitySplit off) — a dynamic, dependent-claim take on
+// Quantity Split: instead of everyone entering an independent number
+// (FractionalSplitInput.tsx's "Detailed view"), each person's selectable
+// range shrinks live as the others pick, inspired by the joiner's
+// ClaimQuantityModal.tsx number grid but rendered inline for every person
+// at once rather than one person at a time in a modal. Same props/output
+// shape as FractionalSplitInput.tsx (Allocation[]) so SplitTypeDrawer.tsx's
+// onSave callback doesn't need to change shape.
 const DependentQuantitySplitInput = ({ people, quantity, allocations, onSave, onCancel }: DependentQuantitySplitInputProps) => {
   const [fractions, setFractions] = useState<Allocation[]>(() => {
     if (allocations.length > 0) {

@@ -157,7 +157,7 @@ const BillEditorPage = () => {
   return (
     <div>
       <div className="mb-4 no-print flex justify-between items-center gap-2">
-        <Button variant="secondary" size="sm" onClick={() => navigate(`/session/${sessionId}`)}>
+        <Button variant="primary" size="sm" onClick={() => navigate(`/session/${sessionId}`)}>
           ← Back to Session
         </Button>
         <button

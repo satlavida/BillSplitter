@@ -19,16 +19,16 @@ non-persisted scratch store hydrated from the session on entry.
   drawer. Read-only.
 - `src/Components/EditItemModal.tsx` — add/edit item modal.
 - `src/Components/SplitTypeDrawer.tsx` — equal/percentage/fraction split chooser.
-- `src/Components/PercentageSplitInput.tsx`, `src/Components/FractionalSplitInput.tsx` — split-type input widgets.
-- `src/Components/DependentQuantitySplitInput.tsx` — the "Show Detailed
-  Quantity Split" beta alternative to `FractionalSplitInput.tsx`, swapped
-  in by `SplitTypeDrawer.tsx` when `settingsStore.showDetailedQuantitySplit`
-  is on. Same props/output shape (`Allocation[]`), different interaction:
-  everyone starts at 0, and each person's selectable range (a number grid,
-  like the joiner's `ClaimQuantityModal.tsx` but inline for every person at
-  once, not one-at-a-time in a modal) shrinks live to `quantity - sum(every
-  other person's current value)` as others pick. Off by default for every
-  user.
+- `src/Components/PercentageSplitInput.tsx`, `src/Components/FractionalSplitInput.tsx` — split-type input widgets; `FractionalSplitInput.tsx` is Quantity Split's "Detailed view" (independent per-person share entry).
+- `src/Components/DependentQuantitySplitInput.tsx` — Quantity Split's
+  "Basic view", the default (`settingsStore.useDetailedQuantitySplit` off).
+  `SplitTypeDrawer.tsx` swaps in `FractionalSplitInput.tsx`'s "Detailed
+  view" instead when that beta setting is turned on. Same props/output
+  shape (`Allocation[]`), different interaction: everyone starts at 0, and
+  each person's selectable range (a number grid, like the joiner's
+  `ClaimQuantityModal.tsx` but inline for every person at once, not
+  one-at-a-time in a modal) shrinks live to `quantity - sum(every other
+  person's current value)` as others pick.
 - `src/Components/BillTotalsSummary.tsx` — subtotal/tax/total display (shared with Summary step).
 - `src/Components/EditableTitle.tsx` — inline-editable bill/session title.
 - `src/Components/ImageLightbox.tsx` — click-to-view full-size image modal (built on `Modal`), used by `ReceiptImagePreview` in `BillSummary.tsx` and by `JoinerBillList.tsx` ([live-collaboration.md](live-collaboration.md)).
@@ -37,6 +37,7 @@ non-persisted scratch store hydrated from the session on entry.
 - `src/Components/BillSettingsModal.tsx` — gear icon top-right of `BillEditorPage.tsx`; bill currency + transaction-date + exchange-rate override UI ([currency.md](currency.md)). `ItemsInput`/`ItemAssignment`/`BillSummary` all format amounts via the open bill's own `currency` (`formatAmountInCurrency`, `src/lib/currencyDisplay.ts`), not the global currency preference.
 - `src/lib/personTotals.ts` — per-person total calculation (discounts, splits).
 - `src/lib/splitSummary.ts` — shareable plain-text summary generation.
+- `src/lib/defaultSplitType.ts` — `defaultSplitTypeForQuantity(quantity, autoQuantitySplit)`, the shared "what split type should a newly-added item start with" rule (`settingsStore.autoQuantitySplit`, on by default — see [settings.md](settings.md)); used by `billStore.addItem` (so both manual add via `ItemsInput.tsx` and the `billStore` branch of a scan get it) and directly by `receiptScan.ts`'s `sessionStore` branch.
 - `src/schemas/bill.schema.ts` — `Person`, `Item`, `SplitType`, `DiscountType`.
 
 ## Backend
