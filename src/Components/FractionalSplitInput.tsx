@@ -17,6 +17,8 @@ interface FractionalSplitInputProps {
   onCancel: () => void;
 }
 
+const STEP = 1;
+
 const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel }: FractionalSplitInputProps) => {
   // Initialize state with current allocations or default values
   const [fractions, setFractions] = useState<Allocation[]>(() => {
@@ -43,26 +45,21 @@ const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel 
   const [total, setTotal] = useState(0);
   const [isValid, setIsValid] = useState(true);
 
-  // Calculate total fractions
+  // Calculate total fractions. A person can sit at 0 — only the total needs
+  // to be greater than 0 (someone has to actually be paying for this item).
   useEffect(() => {
     const newTotal = fractions.reduce((sum, item) => sum + item.value, 0);
     setTotal(newTotal);
-    setIsValid(newTotal > 0 && fractions.every((item) => item.value > 0));
+    setIsValid(newTotal > 0 && fractions.every((item) => item.value >= 0));
   }, [fractions]);
 
-  // Handle fraction input change
-  const handleFractionChange = (personId: string, newValue: string) => {
-    // Ensure value is a positive number
-    const numValue = Math.max(parseFloat(newValue) || 0, 0);
+  const setValue = (personId: string, newValue: number) => {
+    const clamped = Math.max(newValue, 0);
+    setFractions(fractions.map((item) => (item.personId === personId ? { ...item, value: clamped } : item)));
+  };
 
-    setFractions(
-      fractions.map((item) => {
-        if (item.personId === personId) {
-          return { ...item, value: numValue };
-        }
-        return item;
-      })
-    );
+  const handleFractionChange = (personId: string, newValue: string) => {
+    setValue(personId, parseFloat(newValue) || 0);
   };
 
   // Handle save button click
@@ -77,7 +74,7 @@ const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel 
       <h3 className="text-lg font-medium mb-4 text-zinc-800 dark:text-white">Quantity Split</h3>
 
       <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-        Enter a number for each person representing their share. Higher numbers mean paying more.
+        Give each person a number of shares — higher numbers mean paying more. It's fine to leave someone at 0.
       </p>
 
       {fractions.map(({ personId, value }) => {
@@ -93,16 +90,42 @@ const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel 
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{person.name}</span>
               <span className="text-sm text-zinc-600 dark:text-zinc-400">{percentage.toFixed(1)}% of total</span>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label={`Decrease ${person.name}'s share`}
+                onClick={() => setValue(personId, value - STEP)}
+                disabled={value <= 0}
+                className="h-9 w-9 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-600 text-lg font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                −
+              </button>
               <input
                 type="number"
-                min="0.1"
-                step="0.5"
+                min="0"
+                inputMode="decimal"
                 value={value}
                 onChange={(e) => handleFractionChange(personId, e.target.value)}
-                className={`w-full p-2 border rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white
-                  ${value <= 0 ? 'border-red-500 ring-1 ring-red-500' : 'border-zinc-300 dark:border-zinc-600'}`}
+                aria-label={`${person.name}'s share`}
+                className="w-full p-2 text-center border rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white border-zinc-300 dark:border-zinc-600"
               />
+              <button
+                type="button"
+                aria-label={`Increase ${person.name}'s share`}
+                onClick={() => setValue(personId, value + STEP)}
+                className="h-9 w-9 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-600 text-lg font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                aria-label={`Zero out ${person.name}'s share`}
+                onClick={() => setValue(personId, 0)}
+                disabled={value === 0}
+                className="h-9 w-9 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-600 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                0
+              </button>
             </div>
           </div>
         );
@@ -132,7 +155,7 @@ const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel 
 
       {!isValid && (
         <p className="text-sm text-red-500 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-md ring-1 ring-red-500/50">
-          All fractions must be positive numbers
+          Give at least one person a share greater than 0
         </p>
       )}
     </div>

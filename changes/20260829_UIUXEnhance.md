@@ -82,15 +82,24 @@ in the order G → A → C → D → B → E → F.
       `e2e/session-currency-change.spec.ts` covering the gated
       hide/show/convert behavior. No other `currencyMismatch`-style toggle
       exists elsewhere in the app (confirmed via repo-wide grep).
+- [x] **Phase A — Quantity-split stepper UX + humanized errors** (2026-08-29):
+      `FractionalSplitInput.tsx`'s per-person numeric input is now a
+      `-`/value/`+`/`0` stepper row; a person can be zeroed out (only the
+      total across everyone must be `> 0`, not every individual value).
+      "All fractions must be positive numbers" → "Give at least one person
+      a share greater than 0"; `PercentageSplitInput.tsx`'s "Percentages
+      must add up to 100%" → "Adjust the shares so they add up to 100%"
+      (behavior unchanged there). Added `FractionalSplitInput.test.tsx`
+      (first component-level Jest test in the repo, using
+      `@testing-library/react`, already a devDependency) covering the
+      stepper buttons, 0-allowed-per-person, and the total-must-be->0 rule.
+      `e2e/quantity-split-defaults.spec.ts` still passes unchanged.
 
 ## Not started / deferred
 
 Bigger features from the same backlog message, left for later phases of
 Phase 2 (see the plan file above for the full phased design):
 
-- **Phase A** — Quantity split stepper UX (+/-/0 buttons replacing the raw
-  numeric input, allow 0 per person) + humanized validation error copy
-  across the fraction/percentage split inputs.
 - **Phase C** — Joiner-side "N minus already-claimed" quantity capping,
   frontend (`ClaimQuantityModal`/`JoinerItemRow`) and backend (`ClaimItem`
   handler currently has no cross-person cap check at all).

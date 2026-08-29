@@ -64,3 +64,12 @@ routes documented in [live-collaboration.md](live-collaboration.md).
   (plain text, not an icon) — the repo has no icon library, so this and
   the separate `BillSettingsModal`/`SessionSettingsModal` gear icons are
   all hand-written inline `<svg>`s where a gear is actually used.
+- `FractionalSplitInput.tsx` ("Quantity Split") uses a `-`/value/`+`/`0`
+  stepper per person (whole-unit steps by default, though the numeric
+  field stays directly editable for a non-integer weight in the offline
+  pure-ratio case) rather than a bare `<input type="number">`. A person can
+  sit at 0 — only the total across everyone must be greater than 0 — so
+  "Give at least one person a share greater than 0" is the only validation
+  error left (previously every person had to individually be positive).
+  `PercentageSplitInput.tsx`'s "must add up to 100%" rule is unchanged,
+  just reworded.

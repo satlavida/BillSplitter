@@ -168,7 +168,7 @@ const PercentageSplitInput = ({ people, allocations, onSave, onCancel }: Percent
 
       {!isValid && (
         <p className="text-sm text-red-500 mt-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-md ring-1 ring-red-500/50">
-          Percentages must add up to 100%
+          Adjust the shares so they add up to 100%
         </p>
       )}
     </div>
