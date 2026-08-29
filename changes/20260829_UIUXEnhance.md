@@ -172,16 +172,32 @@ in the order G → A → C → D → B → E → F.
       via the real Settings page, drives the dynamic UI end to end). Full
       `npx playwright test` stayed at the same known 6 baseline failures
       (64 passed, up from 63).
+- [x] **Phase E — Bill Summary drawer + mini-cards + claimed count**
+      (2026-08-29): new `Disclosure` primitive in `src/ui/components.tsx`
+      (native `<details>/<summary>`, closed by default) wraps
+      `BillSummary.tsx`'s "Split Breakdown", replacing the old
+      always-rendered `<ul>` of plain-text `generateSplitSummaryText` lines
+      with a grid of new `ItemSplitCard.tsx` mini-cards (name, price,
+      human split summary; read-only). Added an "X/Y claimed" `ProgressBar`
+      above it, mirroring `JoinerBillEditorPage.tsx`'s computation but
+      sourced from `useBillItems()`. Did not build a literal shared
+      component for the joiner "Claim what's yours" row — `JoinerItemRow`
+      keeps its own interactive claim/unclaim controls, which
+      `ItemSplitCard` (read-only) doesn't have; deferred a shared visual
+      chrome extraction there rather than force a shared component onto
+      two different responsibilities. Fixed `bill-summary-order.spec.ts`,
+      whose `getByRole('heading', ...)` assumed "Split Breakdown" was a
+      plain heading (now inside a `<summary>`, given an explicit nested
+      `<h3>` to preserve that) and whose split-text assertion needed the
+      now-closed-by-default drawer opened first. New test:
+      `ItemSplitCard.test.tsx`. Full `npx playwright test` stayed at the
+      same known 6 baseline failures.
 
 ## Not started / deferred
 
 Bigger features from the same backlog message, left for later phases of
 Phase 2 (see the plan file above for the full phased design):
 
-- **Phase E** — Bill Summary redesign: "Split Breakdown" becomes a
-  collapsible drawer with mini item-cards instead of a text list; "X/Y
-  claimed" count added; shared card chrome reused on the joiner "Claim
-  what's yours" view.
 - **Phase F** — Per-person UPI ID, full scope: schema, `EditPersonModal`
   and `GoLiveSection` editing, a brand-new backend endpoint + migration
   (people currently have no live-update route at all) for live sync, and a

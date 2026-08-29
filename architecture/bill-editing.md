@@ -13,7 +13,10 @@ non-persisted scratch store hydrated from the session on entry.
 - `src/Components/StepIndicator.tsx` — step nav header.
 - `src/Components/ItemsInput.tsx` — Step 1, Items; embeds `ScanReceiptButton`, `EditableTitle` (bill title, "This bill is for:"), `EditItemModal`, `BillTotalsSummary`.
 - `src/Components/ItemAssignment.tsx` — Step 2, Assign; embeds `SplitTypeDrawer`, `PassAndSplitButton`.
-- `src/Components/BillSummary.tsx` — Step 3, Summary; per-person totals, share text, print.
+- `src/Components/BillSummary.tsx` — Step 3, Summary; per-person totals, share text, print. Above the person cards: an "X/Y claimed" `ProgressBar` (same computation as `JoinerBillEditorPage.tsx`'s, sourced from `useBillItems()`) and "Split Breakdown" as a closed-by-default `Disclosure` (`src/ui/components.tsx`) rendering a grid of `ItemSplitCard.tsx` mini-cards instead of the old always-rendered `<ul>` of plain-text `generateSplitSummaryText` lines.
+- `src/Components/ItemSplitCard.tsx` — one compact per-item card (name,
+  price, human split summary) used in `BillSummary.tsx`'s Split Breakdown
+  drawer. Read-only.
 - `src/Components/EditItemModal.tsx` — add/edit item modal.
 - `src/Components/SplitTypeDrawer.tsx` — equal/percentage/fraction split chooser.
 - `src/Components/PercentageSplitInput.tsx`, `src/Components/FractionalSplitInput.tsx` — split-type input widgets.

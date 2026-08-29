@@ -6,9 +6,12 @@ server bootstrapping, configuration, CORS/logging middleware, deployment,
 and the frontend's shared UI kit.
 
 ## Frontend
-- `src/ui/components.tsx` — shared UI kit: `Button`, `Card`, `Modal`,
-  `FileUpload`, `Spinner`, `Alert`, `ToggleButton`, `SelectAllButton`,
-  `PrintButton`, `PrintWrapper`, `Dropdown`, `SearchSelect`, `Checkbox`.
+- `src/ui/components.tsx` — shared UI kit: `Button`, `Card`, `Disclosure`,
+  `Modal`, `FileUpload`, `Spinner`, `Alert`, `ProgressBar`, `ToggleButton`,
+  `SelectAllButton`, `PrintButton`, `PrintWrapper`, `Dropdown`,
+  `SearchSelect`, `Checkbox`. `Disclosure` is a native
+  `<details>/<summary>`-based collapsible section (accessible/keyboard-
+  operable by default, no extra open/close state).
   **Check here before adding a new one-off styled element** — there is no
   toast/notification system; errors are surfaced via local `useState` +
   `Alert`.

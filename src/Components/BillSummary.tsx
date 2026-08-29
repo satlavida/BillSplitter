@@ -1,13 +1,13 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import useBillStore, { useBillPersonTotals, useBillPersons, useBillItems, type PersonTotal, type PersonTotalItem } from '../billStore';
-import { generateSplitSummaryText } from '../lib/splitSummary';
 import useSessionStore from '../sessionStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
-import { Button, Card, PrintButton, PrintWrapper, Dropdown } from '../ui/components';
+import { Button, Card, PrintButton, PrintWrapper, Dropdown, Disclosure, ProgressBar } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
 import ImageLightbox from './ImageLightbox';
+import ItemSplitCard from './ItemSplitCard';
 import { getImageBlob } from '../lib/imageStore';
 import type { ReceiptImageRef } from '../schemas/session.schema';
 
@@ -238,6 +238,11 @@ const BillSummary = () => {
   // Calculate grand total from person totals
   const grandTotal = personTotals.reduce((sum, person) => sum + person.total, 0);
 
+  // Mirrors JoinerBillEditorPage.tsx's same computation for its "X/Y
+  // claimed" progress bar, sourced here from billStore's offline Item[]
+  // rather than a LiveItem[] — works whether or not the session is live.
+  const claimedCount = items.filter((item) => item.consumedBy.length > 0).length;
+
   const handleEdit = useCallback(
     (step: number) => {
       goToStep(step);
@@ -290,14 +295,14 @@ const BillSummary = () => {
 
       {items.length > 0 && (
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-zinc-800 dark:text-white mb-2">Split Breakdown</h3>
-          <ul className="space-y-1">
-            {items.map((item) => (
-              <li key={item.id} className="text-sm text-zinc-700 dark:text-zinc-300">
-                <span className="font-medium">{item.name}:</span> {generateSplitSummaryText(item, people)}
-              </li>
-            ))}
-          </ul>
+          <ProgressBar value={(claimedCount / items.length) * 100} label={`${claimedCount}/${items.length} claimed`} className="mb-3" />
+          <Disclosure title={<h3 className="text-lg font-semibold">Split Breakdown</h3>}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {items.map((item) => (
+                <ItemSplitCard key={item.id} item={item} people={people} formatCurrency={formatCurrency} />
+              ))}
+            </div>
+          </Disclosure>
         </div>
       )}
 

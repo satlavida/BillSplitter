@@ -34,5 +34,8 @@ test('Who Paid appears above the split breakdown on the summary step', async ({ 
   expect(splitBreakdownBox).not.toBeNull();
   expect(whoPaidBox!.y).toBeLessThan(splitBreakdownBox!.y);
 
+  // Split Breakdown is now a closed-by-default drawer — open it to see the
+  // per-item mini card.
+  await splitBreakdownHeading.click();
   await expect(page.getByText('All to Alice')).toBeVisible();
 });
