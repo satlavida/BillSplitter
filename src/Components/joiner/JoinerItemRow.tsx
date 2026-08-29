@@ -29,6 +29,14 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
   const myValue = item.consumedBy.find((c) => c.personId === myPersonId)?.value ?? 0;
   const claimedByMe = myValue > 0;
 
+  // The highest value I'm allowed to hold on this item: the quantity minus
+  // whatever everyone else already holds. This already accounts for my own
+  // current claim (it's not subtracted out), so it's the cap directly, not
+  // an amount to add my own value to — mirrors the server-side cap in
+  // bill_handlers.go's ClaimItem.
+  const othersClaimed = item.consumedBy.filter((c) => c.personId !== myPersonId).reduce((sum, c) => sum + c.value, 0);
+  const maxSelectable = Math.max(0, item.quantity - othersClaimed);
+
   const claimedLine =
     item.consumedBy.length > 0 ? `Claimed by ${item.consumedBy.map((c) => `${nameFor(c.personId)}${item.splitType === 'fraction' ? ` (${c.value})` : ''}`).join(', ')}` : null;
 
@@ -81,6 +89,7 @@ const JoinerItemRow = ({ code, billId, item, currency, myPersonId, joinerToken, 
             onClose={() => setQuantityModalOpen(false)}
             itemName={item.name}
             quantity={Math.max(1, Math.floor(item.quantity))}
+            max={Math.max(1, Math.floor(maxSelectable))}
             selected={myValue}
             busy={busy}
             onSelect={(value) => {

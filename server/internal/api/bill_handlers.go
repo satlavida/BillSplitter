@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -264,6 +265,19 @@ func findItemName(sess *models.Session, itemID string) string {
 	return ""
 }
 
+// findItem looks up an item's full row (needed for its Quantity/SplitType/
+// ConsumedBy, not just its name) across every bill in sess.
+func findItem(sess *models.Session, itemID string) *models.Item {
+	for bi := range sess.Bills {
+		for ii := range sess.Bills[bi].Items {
+			if sess.Bills[bi].Items[ii].ID == itemID {
+				return &sess.Bills[bi].Items[ii]
+			}
+		}
+	}
+	return nil
+}
+
 func findPersonName(sess *models.Session, personID string) string {
 	for _, p := range sess.People {
 		if p.ID == personID {
@@ -342,6 +356,30 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 	value := req.Value
 	if value == 0 {
 		value = 1
+	}
+
+	// Quantity Split items have a hard pool to share: a claim can't push the
+	// total claimed past the item's own quantity. Equal-split items have no
+	// such cap — their claim value is always exactly 1 (presence-only), not
+	// quantity-bound. This mirrors JoinerItemRow.tsx's frontend cap, which
+	// only bounds what's *shown*; the real enforcement has to live here,
+	// since a joiner could otherwise post directly past the UI's cap.
+	if item := findItem(sess, itemID); item != nil && item.SplitType == "fraction" {
+		var othersTotal float64
+		for _, c := range item.ConsumedBy {
+			if c.PersonID != req.PersonID {
+				othersTotal += c.Value
+			}
+		}
+		const epsilon = 1e-6
+		if othersTotal+value > float64(item.Quantity)+epsilon {
+			remaining := float64(item.Quantity) - othersTotal
+			if remaining < 0 {
+				remaining = 0
+			}
+			writeError(w, http.StatusConflict, fmt.Sprintf("Only %g left to claim on this item", remaining))
+			return
+		}
 	}
 
 	itemName := findItemName(sess, itemID)

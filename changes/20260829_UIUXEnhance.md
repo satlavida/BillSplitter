@@ -94,15 +94,35 @@ in the order G → A → C → D → B → E → F.
       `@testing-library/react`, already a devDependency) covering the
       stepper buttons, 0-allowed-per-person, and the total-must-be->0 rule.
       `e2e/quantity-split-defaults.spec.ts` still passes unchanged.
+- [x] **Phase C — Joiner "N minus already-claimed" quantity cap, FE+BE**
+      (2026-08-29): the joiner's claim grid (`ClaimQuantityModal.tsx`)
+      previously always showed the full `1..quantity` range regardless of
+      what others already claimed, and — more importantly — the Go server
+      had **no cap check at all**, so a client could post a claim value
+      past the item's quantity directly. `JoinerItemRow.tsx` now computes
+      `maxSelectable = quantity - othersClaimed` and passes it to the modal
+      as a new `max` prop (kept separate from `quantity`, which stays just
+      for the "How many of these N did you have?" copy). Server-side,
+      `bill_handlers.go`'s `ClaimItem` now rejects (409) a fraction-split
+      claim that would push the item's total claimed value past its
+      `quantity`, with the real remaining count in the error — equal-split
+      items are unaffected (their claim value is always 1, not
+      quantity-bound). `errorMessages.ts` gained a regex passthrough so
+      that dynamic message reaches the joiner UI instead of collapsing to
+      the generic fallback. New tests:
+      `src/Components/joiner/ClaimQuantityModal.test.tsx`,
+      `src/Components/joiner/JoinerItemRow.test.tsx` (caught a real
+      double-counting bug in the first draft of the frontend cap math
+      before it shipped), `src/lib/errorMessages.test.ts`, and Go's
+      `server/internal/api/claim_quantity_limit_test.go`. Extended
+      `e2e/joiner-fraction-stepper.spec.ts` to assert the grid is actually
+      capped, not just that totals converge.
 
 ## Not started / deferred
 
 Bigger features from the same backlog message, left for later phases of
 Phase 2 (see the plan file above for the full phased design):
 
-- **Phase C** — Joiner-side "N minus already-claimed" quantity capping,
-  frontend (`ClaimQuantityModal`/`JoinerItemRow`) and backend (`ClaimItem`
-  handler currently has no cross-person cap check at all).
 - **Phase D** — "Things to Take Care of": creator-side consolidated section
   (alongside the existing per-bill "Unclaimed items" pill) and a joiner-side
   local unvisited/unclaimed tracker.

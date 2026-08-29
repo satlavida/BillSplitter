@@ -5,21 +5,32 @@ interface ClaimQuantityModalProps {
   onClose: () => void;
   itemName: string;
   quantity: number;
+  // The highest number this joiner is actually allowed to pick right now —
+  // their own current claim plus whatever's still unclaimed by everyone
+  // else. Kept separate from `quantity` (used only for the "How many of
+  // these N did you have?" copy) so the grid can be capped without
+  // changing what the item's real total is described as.
+  max: number;
   selected: number;
   busy: boolean;
   onSelect: (value: number) => void;
   onUnclaim: () => void;
 }
 
-// Lets a joiner pick how many of a Quantity Split item's N units they're
-// claiming, as a grid of number buttons (1..quantity) rather than the old
-// +/- stepper — clearer when N is more than a couple of units.
-const ClaimQuantityModal = ({ isOpen, onClose, itemName, quantity, selected, busy, onSelect, onUnclaim }: ClaimQuantityModalProps) => {
-  const numbers = Array.from({ length: quantity }, (_, i) => i + 1);
+// Lets a joiner pick how many of a Quantity Split item's units they're
+// claiming, as a grid of number buttons rather than the old +/- stepper —
+// clearer when N is more than a couple of units. The grid only goes up to
+// `max`, not the item's full quantity, once others have already claimed
+// some of it.
+const ClaimQuantityModal = ({ isOpen, onClose, itemName, quantity, max, selected, busy, onSelect, onUnclaim }: ClaimQuantityModalProps) => {
+  const numbers = Array.from({ length: max }, (_, i) => i + 1);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={itemName} className="max-w-sm">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">How many of these {quantity} did you have?</p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+        How many of these {quantity} did you have?
+        {max < quantity && <span className="block mt-1 text-xs text-amber-600 dark:text-amber-400">Others have already claimed the rest — only {max} left for you.</span>}
+      </p>
       <div className="grid grid-cols-4 gap-2">
         {numbers.map((n) => (
           <button

@@ -58,8 +58,11 @@ test('two joiners pick their own Quantity Split shares and the totals sum correc
   await joinerA.getByRole('button', { name: 'Claim', exact: true }).click();
   await joinerA.getByRole('button', { name: '2', exact: true }).click();
 
-  // Bob claims 1 slice.
+  // Bob's turn: only 1 of the original 3 is left (Alice took 2), so his
+  // claim grid must be capped there — it should not offer 2 or 3.
   await joinerB.getByRole('button', { name: 'Claim', exact: true }).click();
+  await expect(joinerB.getByText(/Others have already claimed the rest — only 1 left for you\./)).toBeVisible();
+  await expect(joinerB.getByRole('button', { name: '2', exact: true })).not.toBeVisible();
   await joinerB.getByRole('button', { name: '1', exact: true }).click();
 
   // Server-side total across both joiners is now 3, matching quantity.

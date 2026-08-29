@@ -18,7 +18,10 @@ claim/unclaim history.
 - `JoinerSessionView.tsx` — top-level joiner shell; presence heartbeat, settlement fetch. Used by `Pages/JoinPage.tsx`.
 - `JoinerBillList.tsx` — list of live bills, links into `JoinerBillEditorPage`; each bill's receipt thumbnail (`bill.imageRefKey`, served from `GET /api/images/{refKey}`) opens full-size in `ImageLightbox` on click, without following the card's link.
 - `JoinerItemRow.tsx` — claim/unclaim a live item.
-- `ClaimQuantityModal.tsx` — quantity picker for claiming.
+- `ClaimQuantityModal.tsx` — quantity picker for claiming; its number grid
+  is capped at a `max` prop (own current value + whatever's still unclaimed
+  by everyone else on that item), separate from the `quantity` prop used
+  only for its "How many of these N did you have?" copy — see Notes.
 - `AddItemForm.tsx` — joiner adds a new item to a live bill.
 - `JoinerSettlementSummary.tsx` — personal-view settlement lines (see [settlement.md](settlement.md)); Basic/Detailed toggle mirroring the creator's `SessionSettlementPage.tsx`, Detailed using `src/lib/liveBillBalances.ts`'s `calculateLiveBillBalances` (a `LiveBill`/`LivePerson`-typed adapter around `settlement.ts`'s `calculateBillBalances`, since the server's loosely-typed `discountType`/`splitType` strings don't structurally match this app's narrower literal unions).
 - `src/Pages/JoinPage.tsx` — route `/join/:code`; pick/enter identity, pending-approval or immediate admission.
@@ -50,7 +53,7 @@ claim/unclaim history.
 - `server/internal/api/bill_handlers.go`
   - `POST /api/sessions/{code}/bills`, `PATCH .../bills/{billId}` — add/update a bill.
   - `POST .../items`, `PATCH .../items/{itemId}` — add/update an item (never touches claims).
-  - `POST .../items/{itemId}/claims`, `DELETE .../claims/{personId}` — claim/unclaim (free-select, no approval queue).
+  - `POST .../items/{itemId}/claims`, `DELETE .../claims/{personId}` — claim/unclaim (free-select, no approval queue). For a Quantity Split (`splitType: "fraction"`) item, `ClaimItem` rejects (409, "Only N left to claim on this item") a value that would push the item's total claimed quantity across everyone past its own `quantity` — see Notes. Equal-split items have no such cap.
   - `GET /api/sessions/{code}/settlement` — see [settlement.md](settlement.md).
 - `server/internal/api/activity_handlers.go` — `GET /api/sessions/{code}/activity`, creator-only.
 - `server/internal/api/presence_handlers.go` — `POST .../presence/heartbeat`, `GET .../presence` (public list of online personIds, plus an `activeSince` map of each online personId's continuous-activity-start timestamp — RFC3339 — used by the frontend to gate renaming an active/claimed person). Consumed by `src/lib/liveApi.ts`'s `getPresence` and `src/lib/presenceRules.ts`'s `isNameEditLocked` (see [session-management.md](session-management.md)'s `PeopleSection.tsx`).
@@ -68,6 +71,25 @@ claim/unclaim history.
 - [currency.md](currency.md) — session `currency` column, per-bill exchange-rate columns, and the fields those add to `LiveSession`/`LiveBill`.
 
 ## Notes
+- **Quantity Split items have a server-enforced claim cap.** Before this
+  was added, `ClaimItem` (`server/internal/api/bill_handlers.go`) did an
+  unconditional upsert of a claim's value with no check against the item's
+  `quantity` or what other people already held — the frontend's grid
+  (`ClaimQuantityModal.tsx`) always showed the full `1..quantity` range
+  regardless of others' claims, and nothing stopped a client from posting
+  past it directly. The handler now sums every other person's existing
+  `ConsumedBy` value for `fraction`-split items and rejects (409) a claim
+  that would push the total past `quantity`, with the actual remaining
+  count in the error message (`errorMessages.ts`'s `friendlyErrorMessage`
+  has a dedicated regex passthrough for this one dynamic message, since
+  every other mapped error is a fixed exact-match string). The frontend
+  mirrors this in `JoinerItemRow.tsx` (`maxSelectable = quantity -
+  othersClaimed`, passed to `ClaimQuantityModal` as `max`) purely to shrink
+  what's *shown* — the server check is what actually prevents an
+  over-claim, since a client could otherwise bypass the UI's cap. This is
+  still a read-then-write check (same TOCTOU class already implicit
+  elsewhere in this handler, e.g. the activity-log delta calculation) —
+  acceptable for now, not backed by a DB-level constraint.
 - If `autoAddSelf`/`selfName` (see [settings.md](settings.md)) are set,
   `GoLiveSection.tsx`'s "Which person are you?" select and `JoinPage.tsx`'s
   "I am…" select both preselect the session person whose name matches

@@ -27,8 +27,17 @@ const EXACT_MATCHES: Record<string, string> = {
 
 const GENERIC_FALLBACK = 'Something went wrong. Please try again.';
 
+// bill_handlers.go's ClaimItem over-claim rejection embeds the actual
+// remaining count (e.g. "Only 3 left to claim on this item"), so it can't
+// be an EXACT_MATCHES entry — this is already human-readable as written,
+// so it passes through unchanged rather than collapsing to the generic
+// fallback and losing the number the joiner needs to see.
+const OVER_CLAIM_PATTERN = /^only \d+(\.\d+)? left to claim on this item$/i;
+
 // Anything not explicitly mapped (including every bare "failed to ..." 500)
 // collapses to the same generic fallback rather than leaking server wording.
 export function friendlyErrorMessage(raw: string): string {
-  return EXACT_MATCHES[raw.trim().toLowerCase()] ?? GENERIC_FALLBACK;
+  const trimmed = raw.trim();
+  if (OVER_CLAIM_PATTERN.test(trimmed)) return trimmed;
+  return EXACT_MATCHES[trimmed.toLowerCase()] ?? GENERIC_FALLBACK;
 }
