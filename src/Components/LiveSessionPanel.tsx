@@ -69,6 +69,11 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
   // Previous joiners list, for diffing new/changed entries into toasts
   // (toastJoinerChanges) without waiting for a state update to land.
   const joinersRef = useRef<LiveJoiner[]>([]);
+  // Whether the joiners list has been fetched at least once since this
+  // component mounted — like lastToastedActivityIdRef below, this stops the
+  // first fetch after a remount (joinersRef always starts at []) from
+  // re-toasting "X joined" for every already-approved joiner.
+  const hasLoadedJoinersRef = useRef(false);
   // Newest activity entry id already surfaced as a toast, so the first
   // fetch after mount (which may already have history) doesn't toast every
   // pre-existing entry — only genuinely new ones from here on.
@@ -83,7 +88,11 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
     if (creatorToken) {
       listJoiners(code, creatorToken)
         .then((next) => {
-          toastJoinerChanges(joinersRef.current, next, pushToast);
+          if (hasLoadedJoinersRef.current) {
+            toastJoinerChanges(joinersRef.current, next, pushToast);
+          } else {
+            hasLoadedJoinersRef.current = true;
+          }
           joinersRef.current = next;
           setJoiners(next);
         })

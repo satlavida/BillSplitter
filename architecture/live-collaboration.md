@@ -85,6 +85,13 @@ claim/unclaim history.
   the server actually fires.
 - SSE payloads intentionally carry no state, only `{Kind, ID}` — don't add
   full entities to the payload; keep the refetch-on-event pattern.
+- `LiveSessionPanel.tsx`'s `joinersRef` resets to `[]` on every component
+  mount, so the first `listJoiners()` fetch after a remount (e.g. navigating
+  away from and back to `SessionHomePage`) must not diff against that empty
+  baseline — it would otherwise re-toast "X joined" for every
+  already-approved joiner. A `hasLoadedJoinersRef` flag skips toasting on
+  that first fetch (seeding the ref silently instead), mirroring the same
+  guard `lastToastedActivityIdRef` already used for the activity-log toast.
 - `middleware/logging.go`'s `statusWriter` forwards `Flush()` specifically so
   it doesn't break SSE streaming — see [infrastructure.md](infrastructure.md).
 - CORS/allowlist (`middleware/allowlist.go`) fully implements preflight
