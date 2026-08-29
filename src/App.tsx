@@ -42,9 +42,16 @@ const Header = memo(({ toggleSidebar, isSidebarOpen, toggleRightPanel, isRightPa
   });
 
   return (
-    <div className="relative z-40 flex justify-between items-center mb-6">
+    // Deliberately not given its own position/z-index: the title/branding
+    // below should render *behind* an open Sidebar/RightPanel (fixing the
+    // header-overlapping-an-open-panel bug), while the toggle buttons stay
+    // clickable above the panels' dimming overlay (z-20) via their own
+    // `relative z-30` wrappers below — see architecture notes on z-index.
+    <div className="flex justify-between items-center mb-6">
       <div className="flex items-center gap-3">
-        <HamburgerButton onClick={toggleSidebar} isOpen={isSidebarOpen} />
+        <div className="relative z-30">
+          <HamburgerButton onClick={toggleSidebar} isOpen={isSidebarOpen} />
+        </div>
         <h1 className="text-2xl font-bold text-zinc-800 dark:text-white">Bill Splitter</h1>
         {processingCount > 0 && (
           <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400" title="Scanning receipt...">
@@ -54,7 +61,11 @@ const Header = memo(({ toggleSidebar, isSidebarOpen, toggleRightPanel, isRightPa
       </div>
       <div className="flex items-center gap-2">
         <ThemeSwitcher />
-        {showRightPanelToggle && <RightPanelToggleButton onClick={toggleRightPanel} isOpen={isRightPanelOpen} />}
+        {showRightPanelToggle && (
+          <div className="relative z-30">
+            <RightPanelToggleButton onClick={toggleRightPanel} isOpen={isRightPanelOpen} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -75,11 +86,19 @@ const AppShell = () => {
     if (savedSidebarState !== null) {
       setIsSidebarOpen(JSON.parse(savedSidebarState));
     }
+    const savedRightPanelState = localStorage.getItem('rightPanelOpen');
+    if (savedRightPanelState !== null) {
+      setIsRightPanelOpen(JSON.parse(savedRightPanelState));
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('sidebarOpen', JSON.stringify(isSidebarOpen));
   }, [isSidebarOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('rightPanelOpen', JSON.stringify(isRightPanelOpen));
+  }, [isRightPanelOpen]);
 
   const toggleSidebar = () => {
     // Only one of the two mobile panels open at a time, to avoid squeezing
@@ -136,7 +155,7 @@ const AppShell = () => {
       <Sidebar isOpen={isSidebarOpen} onToggle={toggleSidebar} items={sidebarItems} activeItemId={activeItemId} onItemClick={handleSidebarItemClick} />
 
       <div
-        className={`min-h-screen transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'ml-0 md:ml-16'} ${hasLiveSession ? 'lg:mr-72' : ''}`}
+        className={`min-h-screen transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'ml-0 md:ml-16'} ${hasLiveSession && isRightPanelOpen ? 'lg:mr-72' : ''}`}
       >
         <div className="py-8 px-4">
           <div className="max-w-lg mx-auto bg-white dark:bg-zinc-800 p-6 rounded-xl shadow-lg ring-1 ring-zinc-200/50 dark:ring-zinc-700/50 transition-colors duration-200">
@@ -161,7 +180,9 @@ const AppShell = () => {
         </div>
       </div>
 
-      <RightPanel className="hidden lg:block fixed top-0 right-0 h-full w-72 overflow-y-auto p-4 border-l border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 transition-colors" />
+      <RightPanel
+        className={`${isRightPanelOpen ? 'hidden lg:block' : 'hidden'} fixed top-0 right-0 h-full w-72 overflow-y-auto p-4 border-l border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 transition-colors`}
+      />
       <MobileRightPanel isOpen={isRightPanelOpen} onClose={() => setIsRightPanelOpen(false)} />
     </div>
   );

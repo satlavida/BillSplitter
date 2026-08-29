@@ -8,8 +8,8 @@ interface MobileRightPanelProps {
 
 // Mobile-only slide-in variant of RightPanel.tsx's content — mirrors
 // Sidebar.tsx's own overlay/outside-click/Escape handling, on the opposite
-// edge. Only relevant below the lg: breakpoint; RightPanel itself is always
-// visible there via its own `lg:block` className from AppShell.
+// edge. Only relevant below the lg: breakpoint; at lg: and up the same
+// `isOpen` state instead toggles RightPanel's own fixed column in AppShell.
 const MobileRightPanel = ({ isOpen, onClose }: MobileRightPanelProps) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

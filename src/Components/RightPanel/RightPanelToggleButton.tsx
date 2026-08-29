@@ -3,16 +3,17 @@ interface RightPanelToggleButtonProps {
   isOpen: boolean;
 }
 
-// Mobile-only counterpart to Sidebar/HamburgerButton.tsx — a small sibling
-// rather than generalizing HamburgerButton with a `side` prop, since the
-// two aren't otherwise identical (different icon, opposite side, and this
-// one only ever renders below the lg: breakpoint — see Header in App.tsx).
+// Counterpart to Sidebar/HamburgerButton.tsx — a small sibling rather than
+// generalizing HamburgerButton with a `side` prop, since the two aren't
+// otherwise identical (different icon, opposite side). Renders at every
+// breakpoint: it toggles the mobile slide-in panel below `lg:` and the
+// desktop-collapsible RightPanel at `lg:` and up — see Header in App.tsx.
 const RightPanelToggleButton = ({ onClick, isOpen }: RightPanelToggleButtonProps) => {
   return (
     <button
       id="right-panel-toggle-btn"
       onClick={onClick}
-      className="p-2 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-800 dark:text-zinc-200 lg:hidden"
+      className="p-2 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-800 dark:text-zinc-200"
       aria-label={isOpen ? 'Close activity panel' : 'Open activity panel'}
       aria-expanded={isOpen}
     >
