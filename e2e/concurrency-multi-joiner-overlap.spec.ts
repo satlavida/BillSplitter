@@ -16,7 +16,9 @@ test('three joiners claiming and unclaiming concurrently converge to the correct
   const { billId } = await seedBill(request, code, 'Trip');
   const { itemId } = await seedItem(request, code, billId, { name: 'Cabin', price: 300 });
 
-  await expect(page.getByText('Trip')).toBeVisible({ timeout: 10000 });
+  // Scoped to the bill list — the "Things to Take Care of" section also
+  // links to this bill by the same title while its item is unclaimed.
+  await expect(page.getByTestId('bill-list').getByText('Trip')).toBeVisible({ timeout: 10000 });
   await page.goto(`/#/session/${sessionId}/bill/${billId}/step/2`);
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
   const cabinCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Cabin' });

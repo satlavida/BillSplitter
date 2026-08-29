@@ -8,6 +8,7 @@ import GoLiveSection from '../Components/GoLiveSection';
 import LiveSessionPanel from '../Components/LiveSessionPanel';
 import PeopleSection from '../Components/PeopleSection';
 import SessionSettingsModal from '../Components/SessionSettingsModal';
+import ThingsToTakeCareOf from '../Components/ThingsToTakeCareOf';
 import { scanBillReceipt } from '../lib/receiptScan';
 import type { Bill } from '../schemas/session.schema';
 import type { Person } from '../schemas/bill.schema';
@@ -130,6 +131,8 @@ const SessionHomePage = () => {
       </div>
 
       <PeopleSection session={session} />
+
+      <ThingsToTakeCareOf session={session} />
 
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Bills</h2>

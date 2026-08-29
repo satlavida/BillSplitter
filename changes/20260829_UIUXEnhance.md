@@ -117,15 +117,40 @@ in the order G → A → C → D → B → E → F.
       `server/internal/api/claim_quantity_limit_test.go`. Extended
       `e2e/joiner-fraction-stepper.spec.ts` to assert the grid is actually
       capped, not just that totals converge.
+- [x] **Phase D1 — "Things to Take Care of", creator side** (2026-08-29):
+      new `src/lib/unclaimedItems.ts` (`isItemIncomplete` covers equal
+      items with zero claims, fraction items short of their quantity, and
+      percentage items not summing to 100%) backs a new
+      `ThingsToTakeCareOf.tsx` component rendered on `SessionHomePage.tsx`
+      above the bill list — an amber `Alert` listing every bill with
+      outstanding items, linking into each, rendering nothing when the
+      session is clean. Kept the existing per-bill-card "Unclaimed items"
+      pill as-is alongside it, per instruction. This introduced a
+      duplicate-bill-title collision for two e2e specs
+      (`concurrency-fraction-stepper-rapid.spec.ts`,
+      `concurrency-multi-joiner-overlap.spec.ts`) that used an unscoped
+      `getByText(billTitle)` on the session home page — fixed by scoping
+      both to `getByTestId('bill-list')`, matching the pattern the repo
+      already uses elsewhere for this exact kind of ambiguity (see
+      `architecture/app-shell-navigation.md`'s note on `RightPanel`'s
+      testids). Confirmed via two full `npx playwright test` runs: stable
+      at the same known 6 pre-existing baseline failures
+      (`bill-editor-flow`, `creator-claims-own-identity`, `join`,
+      `joiner-cannot-claim-creator-identity`,
+      `joiner-cannot-reclaim-active-identity`, `sessions-list`), no new
+      failures. New tests: `src/lib/unclaimedItems.test.ts`,
+      `src/Components/ThingsToTakeCareOf.test.tsx` (first component test
+      to render a `Link`, which needed a `TextEncoder`/`TextDecoder`
+      polyfill added to `jest.setup.js` — jsdom doesn't provide them and
+      react-router-dom needs them at module-load time).
 
 ## Not started / deferred
 
 Bigger features from the same backlog message, left for later phases of
 Phase 2 (see the plan file above for the full phased design):
 
-- **Phase D** — "Things to Take Care of": creator-side consolidated section
-  (alongside the existing per-bill "Unclaimed items" pill) and a joiner-side
-  local unvisited/unclaimed tracker.
+- **Phase D2** — "Things to Take Care of", joiner side: a client-side
+  (localStorage) unvisited/unclaimed tracker for a joiner's own bills.
 - **Phase B** — "Show Detailed Quantity Split" beta setting: a dynamic
   dependent-claim UI where each selected person's available count shrinks
   live as others claim, gated behind a new settingsStore boolean (default

@@ -1,6 +1,19 @@
 // jest.setup.js
 // Extends Jest expect with helpful matchers for testing DOM nodes
-import '@testing-library/jest-dom';// Mock for localStorage
+import '@testing-library/jest-dom';
+
+// jsdom doesn't provide TextEncoder/TextDecoder, which react-router-dom
+// (imported by any component test that renders a Link/Route) requires at
+// module-load time — polyfill from Node's util before anything else runs.
+import { TextEncoder, TextDecoder } from 'util';
+if (typeof globalThis.TextEncoder === 'undefined') {
+  globalThis.TextEncoder = TextEncoder;
+}
+if (typeof globalThis.TextDecoder === 'undefined') {
+  globalThis.TextDecoder = TextDecoder;
+}
+
+// Mock for localStorage
 
 
 // beforeEach(() => {

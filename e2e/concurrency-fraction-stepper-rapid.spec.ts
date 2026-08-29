@@ -23,7 +23,9 @@ test("creator watching live sees a joiner's rapid re-claims on a Quantity Split 
   // unknown billId would redirect away. Wait for the bill to show up in the
   // list (rendered straight off the merged session.bills) rather than
   // racing a fixed timeout before navigating to it.
-  await expect(page.getByText('Pizza Night')).toBeVisible({ timeout: 10000 });
+  // Scoped to the bill list — the "Things to Take Care of" section also
+  // links to this bill by the same title while its item is unclaimed.
+  await expect(page.getByTestId('bill-list').getByText('Pizza Night')).toBeVisible({ timeout: 10000 });
   await page.goto(`/#/session/${sessionId}/bill/${billId}/step/2`);
   await expect(page.getByRole('heading', { name: 'Who consumed what?' })).toBeVisible();
   const pizzaCard = page.locator('div.rounded-xl.shadow-sm', { hasText: 'Pizza' });

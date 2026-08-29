@@ -57,9 +57,12 @@ test("the creator's fraction-correctness badge flips to 'Split complete' as join
 
   // Creator's session home already merges the API-seeded bill live — click
   // into it once it appears, rather than creating it through the UI (which
-  // has no splitType control for a brand-new item).
-  await expect(page.getByText('Pizza Night', { exact: true })).toBeVisible({ timeout: 10000 });
-  await page.getByText('Pizza Night', { exact: true }).click();
+  // has no splitType control for a brand-new item). Scoped to the bill list
+  // (data-testid="bill-list") since the item hasn't been claimed yet, so
+  // the "Things to Take Care of" section also links to the same bill title.
+  const billList = page.getByTestId('bill-list');
+  await expect(billList.getByText('Pizza Night', { exact: true })).toBeVisible({ timeout: 10000 });
+  await billList.getByText('Pizza Night', { exact: true }).click();
   await page.waitForURL(new RegExp(`#/session/[^/]+/bill/[^/]+/step/1$`));
 
   await page.getByRole('button', { name: 'Go to step 2: Assign' }).click();
