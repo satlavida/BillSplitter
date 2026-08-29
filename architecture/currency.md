@@ -78,9 +78,15 @@ and flushable from the admin panel.
   `getEffectiveRate` first. Never uses the global currency preference.
 - `src/Pages/JoinerBillEditorPage.tsx` — a joiner sees a bill in **its own
   currency by default** (the point of per-bill currency), with a "Show in
-  session currency" checkbox (only shown when the bill's currency differs
-  from the session's) that converts every displayed amount via
-  `toSessionCurrency` when checked. Local component state, not persisted.
+  session currency" checkbox that converts every displayed amount via
+  `toSessionCurrency` when checked. The checkbox only appears when the
+  bill's currency differs from the session's **and** the bill has a known
+  `exchangeRate` — showing it whenever currencies merely differed used to
+  let a joiner "convert" using `getEffectiveRate`'s silent 1:1 fallback for
+  an unset rate, which looked like a real conversion but wasn't. When
+  currencies differ but no rate is set yet, a small note points the joiner
+  to ask the creator to set one in Bill Settings instead of the toggle just
+  disappearing unexplained. Local component state, not persisted.
   `JoinerSettlementSummary.tsx` is unaffected — it's backed by the
   Go-computed settlement endpoint, already in session currency.
 - `src/Components/ItemsInput.tsx`, `ItemAssignment.tsx`, `BillSummary.tsx`,

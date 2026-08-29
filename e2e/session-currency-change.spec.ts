@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { goLive, LIVE_SERVER_URL, getSessionSnapshot } from './helpers/liveSession';
+import { goLive, joinAsNewPerson, seedBill, closeAll, LIVE_SERVER_URL, getSessionSnapshot } from './helpers/liveSession';
 
 // Covers a fix for a stale-exchange-rate bug: a bill's exchangeRate is only
 // ever meaningful relative to the session currency it was fetched/overridden
@@ -109,5 +109,45 @@ test.describe('Session currency change — live', () => {
     expect(after.bills[0].exchangeRateIsOverride).toBe(false);
     // The bill's own currency is untouched by a session currency change.
     expect(after.bills[0].currency).toBe('USD');
+  });
+});
+
+test.describe('Joiner session-currency toggle — gated on a known exchange rate', () => {
+  test('hides the toggle until a rate is set, then shows and converts', async ({ page, request, browser }) => {
+    const code = await goLive(page);
+    const snapshot = await getSessionSnapshot(request, code);
+    const sessionCurrency: string = snapshot.currency;
+    // Pick a bill currency that's guaranteed to differ from the session's.
+    const billCurrency = sessionCurrency === 'USD' ? 'INR' : 'USD';
+
+    const billResp = await request.post(`${LIVE_SERVER_URL}/api/sessions/${code}/bills`, { data: { title: 'Dinner', currency: billCurrency } });
+    const bill = await billResp.json();
+    await request.post(`${LIVE_SERVER_URL}/api/sessions/${code}/bills/${bill.id}/items`, {
+      data: { name: 'Pizza', price: 20, quantity: 1, splitType: 'equal' },
+    });
+
+    const joiner = await joinAsNewPerson(browser, code, 'Nina');
+    await joiner.page.goto(`/#/join/${code}/bills/${bill.id}/step/3`);
+
+    // No exchange rate set yet — the toggle must not appear, and a note
+    // should explain why instead of the feature just silently vanishing.
+    await expect(joiner.page.getByLabel(/Show in session currency/)).toHaveCount(0);
+    await expect(joiner.page.getByText(/set an exchange rate in Bill Settings/)).toBeVisible();
+
+    // Creator sets a rate.
+    await request.patch(`${LIVE_SERVER_URL}/api/sessions/${code}/bills/${bill.id}`, {
+      data: { title: 'Dinner', currency: billCurrency, exchangeRate: 2, exchangeRateDate: '2026-08-01', exchangeRateIsOverride: true },
+    });
+
+    await joiner.page.reload();
+    const toggle = joiner.page.getByLabel(/Show in session currency/);
+    await expect(toggle).toBeVisible();
+    await expect(joiner.page.getByText(/set an exchange rate in Bill Settings/)).toHaveCount(0);
+
+    await expect(joiner.page.getByText(`Total: ${billCurrency} 20.00`)).toBeVisible();
+    await toggle.check();
+    await expect(joiner.page.getByText(`Total: ${sessionCurrency} 40.00`)).toBeVisible();
+
+    await closeAll(joiner);
   });
 });

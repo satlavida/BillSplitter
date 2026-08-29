@@ -127,8 +127,13 @@ const JoinerBillEditorPage = () => {
   const goToStep = (n: number) => navigate(`/join/${code}/bills/${billId}/step/${n}`);
 
   const currencyMismatch = bill.currency !== session.currency;
-  const displayCurrency = showSessionCurrency && currencyMismatch ? session.currency : bill.currency;
-  const displayAmount = (amount: number) => (showSessionCurrency && currencyMismatch ? toSessionCurrency(amount, bill, session.currency) : amount);
+  // Only offer the toggle once a real exchange rate is known — otherwise
+  // toSessionCurrency/getEffectiveRate silently falls back to a 1:1 rate,
+  // which would look like a conversion happened when it didn't.
+  const hasKnownRate = bill.exchangeRate != null;
+  const canShowSessionCurrency = currencyMismatch && hasKnownRate;
+  const displayCurrency = showSessionCurrency && canShowSessionCurrency ? session.currency : bill.currency;
+  const displayAmount = (amount: number) => (showSessionCurrency && canShowSessionCurrency ? toSessionCurrency(amount, bill, session.currency) : amount);
 
   // Kept in sync with billStore.getDiscountedItemPrice / personTotals.ts's
   // copy of the same formula — duplicated rather than imported since
@@ -237,7 +242,7 @@ const JoinerBillEditorPage = () => {
 
       <h1 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{bill.title}</h1>
 
-      {currencyMismatch && (
+      {canShowSessionCurrency && (
         <div className="mb-3 no-print">
           <Checkbox
             id="show-session-currency"
@@ -246,6 +251,11 @@ const JoinerBillEditorPage = () => {
             label={`Show in session currency (${session.currency}) instead of ${bill.currency}`}
           />
         </div>
+      )}
+      {currencyMismatch && !hasKnownRate && (
+        <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400 no-print">
+          Ask the bill's creator to set an exchange rate in Bill Settings to view this in session currency.
+        </p>
       )}
 
       {readOnly && (

@@ -63,34 +63,51 @@ from this file.
       toggle-button z-index fix above to keep passing after the header
       z-index change)
 
+## Phase 2 — Big items, in progress
+
+Tracks execution of
+`/Users/satyajeetnigade/.claude/plans/check-changes-20260826-md-file-serialized-llama.md`,
+in the order G → A → C → D → B → E → F.
+
+- [x] **Phase G — Session-currency toggle gating fix** (2026-08-29): the
+      joiner's "Show in session currency" toggle
+      (`src/Pages/JoinerBillEditorPage.tsx`) was already doing a **real**
+      conversion via `toSessionCurrency`/`getEffectiveRate`, not a
+      label-swap — the actual bug was showing the toggle whenever
+      currencies merely differed, even with no exchange rate set, silently
+      falling back to a 1:1 rate. Now gated on
+      `currencyMismatch && bill.exchangeRate != null`; when a rate isn't
+      set yet, a note points the joiner to Bill Settings instead of the
+      toggle just vanishing. Added an e2e case to
+      `e2e/session-currency-change.spec.ts` covering the gated
+      hide/show/convert behavior. No other `currencyMismatch`-style toggle
+      exists elsewhere in the app (confirmed via repo-wide grep).
+
 ## Not started / deferred
 
-Bigger features from the same backlog message, left for a future session:
+Bigger features from the same backlog message, left for later phases of
+Phase 2 (see the plan file above for the full phased design):
 
-- **Quantity split UX overhaul**: 0-to-N steppers with +/-/0 buttons
-  (replacing the current numeric input format), humanized validation error
-  copy (e.g. "All Fractions must have a positive number" → plain language),
-  and a new dynamic/dependent-claim beta feature: creator picks who's
-  splitting an item, then each person's available claim count shrinks live
-  as others claim (inspired by the existing joiner mini-claim UI, but not a
-  modal) — gated behind a new user setting "Show Detailed Quantity Split"
-  (Settings, unchecked by default for all users).
-- **"Things to Take Care of" section** on the session home page: gently
-  flags unclaimed items / unclaimed quantity to the creator.
-- **Bill Summary redesign**: turn "Split Breakdown" into an openable
-  drawer instead of always-rendered text; mini cards per item for the
-  split-breakdown data instead of a wall of text; reuse the same mini-card
-  treatment for the joiner "Claim what's yours" view.
-- **Per-person UPI ID**: creator prompted for their own UPI ID during
-  induction (auto-populated); creator can edit any person's UPI ID; each
-  joiner can add their own UPI ID when they join a bill. Replaces the
-  bill-level UPI section removed in Phase 1 above.
-- **12/13 claimed count** surfaced on Bill Summary (mirroring what the
-  joiners page already shows).
-- **Joiner-side unvisited-bills tracking**: local (client-side) list of
-  bills a joiner hasn't visited or has unclaimed items in, surfaced via a
-  badge — the joiner-side equivalent of "Things to Take Care of".
-- **Session-currency conversion fix**: "Show Session Currency instead of
-  INR" toggle should only appear when the conversion rate is known and
-  non-1:1, and should perform a real currency conversion, not just switch
-  the displayed label.
+- **Phase A** — Quantity split stepper UX (+/-/0 buttons replacing the raw
+  numeric input, allow 0 per person) + humanized validation error copy
+  across the fraction/percentage split inputs.
+- **Phase C** — Joiner-side "N minus already-claimed" quantity capping,
+  frontend (`ClaimQuantityModal`/`JoinerItemRow`) and backend (`ClaimItem`
+  handler currently has no cross-person cap check at all).
+- **Phase D** — "Things to Take Care of": creator-side consolidated section
+  (alongside the existing per-bill "Unclaimed items" pill) and a joiner-side
+  local unvisited/unclaimed tracker.
+- **Phase B** — "Show Detailed Quantity Split" beta setting: a dynamic
+  dependent-claim UI where each selected person's available count shrinks
+  live as others claim, gated behind a new settingsStore boolean (default
+  unchecked).
+- **Phase E** — Bill Summary redesign: "Split Breakdown" becomes a
+  collapsible drawer with mini item-cards instead of a text list; "X/Y
+  claimed" count added; shared card chrome reused on the joiner "Claim
+  what's yours" view.
+- **Phase F** — Per-person UPI ID, full scope: schema, `EditPersonModal`
+  and `GoLiveSection` editing, a brand-new backend endpoint + migration
+  (people currently have no live-update route at all) for live sync, and a
+  joiner-side nudge (in Phase D's "Things to Take Care of" list) to add
+  their UPI ID when they're owed money in settlement and haven't set one
+  yet.
