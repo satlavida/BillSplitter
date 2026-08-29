@@ -12,28 +12,10 @@ interface ModalPortalProps {
  * Handles accessibility and keyboard events as well
  */
 const ModalPortal = ({ children, isOpen, onClose }: ModalPortalProps) => {
-  // Don't render anything if the modal isn't open
-  if (!isOpen) return null;
-
-  // Handle scroll locking
-  //   useEffect(() => {
-  //     const originalStyle = window.getComputedStyle(document.body).overflow;
-
-  //     // Prevent background scrolling when modal is open
-  //     if (lockScroll) {
-  //       document.body.style.overflow = 'hidden';
-  //     }
-
-  //     // Clean up
-  //     return () => {
-  //       if (lockScroll) {
-  //         document.body.style.overflow = originalStyle;
-  //       }
-  //     };
-  //   }, [lockScroll]);
-
   // Handle ESC key to close the modal
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -45,10 +27,12 @@ const ModalPortal = ({ children, isOpen, onClose }: ModalPortalProps) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
   // Set focus trap inside modal for better accessibility
   useEffect(() => {
+    if (!isOpen) return;
+
     // Save the active element before opening the modal
     const activeElement = document.activeElement as HTMLElement | null;
 
@@ -68,7 +52,10 @@ const ModalPortal = ({ children, isOpen, onClose }: ModalPortalProps) => {
         activeElement.focus();
       }
     };
-  }, []);
+  }, [isOpen]);
+
+  // Don't render anything if the modal isn't open
+  if (!isOpen) return null;
 
   // Render the modal to the document body using createPortal
   return createPortal(children, document.body);
