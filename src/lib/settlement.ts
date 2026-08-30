@@ -1,6 +1,6 @@
 import { calculatePersonTotals } from './personTotals';
 import type { Bill } from '../schemas/session.schema';
-import type { Person } from '../schemas/bill.schema';
+import type { Person, Payment } from '../schemas/bill.schema';
 
 export interface Balance {
   personId: string;
@@ -89,9 +89,21 @@ export const calculateBillBalances = (bill: Pick<Bill, 'items' | 'taxAmount' | '
  * architecture/settlement.md: both sides must change together.
  *
  * Invariant: sum(balances) is always 0 (money owed always nets to money owed
- * back), verified explicitly in settlement.test.ts.
+ * back), verified explicitly in settlement.test.ts. This still holds with
+ * payments applied — see below.
+ *
+ * `payments` (default []) nets out logged payments after the bill-based
+ * balances are summed — see architecture/payments.md. Only **verified**
+ * payments count; a pending (payer-added, not-yet-confirmed-by-payee)
+ * payment is ignored entirely, same as an unset bill exchange rate falls
+ * back to 1 rather than throwing. A payment transfers money from payer to
+ * payee regardless of which specific bills created the underlying debt, so
+ * it's applied as a flat balances[payer] += amount / balances[payee] -=
+ * amount — this is exactly equivalent to (and preserves the zero-sum
+ * invariant of) reducing whatever pairwise debts simplifyDebts would
+ * otherwise compute between them.
  */
-export const calculateBalances = (bills: Bill[], people: Person[], sessionCurrency: string): Balance[] => {
+export const calculateBalances = (bills: Bill[], people: Person[], sessionCurrency: string, payments: Payment[] = []): Balance[] => {
   const totals: Record<string, number> = {};
   people.forEach((p) => {
     totals[p.id] = 0;
@@ -106,6 +118,16 @@ export const calculateBalances = (bills: Bill[], people: Person[], sessionCurren
     calculateBillBalances(bill, people).forEach(({ personId, amount }) => {
       totals[personId] += amount * effectiveRate;
     });
+  });
+
+  payments.forEach((payment) => {
+    if (!payment.verified) return;
+    if (totals[payment.payerId] === undefined || totals[payment.payeeId] === undefined) return;
+
+    const rate = payment.currency === sessionCurrency ? 1 : (payment.exchangeRate ?? 1);
+    const converted = payment.amount * rate;
+    totals[payment.payerId] += converted;
+    totals[payment.payeeId] -= converted;
   });
 
   return Object.entries(totals).map(([personId, amount]) => ({
@@ -161,8 +183,8 @@ export const simplifyDebts = (balances: Balance[]): Transaction[] => {
  * the simplified set of who-pays-whom transactions to zero them out, all in
  * sessionCurrency.
  */
-export const calculateSettlement = (bills: Bill[], people: Person[], sessionCurrency: string): SettlementResult => {
-  const balances = calculateBalances(bills, people, sessionCurrency);
+export const calculateSettlement = (bills: Bill[], people: Person[], sessionCurrency: string, payments: Payment[] = []): SettlementResult => {
+  const balances = calculateBalances(bills, people, sessionCurrency, payments);
   const transactions = simplifyDebts(balances);
   return { balances, transactions };
 };

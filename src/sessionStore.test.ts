@@ -197,6 +197,8 @@ describe('sessionStore - mergeLiveSnapshot', () => {
       isSettled: false,
       settledAt: null,
       currency: 'USD',
+      requirePaymentVerification: true,
+      payments: [],
       people: [{ id: 'p1', name: 'Alice', upiId: '' }],
       bills: [
         {
@@ -262,6 +264,8 @@ describe('sessionStore - mergeLiveSnapshot', () => {
       isSettled: false,
       settledAt: null,
       currency: 'USD',
+      requirePaymentVerification: true,
+      payments: [],
       people: [{ id: 'p1', name: 'Bob', upiId: '' }],
       bills: [
         {
@@ -311,6 +315,8 @@ describe('sessionStore - mergeLiveSnapshot respects in-flight pending writes', (
     isSettled: false,
     settledAt: null,
     currency: 'USD',
+    requirePaymentVerification: true,
+    payments: [],
     people: [] as { id: string; name: string; upiId: string }[],
     bills: [
       {

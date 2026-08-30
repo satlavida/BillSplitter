@@ -62,6 +62,25 @@ export const LiveBillSchema = z.object({
 });
 export type LiveBill = z.infer<typeof LiveBillSchema>;
 
+// Mirrors bill.schema.ts's PaymentSchema — see architecture/payments.md.
+export const LivePaymentSchema = z.object({
+  id: z.string(),
+  payerId: z.string(),
+  payeeId: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  exchangeRate: z.number().nullable().default(null),
+  exchangeRateDate: z.string().nullable().default(null),
+  exchangeRateIsOverride: z.boolean().default(false),
+  method: z.enum(['cash', 'online']),
+  transactionId: z.string().nullable().default(null),
+  addedByPersonId: z.string(),
+  verified: z.boolean(),
+  verifiedAt: z.string().nullable().default(null),
+  createdAt: z.string(),
+});
+export type LivePayment = z.infer<typeof LivePaymentSchema>;
+
 export const LiveSessionSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -79,8 +98,14 @@ export const LiveSessionSchema = z.object({
   isSettled: z.boolean(),
   settledAt: z.string().nullable(),
   currency: z.string().default('USD'),
+  // Mirrors session.schema.ts's Session.requirePaymentVerification.
+  requirePaymentVerification: z.boolean().default(true),
   people: z.array(LivePersonSchema).default([]),
   bills: z.array(LiveBillSchema).default([]),
+  // Filtered server-side by caller identity (creator sees all; a joiner
+  // only sees payments where they're the payer or payee) — see
+  // architecture/payments.md and session_handlers.go's filterPaymentsForViewer.
+  payments: z.array(LivePaymentSchema).default([]),
 });
 export type LiveSession = z.infer<typeof LiveSessionSchema>;
 

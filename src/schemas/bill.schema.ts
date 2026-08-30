@@ -18,6 +18,39 @@ export const PersonSchema = z.object({
 });
 export type Person = z.infer<typeof PersonSchema>;
 
+export const PaymentMethodSchema = z.enum(['cash', 'online']);
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
+
+/**
+ * A logged payment settling part (or all) of what one person owes another —
+ * see architecture/payments.md. Session-scoped, not bill-scoped: settlement
+ * already aggregates across every bill in a session, and a payment reduces a
+ * person-to-person balance, not any one bill. The currency/exchangeRate*
+ * triad mirrors Bill's (session.schema.ts) — set only when the payment's own
+ * currency differs from the session's.
+ */
+export const PaymentSchema = z.object({
+  id: z.string(),
+  payerId: z.string(),
+  payeeId: z.string(),
+  amount: z.number().positive(),
+  currency: z.string(),
+  exchangeRate: z.number().positive().nullable().default(null),
+  exchangeRateDate: z.string().nullable().default(null),
+  exchangeRateIsOverride: z.boolean().default(false),
+  method: PaymentMethodSchema,
+  // Online payments only — null for cash.
+  transactionId: z.string().nullable().default(null),
+  addedByPersonId: z.string(),
+  // See src/lib/paymentVerification.ts's computeInitialVerified for how this
+  // is decided when the payment is added, and architecture/payments.md for
+  // why only a verified payment counts toward settlement.
+  verified: z.boolean().default(false),
+  verifiedAt: z.string().nullable().default(null),
+  createdAt: z.string(),
+});
+export type Payment = z.infer<typeof PaymentSchema>;
+
 /**
  * consumedBy entries were historically persisted as bare personId strings
  * (see passAndSplitStore's `typeof consumer === 'string'` guard). The union

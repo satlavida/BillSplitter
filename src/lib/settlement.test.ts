@@ -1,8 +1,26 @@
 import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettlement, getEffectiveRate } from './settlement';
 import type { Bill } from '../schemas/session.schema';
-import type { Person } from '../schemas/bill.schema';
+import type { Person, Payment } from '../schemas/bill.schema';
 
 const person = (id: string, name: string): Person => ({ id, name, upiId: '' });
+
+const makePayment = (payerId: string, payeeId: string, amount: number, overrides: Partial<Payment> = {}): Payment => ({
+  id: `${payerId}-${payeeId}-${amount}`,
+  payerId,
+  payeeId,
+  amount,
+  currency: 'INR',
+  exchangeRate: null,
+  exchangeRateDate: null,
+  exchangeRateIsOverride: false,
+  method: 'cash',
+  transactionId: null,
+  addedByPersonId: payerId,
+  verified: true,
+  verifiedAt: '2026-01-02T00:00:00.000Z',
+  createdAt: '2026-01-02T00:00:00.000Z',
+  ...overrides,
+});
 
 // Builds a bill with a single item split equally among the given person ids.
 const makeBill = (
@@ -180,6 +198,105 @@ describe('calculateBalances', () => {
 
     expect(byId.alice).toBeCloseTo(10);
     expect(byId.bob).toBeCloseTo(-10);
+  });
+});
+
+describe('calculateBalances — payments', () => {
+  test("the doc's own worked example: owe 4500, pay 4000 cash, settlement shows only 500", () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+
+    // Bob owes Alice 4500 (single bill, Alice paid).
+    const bills = [makeBill('b1', 9000, ['alice', 'bob'], 'alice')];
+    const payments = [makePayment('bob', 'alice', 4000)];
+
+    const balances = calculateBalances(bills, people, 'INR', payments);
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    expect(byId.alice).toBeCloseTo(500);
+    expect(byId.bob).toBeCloseTo(-500);
+    expect(sumBalances(balances)).toBeCloseTo(0);
+  });
+
+  test('an unverified payment is ignored entirely', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+
+    const bills = [makeBill('b1', 9000, ['alice', 'bob'], 'alice')];
+    const payments = [makePayment('bob', 'alice', 4000, { verified: false, verifiedAt: null })];
+
+    const balances = calculateBalances(bills, people, 'INR', payments);
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    expect(byId.alice).toBeCloseTo(4500);
+    expect(byId.bob).toBeCloseTo(-4500);
+  });
+
+  test('a payment in a different currency is converted using its own exchange rate', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+
+    const bills = [makeBill('b1', 9000, ['alice', 'bob'], 'alice')];
+    // Bob pays 50 USD at 80 INR/USD = 4000 INR.
+    const payments = [makePayment('bob', 'alice', 50, { currency: 'USD', exchangeRate: 80 })];
+
+    const balances = calculateBalances(bills, people, 'INR', payments);
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    expect(byId.alice).toBeCloseTo(500);
+    expect(byId.bob).toBeCloseTo(-500);
+  });
+
+  test('a mismatched-currency payment with no exchange rate set falls back to 1:1 instead of throwing', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+
+    const bills = [makeBill('b1', 9000, ['alice', 'bob'], 'alice')];
+    const payments = [makePayment('bob', 'alice', 4000, { currency: 'USD', exchangeRate: null })];
+
+    const balances = calculateBalances(bills, people, 'INR', payments);
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    expect(byId.alice).toBeCloseTo(500);
+  });
+
+  test('multiple verified payments accumulate and can overshoot into a reversed balance', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+
+    const bills = [makeBill('b1', 9000, ['alice', 'bob'], 'alice')];
+    const payments = [makePayment('bob', 'alice', 3000, { id: 'p1' }), makePayment('bob', 'alice', 2000, { id: 'p2' })];
+
+    const balances = calculateBalances(bills, people, 'INR', payments);
+    const byId = Object.fromEntries(balances.map((b) => [b.personId, b.amount]));
+
+    // Bob overpaid by 500.
+    expect(byId.alice).toBeCloseTo(-500);
+    expect(byId.bob).toBeCloseTo(500);
+    expect(sumBalances(balances)).toBeCloseTo(0);
+  });
+
+  test('a payment involving someone outside the people list is ignored rather than throwing', () => {
+    const alice = person('alice', 'Alice');
+    const people = [alice];
+    const bills = [makeBill('b1', 100, ['alice'], null)];
+    const payments = [makePayment('ghost', 'alice', 50)];
+
+    expect(() => calculateBalances(bills, people, 'INR', payments)).not.toThrow();
+  });
+
+  test('omitting payments entirely behaves exactly as before this feature', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const people = [alice, bob];
+    const bills = [makeBill('b1', 90, ['alice', 'bob'], 'alice')];
+
+    expect(calculateBalances(bills, people, 'INR')).toEqual(calculateBalances(bills, people, 'INR', []));
   });
 });
 

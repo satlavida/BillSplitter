@@ -8,6 +8,7 @@ import {
   LiveItemSchema,
   LiveActivityEntrySchema,
   SessionStatusSchema,
+  LivePaymentSchema,
   type CreateLiveSessionResponse,
   type LiveSession,
   type LiveJoiner,
@@ -16,8 +17,9 @@ import {
   type LiveItem,
   type LiveActivityEntry,
   type SessionStatus,
+  type LivePayment,
 } from '../schemas/live.schema';
-import type { Person, Item } from '../schemas/bill.schema';
+import type { Person, Item, Payment } from '../schemas/bill.schema';
 import { friendlyErrorMessage } from './errorMessages';
 
 // Base URL of the Go live-collaboration server (server/cmd/server), also
@@ -296,6 +298,44 @@ export const settleLiveSession = (code: string, creatorToken: string): Promise<v
 // creator's own local/offline data.
 export const deleteLiveSession = (code: string, creatorToken: string): Promise<void> =>
   request(`/api/sessions/${code}`, { method: 'DELETE', headers: { 'X-Creator-Token': creatorToken } }, { parse: () => undefined });
+
+// Logs a payment. Either party can log one for themselves — actingPersonToken
+// is their own X-Joiner-Token, required whenever addedByPersonId isn't the
+// creator (server rejects a joiner logging on someone else's behalf, see
+// payment_handlers.go). Omitting it is the creator's token-free path, which
+// can log on behalf of anyone. Returns the server's own record, including
+// its authoritative `verified` value — see sessionStore.ts's mergeLivePayment.
+export const addLivePayment = (
+  code: string,
+  payment: Pick<
+    Payment,
+    'id' | 'payerId' | 'payeeId' | 'amount' | 'currency' | 'exchangeRate' | 'exchangeRateDate' | 'exchangeRateIsOverride' | 'method' | 'transactionId' | 'addedByPersonId'
+  >,
+  actingPersonToken?: string
+): Promise<LivePayment> =>
+  request(
+    `/api/sessions/${code}/payments`,
+    { method: 'POST', body: JSON.stringify(payment), headers: actingPersonToken ? { 'X-Joiner-Token': actingPersonToken } : {} },
+    LivePaymentSchema
+  );
+
+// Marks a payment verified. Only the payee's own token, or the creator
+// token-free, is accepted server-side — the payer verifying their own
+// payment is rejected (403).
+export const verifyLivePayment = (code: string, paymentId: string, joinerToken?: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/payments/${paymentId}/verify`,
+    { method: 'POST', headers: joinerToken ? { 'X-Joiner-Token': joinerToken } : {} },
+    { parse: () => undefined }
+  );
+
+// Creator-only — mirrors updateLiveSessionCurrency.
+export const updateLiveRequirePaymentVerification = (code: string, value: boolean, creatorToken: string): Promise<void> =>
+  request(
+    `/api/sessions/${code}/settings/require-payment-verification`,
+    { method: 'PATCH', body: JSON.stringify({ requirePaymentVerification: value }), headers: { 'X-Creator-Token': creatorToken } },
+    { parse: () => undefined }
+  );
 
 export const getLiveSettlement = (code: string): Promise<LiveSettlement> =>
   request(`/api/sessions/${code}/settlement`, { method: 'GET' }, LiveSettlementSchema);

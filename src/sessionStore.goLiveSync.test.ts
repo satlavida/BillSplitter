@@ -45,8 +45,10 @@ beforeEach(() => {
     creatorPersonId: null,
     isSettled: false,
     settledAt: null,
+    requirePaymentVerification: true,
     people: [],
     bills: [],
+    payments: [],
   });
 });
 
@@ -92,6 +94,7 @@ describe('markSessionLive — existing-bills sync (req 5)', () => {
       creatorPersonId: null,
       isSettled: false,
       settledAt: null,
+      requirePaymentVerification: true,
       people: [],
       bills: [
         {
@@ -111,6 +114,7 @@ describe('markSessionLive — existing-bills sync (req 5)', () => {
           deletedAt: null,
         },
       ],
+      payments: [],
     });
 
     useSessionStore.getState().markSessionLive(session.id, 'ABCDE', 'creator-token');
@@ -261,6 +265,7 @@ describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim',
       creatorPersonId: null,
       isSettled: false,
       settledAt: null,
+      requirePaymentVerification: true,
       currency: 'INR',
       people: [],
       bills: [
@@ -281,6 +286,7 @@ describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim',
           deletedAt: null,
         },
       ],
+      payments: [],
     });
 
     expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
@@ -299,6 +305,7 @@ describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim',
       creatorPersonId: null,
       isSettled: false,
       settledAt: null,
+      requirePaymentVerification: true,
       currency: 'INR',
       people: [],
       bills: [
@@ -321,6 +328,7 @@ describe('mergeLiveSnapshot does not clobber an unacknowledged in-flight claim',
           deletedAt: null,
         },
       ],
+      payments: [],
     });
 
     expect(useSessionStore.getState().getBill(session.id, bill.id)?.items[0].consumedBy).toEqual([{ personId: 'p1', value: 1 }]);
@@ -342,9 +350,11 @@ describe('mergeLiveSnapshot — bill removal on delete', () => {
     creatorPersonId: null,
     isSettled: false,
     settledAt: null,
+    requirePaymentVerification: true,
     currency: 'INR',
     people: [],
     bills,
+    payments: [],
   });
 
   test('drops a local bill missing from the remote snapshot', async () => {

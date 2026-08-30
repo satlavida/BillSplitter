@@ -51,8 +51,10 @@ beforeEach(() => {
     creatorPersonId: null,
     isSettled: false,
     settledAt: null,
+    requirePaymentVerification: true,
     people: [],
     bills: [],
+    payments: [],
   });
 });
 

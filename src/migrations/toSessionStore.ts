@@ -72,6 +72,8 @@ export const buildSessionsFromLegacyData = (historyRaw: unknown, activeBillRaw: 
         // session currency is just that bill's own currency, so no
         // conversion is ever needed for migrated data.
         currency: bill.currency,
+        payments: [],
+        requirePaymentVerification: true,
       });
     });
   } else if (historyRaw !== undefined) {
@@ -105,6 +107,8 @@ export const buildSessionsFromLegacyData = (historyRaw: unknown, activeBillRaw: 
         // session currency is just that bill's own currency, so no
         // conversion is ever needed for migrated data.
         currency: bill.currency,
+        payments: [],
+        requirePaymentVerification: true,
       });
     }
   } else if (activeBillRaw !== undefined) {

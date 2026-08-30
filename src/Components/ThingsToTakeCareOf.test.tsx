@@ -33,6 +33,8 @@ function makeSession(bills: Session['bills']): Session {
     permissionMode: 'edit',
     creatorPersonId: null,
     currency: 'USD',
+    payments: [],
+    requirePaymentVerification: true,
   };
 }
 

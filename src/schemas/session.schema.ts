@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ItemSchema, PersonSchema } from './bill.schema';
+import { ItemSchema, PaymentSchema, PersonSchema } from './bill.schema';
 
 export const ReceiptImageRefSchema = z.object({
   refKey: z.string(),
@@ -63,6 +63,15 @@ export const SessionSchema = z.object({
   // currency preference (src/currencyStore.ts) at session creation time,
   // then independent of it — see architecture/currency.md.
   currency: z.string().default('USD'),
+  // Session-scoped payment log — see architecture/payments.md.
+  payments: z.array(PaymentSchema).default([]),
+  // Creator-only toggle (Session Settings). When true (default), a payment
+  // added by the payer stays unverified until the payee confirms it; when
+  // false, every newly-added payment auto-verifies regardless of who added
+  // it. Only meaningful once the session is live — see
+  // src/lib/paymentVerification.ts's computeInitialVerified, which treats a
+  // local (non-live) session as always auto-verifying.
+  requirePaymentVerification: z.boolean().default(true),
 });
 export type Session = z.infer<typeof SessionSchema>;
 

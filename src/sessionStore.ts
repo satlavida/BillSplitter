@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { generateId } from './lib/generateId';
 import { SessionStoreStateSchema, SessionSchema, SESSION_STORE_VERSION, type Session, type Bill } from './schemas/session.schema';
-import type { Item, Person, DiscountType, SplitType } from './schemas/bill.schema';
-import type { LiveSession, LiveBill, LiveItem } from './schemas/live.schema';
+import type { Item, Person, Payment, DiscountType, SplitType } from './schemas/bill.schema';
+import type { LiveSession, LiveBill, LiveItem, LivePayment } from './schemas/live.schema';
 import { getImageBlob } from './lib/imageStore';
 import { trackPendingLiveWrite, isPendingLiveWrite } from './lib/pendingLiveWrites';
+import { computeInitialVerified } from './lib/paymentVerification';
 import useSettingsStore from './settingsStore';
 import useCurrencyStore from './currencyStore';
 
@@ -54,6 +55,25 @@ const pushSessionCurrencyLive = (liveCode: string, currency: string, creatorToke
 // dual-mode auth).
 const pushPersonUpdateLive = (liveCode: string, personId: string, updates: { name?: string; upiId?: string }, joinerToken?: string) =>
   trackPendingLiveWrite(`person:${personId}:fields`, import('./lib/liveApi').then(({ updateLivePerson }) => updateLivePerson(liveCode, personId, updates, joinerToken)));
+
+// Pushes a newly-logged payment live. Either party can log a payment for
+// themselves (payerToken/payeeToken — whichever the caller passes as
+// actingPersonToken), or the creator can log one token-free on anyone's
+// behalf — see liveApi.ts's addLivePayment and payment_handlers.go's dual
+// auth. The server, not this optimistic local write, has the final say on
+// `verified` once live — mergeLivePayment below reconciles the two.
+const pushAddPaymentLive = (liveCode: string, payment: Payment, actingPersonToken?: string) =>
+  trackPendingLiveWrite(`payment:${payment.id}:fields`, import('./lib/liveApi').then(({ addLivePayment }) => addLivePayment(liveCode, payment, actingPersonToken)));
+
+const pushVerifyPaymentLive = (liveCode: string, paymentId: string, joinerToken?: string) =>
+  trackPendingLiveWrite(`payment:${paymentId}:verify`, import('./lib/liveApi').then(({ verifyLivePayment }) => verifyLivePayment(liveCode, paymentId, joinerToken)));
+
+// Creator-only, mirrors pushSessionCurrencyLive.
+const pushRequirePaymentVerificationLive = (liveCode: string, value: boolean, creatorToken: string) =>
+  trackPendingLiveWrite(
+    `session:${liveCode}:requirePaymentVerification`,
+    import('./lib/liveApi').then(({ updateLiveRequirePaymentVerification }) => updateLiveRequirePaymentVerification(liveCode, value, creatorToken))
+  );
 
 const pushItemFieldsLive = (liveCode: string, billId: string, item: Item) =>
   trackPendingLiveWrite(`item:${item.id}:fields`, import('./lib/liveApi').then(({ updateLiveItem }) => updateLiveItem(liveCode, billId, item.id, item)));
@@ -255,6 +275,24 @@ interface SessionStoreActions {
   // pushSessionCurrencyLive; a failed push doesn't block/roll back the
   // local change, mirroring every other live push in this file.
   setSessionCurrency: (sessionId: string, currency: string) => void;
+  // Creator-only toggle (Session Settings) — see architecture/payments.md.
+  setRequirePaymentVerification: (sessionId: string, value: boolean) => void;
+
+  // Logs a payment settling part/all of what payerId owes payeeId.
+  // addedByPersonId is whoever is doing the logging (the payer or the
+  // payee, or null for the creator acting on a local-only session); its
+  // `verified` starting value is computed via computeInitialVerified.
+  // joinerToken is only sent when addedByPersonId is a joiner, not the
+  // creator — see liveApi.ts's addLivePayment.
+  addPayment: (
+    sessionId: string,
+    payment: { payerId: string; payeeId: string; amount: number; currency: string; exchangeRate: number | null; exchangeRateDate: string | null; exchangeRateIsOverride: boolean; method: 'cash' | 'online'; transactionId: string | null; addedByPersonId: string },
+    joinerToken?: string
+  ) => Payment | undefined;
+  // Only the payee (or the creator) should ever call this — enforced by the
+  // UI (PaymentCard only renders the action for them) and, once live,
+  // server-side (payment_handlers.go rejects a payer's own verify call).
+  verifyPayment: (sessionId: string, paymentId: string, joinerToken?: string) => void;
 
   addBill: (sessionId: string, billData?: Partial<Bill>) => Bill | undefined;
   updateBill: (sessionId: string, billId: string, data: Partial<Bill>) => void;
@@ -352,6 +390,34 @@ function mergeLiveBill(local: Bill | undefined, remote: LiveSession['bills'][num
   };
 }
 
+// A payment's `verified` field can be flipped by pushVerifyPaymentLive while
+// its other fields never change post-creation — pending-write-gate just that
+// one field the same way mergeLiveItem gates `fields` vs `consumedBy`
+// independently, so a local optimistic "add" isn't clobbered by a stale
+// snapshot racing the add, and a local optimistic "verify" isn't clobbered
+// by a stale snapshot racing the verify.
+function mergeLivePayment(local: Payment | undefined, remote: LivePayment): Payment {
+  const fieldsPending = local && isPendingLiveWrite(`payment:${remote.id}:fields`);
+  const verifyPending = local && isPendingLiveWrite(`payment:${remote.id}:verify`);
+
+  return {
+    id: remote.id,
+    payerId: fieldsPending ? local.payerId : remote.payerId,
+    payeeId: fieldsPending ? local.payeeId : remote.payeeId,
+    amount: fieldsPending ? local.amount : remote.amount,
+    currency: fieldsPending ? local.currency : remote.currency,
+    exchangeRate: fieldsPending ? local.exchangeRate : remote.exchangeRate,
+    exchangeRateDate: fieldsPending ? local.exchangeRateDate : remote.exchangeRateDate,
+    exchangeRateIsOverride: fieldsPending ? local.exchangeRateIsOverride : remote.exchangeRateIsOverride,
+    method: fieldsPending ? local.method : remote.method,
+    transactionId: fieldsPending ? local.transactionId : remote.transactionId,
+    addedByPersonId: fieldsPending ? local.addedByPersonId : remote.addedByPersonId,
+    verified: verifyPending ? local.verified : remote.verified,
+    verifiedAt: verifyPending ? local.verifiedAt : remote.verifiedAt,
+    createdAt: fieldsPending ? local.createdAt : remote.createdAt,
+  };
+}
+
 function mergeLiveSessionInto(session: Session, liveSession: LiveSession): Session {
   const remoteBillIds = new Set(liveSession.bills.map((b) => b.id));
   const billsById = new Map(session.bills.map((b) => [b.id, b]));
@@ -367,10 +433,24 @@ function mergeLiveSessionInto(session: Session, liveSession: LiveSession): Sessi
   // creator too, not just for joiners reading straight from the server.
   const bills = Array.from(billsById.values()).filter((b) => remoteBillIds.has(b.id) || isPendingLiveWrite(`bill:${b.id}:fields`));
 
+  // A payment known locally but missing from the remote snapshot is either
+  // filtered out for this viewer (a joiner only ever receives payments
+  // they're party to — see session_handlers.go's filterPaymentsForViewer)
+  // or still being pushed — keep it either way rather than treating a
+  // narrower response as a deletion, unlike bills above.
+  const paymentsById = new Map(session.payments.map((p) => [p.id, p]));
+  for (const remotePayment of liveSession.payments) {
+    paymentsById.set(remotePayment.id, mergeLivePayment(paymentsById.get(remotePayment.id), remotePayment));
+  }
+
   return touchSession({
     ...session,
     people: upsertById<Person>(session.people, liveSession.people),
     bills,
+    payments: Array.from(paymentsById.values()),
+    requirePaymentVerification: isPendingLiveWrite(`session:${session.liveCode}:requirePaymentVerification`)
+      ? session.requirePaymentVerification
+      : liveSession.requirePaymentVerification,
   });
 }
 
@@ -400,6 +480,8 @@ const useSessionStore = create<SessionStore>()(
           // a live link; changing the global preference later doesn't
           // retroactively change existing sessions (see currencyStore.ts).
           currency: useCurrencyStore.getState().currency,
+          payments: [],
+          requirePaymentVerification: true,
         };
 
         set((state) => ({
@@ -477,6 +559,70 @@ const useSessionStore = create<SessionStore>()(
               exchangeRateIsOverride: false,
             }).catch(() => {});
           });
+        }
+      },
+
+      setRequirePaymentVerification: (sessionId, value) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+        if (!session) return;
+
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, requirePaymentVerification: value }) : s)),
+        }));
+
+        if (session.isLive && session.liveCode && session.liveCreatorToken) {
+          pushRequirePaymentVerificationLive(session.liveCode, value, session.liveCreatorToken).catch(() => {});
+        }
+      },
+
+      addPayment: (sessionId, payment, joinerToken) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+        if (!session) return undefined;
+
+        const newPayment: Payment = {
+          id: generateId(),
+          payerId: payment.payerId,
+          payeeId: payment.payeeId,
+          amount: payment.amount,
+          currency: payment.currency,
+          exchangeRate: payment.exchangeRate,
+          exchangeRateDate: payment.exchangeRateDate,
+          exchangeRateIsOverride: payment.exchangeRateIsOverride,
+          method: payment.method,
+          transactionId: payment.transactionId,
+          addedByPersonId: payment.addedByPersonId,
+          verified: computeInitialVerified(session.isLive, session.requirePaymentVerification, payment.addedByPersonId, payment.payeeId),
+          verifiedAt: null,
+          createdAt: new Date().toISOString(),
+        };
+        if (newPayment.verified) newPayment.verifiedAt = newPayment.createdAt;
+
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? touchSession({ ...s, payments: [...s.payments, newPayment] }) : s)),
+        }));
+
+        if (session.isLive && session.liveCode) {
+          pushAddPaymentLive(session.liveCode, newPayment, joinerToken).catch(() => {});
+        }
+
+        return newPayment;
+      },
+
+      verifyPayment: (sessionId, paymentId, joinerToken) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+        if (!session) return;
+
+        const verifiedAt = new Date().toISOString();
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? touchSession({ ...s, payments: s.payments.map((p) => (p.id === paymentId ? { ...p, verified: true, verifiedAt } : p)) })
+              : s
+          ),
+        }));
+
+        if (session.isLive && session.liveCode) {
+          pushVerifyPaymentLive(session.liveCode, paymentId, joinerToken).catch(() => {});
         }
       },
 
