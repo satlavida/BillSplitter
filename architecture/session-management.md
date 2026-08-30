@@ -50,6 +50,7 @@ mirrored server-side — see [live-collaboration.md](live-collaboration.md).
 - [live-collaboration.md](live-collaboration.md) — "Go Live" is initiated from `SessionHomePage`.
 - [settings.md](settings.md) — `autoAddSelf` affects who's pre-populated when creating a session; the global currency preference seeds a new session's `currency`.
 - [currency.md](currency.md) — the session-level `currency` field and its Session Settings panel.
+- [payments.md](payments.md) — the Payments section on this page; `SessionSettingsModal`'s "Require Payment Verification" toggle; `UpiNudge.tsx` (extracted from the joiner-only nudge this doc's `EditPersonModal`/`PeopleSection`-adjacent UPI notes describe) now also shown to the creator here.
 
 ## Notes
 - `sessionStore.ts` is the single source of truth for local data; anything

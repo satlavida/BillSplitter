@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Modal, SearchSelect } from '../ui/components';
+import { Modal, SearchSelect, Checkbox } from '../ui/components';
 import { getCurrencyOptions } from '../lib/currencyDisplay';
 import type { Session } from '../schemas/session.schema';
 
@@ -8,6 +8,7 @@ interface SessionSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCurrencyChange: (currency: string) => void;
+  onRequirePaymentVerificationChange: (value: boolean) => void;
 }
 
 // Session Settings — opened via the gear icon top-right of SessionHomePage.
@@ -17,7 +18,7 @@ interface SessionSettingsModalProps {
 // currency differs from the session's, with the rate currently in effect for
 // each (fetched or overridden — see Bill Settings). This table is entirely
 // client-computed from data already on each Bill; no new fetch happens here.
-const SessionSettingsModal = ({ session, isOpen, onClose, onCurrencyChange }: SessionSettingsModalProps) => {
+const SessionSettingsModal = ({ session, isOpen, onClose, onCurrencyChange, onRequirePaymentVerificationChange }: SessionSettingsModalProps) => {
   const currencyOptions = useMemo(() => getCurrencyOptions(), []);
 
   const mismatchedBills = session.bills.filter((bill) => bill.currency !== session.currency);
@@ -36,6 +37,15 @@ const SessionSettingsModal = ({ session, isOpen, onClose, onCurrencyChange }: Se
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Settlement and balances are always shown in this currency. Bills in a different currency are converted using their own exchange rate.
           </p>
+        </div>
+
+        <div className="border-t border-zinc-200 dark:border-zinc-700 pt-3">
+          <Checkbox
+            label="Require Payment Verification"
+            description="When on, a payment logged by the payer stays pending until the payee confirms it. Turn off to auto-verify every payment as soon as it's logged."
+            checked={session.requirePaymentVerification}
+            onChange={(e) => onRequirePaymentVerificationChange(e.target.checked)}
+          />
         </div>
 
         <div>

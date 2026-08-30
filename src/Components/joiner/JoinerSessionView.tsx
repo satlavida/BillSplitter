@@ -8,6 +8,7 @@ import { Alert, Button } from '../../ui/components';
 import JoinerBillList from './JoinerBillList';
 import JoinerSettlementSummary from './JoinerSettlementSummary';
 import JoinerUpiNudge from './JoinerUpiNudge';
+import JoinerPaymentsSection from './JoinerPaymentsSection';
 import type { LiveSession, LiveSettlement } from '../../schemas/live.schema';
 
 interface JoinerSessionViewProps {
@@ -30,7 +31,7 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
 
   const refreshRef = useRef<() => void>(() => {});
   refreshRef.current = () => {
-    getLiveSession(code)
+    getLiveSession(code, { personId: myPersonId, joinerToken })
       .then(setSession)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load session'));
     getLiveSettlement(code)
@@ -126,6 +127,17 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
       <div className="mt-4">
         <JoinerSettlementSummary settlement={settlement} myPersonId={myPersonId} nameFor={nameFor} bills={session.bills} people={session.people} />
       </div>
+
+      <JoinerPaymentsSection
+        code={code}
+        myPersonId={myPersonId}
+        joinerToken={joinerToken}
+        people={session.people}
+        sessionCurrency={session.currency}
+        payments={session.payments}
+        settlement={settlement}
+        onChanged={refreshRef.current}
+      />
     </div>
   );
 };

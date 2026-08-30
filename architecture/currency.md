@@ -162,6 +162,7 @@ and flushable from the admin panel.
 - [settings.md](settings.md) — the global currency preference's narrowed
   role (new-session seed only).
 - [admin-panel.md](admin-panel.md) — the exchange-rate cache viewer/flush.
+- [payments.md](payments.md) — a payment's own `currency`/`exchangeRate*` triad reuses this same fetch/override pattern and `GET /api/exchange-rate`, unchanged.
 
 ## Notes
 - **Changing a session's currency clears every bill's stored exchange rate.**

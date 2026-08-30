@@ -8,7 +8,9 @@ import { getImageBlob } from '../lib/imageStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { Card, Button, Modal, PrintWrapper } from '../ui/components';
 import type { Bill } from '../schemas/session.schema';
-import type { Person } from '../schemas/bill.schema';
+import type { Person, Payment } from '../schemas/bill.schema';
+
+const METHOD_LABEL: Record<Payment['method'], string> = { cash: 'Cash', online: 'Online' };
 
 // Req 16: a compact per-bill list on the settlement page (bill totals
 // computed the same way BillSummary/personTotals.ts do — subtotal after
@@ -89,7 +91,7 @@ const SessionSettlementPage = () => {
     );
   }
 
-  const { balances, transactions } = calculateSettlement(session.bills, session.people, session.currency);
+  const { balances, transactions } = calculateSettlement(session.bills, session.people, session.currency, session.payments);
   const nameFor = (id: string) => session.people.find((p) => p.id === id)?.name || 'Unknown';
   // Always session currency on this page — a bill in a different currency
   // is converted via its effective rate, never shown in its own currency
@@ -172,6 +174,24 @@ const SessionSettlementPage = () => {
               </ul>
             )}
           </Card>
+
+          {session.payments.length > 0 && (
+            <Card>
+              <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Payments</h3>
+              <ul className="space-y-1">
+                {session.payments.map((payment) => (
+                  <li key={payment.id} className="text-sm text-zinc-700 dark:text-zinc-300 transition-colors">
+                    <span className="font-medium">{nameFor(payment.payerId)}</span> paid <span className="font-medium">{nameFor(payment.payeeId)}</span>{' '}
+                    {formatAmountInCurrency(payment.amount, payment.currency)} ({METHOD_LABEL[payment.method]}
+                    {payment.transactionId ? `, Txn ${payment.transactionId}` : ''}) —{' '}
+                    <span className={payment.verified ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
+                      {payment.verified ? 'Verified' : 'Pending verification'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card>
             <h3 className="font-medium mb-2 text-zinc-800 dark:text-white transition-colors">Bills</h3>

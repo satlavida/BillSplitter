@@ -188,3 +188,18 @@ export const calculateSettlement = (bills: Bill[], people: Person[], sessionCurr
   const transactions = simplifyDebts(balances);
   return { balances, transactions };
 };
+
+// Whether every balance is at/near zero once verified payments are netted
+// against the bills — see architecture/payments.md. A session with no bills
+// yet is deliberately not "settled": there's nothing to have paid off. Kept
+// here (rather than in a Payments UI component) so it has no dependency on
+// liveApi.ts's import.meta.env reference — see sessionStore.ts's top-of-file
+// comment on why that breaks Jest if pulled in transitively.
+export const isSessionSettledByPayments = (bills: Bill[], people: Person[], sessionCurrency: string, payments: Payment[]): boolean => {
+  if (bills.length === 0) return false;
+  const balances = calculateBalances(bills, people, sessionCurrency, payments);
+  // Same "settled up" threshold used for display elsewhere (e.g.
+  // SessionSettlementPage.tsx's balance-sign check) — a fraction of a cent
+  // shouldn't block "settled" state due to floating-point rounding.
+  return balances.every((b) => Math.abs(b.amount) < 0.005);
+};

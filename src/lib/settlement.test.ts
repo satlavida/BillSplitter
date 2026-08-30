@@ -1,4 +1,4 @@
-import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettlement, getEffectiveRate } from './settlement';
+import { calculateBalances, calculateBillBalances, simplifyDebts, calculateSettlement, getEffectiveRate, isSessionSettledByPayments } from './settlement';
 import type { Bill } from '../schemas/session.schema';
 import type { Person, Payment } from '../schemas/bill.schema';
 
@@ -402,6 +402,35 @@ describe('simplifyDebts', () => {
       { personId: 'b', amount: -0.0000001 },
     ]);
     expect(transactions).toEqual([]);
+  });
+});
+
+describe('isSessionSettledByPayments', () => {
+  test('is false for a session with no bills', () => {
+    expect(isSessionSettledByPayments([], [person('alice', 'Alice')], 'INR', [])).toBe(false);
+  });
+
+  test('is false when balances are still outstanding', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const bills = [makeBill('b1', 90, ['alice', 'bob'], 'alice')];
+    expect(isSessionSettledByPayments(bills, [alice, bob], 'INR', [])).toBe(false);
+  });
+
+  test('is true once a verified payment zeroes out the balance', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const bills = [makeBill('b1', 90, ['alice', 'bob'], 'alice')];
+    // Bob owes Alice 45; paid in full.
+    expect(isSessionSettledByPayments(bills, [alice, bob], 'INR', [makePayment('bob', 'alice', 45)])).toBe(true);
+  });
+
+  test('stays false when the payment is not yet verified', () => {
+    const alice = person('alice', 'Alice');
+    const bob = person('bob', 'Bob');
+    const bills = [makeBill('b1', 90, ['alice', 'bob'], 'alice')];
+    const payments = [makePayment('bob', 'alice', 45, { verified: false, verifiedAt: null })];
+    expect(isSessionSettledByPayments(bills, [alice, bob], 'INR', payments)).toBe(false);
   });
 });
 

@@ -10,7 +10,7 @@ using that bill's effective exchange rate before being summed.
 
 ## Frontend
 - `src/Pages/SessionSettlementPage.tsx` — route `/session/:sessionId/settlement`; who-owes-who view, per-bill totals list, receipt image viewer modal, Basic/Detailed toggle (Detailed adds each bill's own `calculateBillBalances` breakdown via `BillBreakdown`, e.g. "Bob owes Alice ₹500"). "Print Summary PDF" (creator-only — this page has no joiner-facing route) forces Detailed mode then calls `window.print()`; the whole settlement section is wrapped in `PrintWrapper`/`#printable-settlement` (same technique as `BillSummary.tsx` — reuses the on-screen DOM for print rather than a separate print-only component, which would otherwise duplicate text nodes on screen). Formats every amount via `formatAmountInCurrency(amount, session.currency)` ([currency.md](currency.md)) rather than the global currency preference — this page is always in session currency, never the viewer's own default.
-- `src/lib/settlement.ts` — debt-simplification/settlement calculation, built on `personTotals.ts`. `calculateBalances(bills, people, sessionCurrency)` (session-wide) is `calculateBillBalances` (single bill, still in that bill's own currency) summed over every bill, each bill's contribution multiplied by `getEffectiveRate(bill, sessionCurrency)` first — 1 if the bill matches session currency, else `bill.exchangeRate` (falling back to 1, not throwing, if unset).
+- `src/lib/settlement.ts` — debt-simplification/settlement calculation, built on `personTotals.ts`. `calculateBalances(bills, people, sessionCurrency, payments?)` (session-wide) is `calculateBillBalances` (single bill, still in that bill's own currency) summed over every bill, each bill's contribution multiplied by `getEffectiveRate(bill, sessionCurrency)` first — 1 if the bill matches session currency, else `bill.exchangeRate` (falling back to 1, not throwing, if unset) — then every **verified** payment nets against the result (see [payments.md](payments.md)). Also exports `isSessionSettledByPayments`, used by `SessionHomePage.tsx` to decide where the Payments section renders.
 - `src/lib/personTotals.ts` — core per-person total calculation (discounts, splits); shared by `billStore` ([bill-editing.md](bill-editing.md)) and `settlement.ts`.
 - `src/Components/joiner/JoinerSettlementSummary.tsx` — personal-view settlement lines for a joiner ([live-collaboration.md](live-collaboration.md)).
 - Settle action UI lives in `src/Components/LiveSessionPanel.tsx`.
@@ -25,6 +25,7 @@ using that bill's effective exchange rate before being summed.
 - [bill-editing.md](bill-editing.md) — shares the `personTotals` calculation.
 - [live-collaboration.md](live-collaboration.md) — server-side settlement is only reachable for live sessions.
 - [currency.md](currency.md) — session/bill currency fields and exchange rates that this feature converts by.
+- [payments.md](payments.md) — verified payments net against these balances before `SimplifyDebts`/`simplifyDebts` runs; same two-sided-mirror discipline now covers the payment-verification predicate too.
 
 ## Notes
 - **The Go settlement package is a hand-mirrored port of the frontend's

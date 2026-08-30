@@ -93,6 +93,7 @@ claim/unclaim history, item edits/deletes, and bill deletions/restores.
 - [background-cleanup.md](background-cleanup.md) — stale live sessions get purged; presence sweeper runs alongside.
 - [admin-panel.md](admin-panel.md) — manual per-session purge.
 - [currency.md](currency.md) — session `currency` column, per-bill exchange-rate columns, and the fields those add to `LiveSession`/`LiveBill`.
+- [payments.md](payments.md) — `payment.created`/`payment.verified` SSE kinds; `GetSession`'s new per-viewer response filtering (a first for this codebase — every other route here gates writes, not reads); `getLiveSession`'s optional viewer identity.
 
 ## Notes
 - **Bill deletion is soft by default, permanent only through the

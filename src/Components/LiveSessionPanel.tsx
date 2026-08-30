@@ -80,7 +80,7 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
   const lastToastedActivityIdRef = useRef<number | null>(null);
   refreshRef.current = () => {
     if (!code) return;
-    staleGuardRef.current(getLiveSession(code), (liveSession) => {
+    staleGuardRef.current(getLiveSession(code, creatorToken ? { creatorToken } : undefined), (liveSession) => {
       mergeLiveSnapshot(sessionId, liveSession);
       setIsSettled(liveSession.isSettled);
     }).catch((err) => setError(err instanceof Error ? err.message : 'Failed to sync live session'));

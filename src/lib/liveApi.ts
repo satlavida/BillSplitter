@@ -74,7 +74,20 @@ export const createLiveSession = (
     CreateLiveSessionResponseSchema
   );
 
-export const getLiveSession = (code: string): Promise<LiveSession> => request(`/api/sessions/${code}`, { method: 'GET' }, LiveSessionSchema);
+// viewer is optional and only changes which payments come back in the
+// response (see architecture/payments.md's server-side filtering) — every
+// other field is returned the same regardless. Pass creatorToken from the
+// creator's own polling (LiveSessionPanel.tsx), or personId+joinerToken from
+// a joiner's own polling (JoinerSessionView.tsx); omitting both (as most
+// call sites in this file still do) is treated as an anonymous viewer, so
+// LiveSession.payments comes back empty for those, same as before this
+// existed for every other field.
+export const getLiveSession = (code: string, viewer?: { personId?: string; joinerToken?: string; creatorToken?: string }): Promise<LiveSession> =>
+  request(
+    `/api/sessions/${code}${viewer?.personId ? `?personId=${encodeURIComponent(viewer.personId)}` : ''}`,
+    { method: 'GET', headers: viewer?.creatorToken ? { 'X-Creator-Token': viewer.creatorToken } : viewer?.joinerToken ? { 'X-Joiner-Token': viewer.joinerToken } : {} },
+    LiveSessionSchema
+  );
 
 // Batch status for a joiner's client to reconcile joinedSessionsStorage.ts's
 // locally-tracked "sessions I've joined" list in one request instead of one

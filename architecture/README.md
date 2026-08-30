@@ -21,6 +21,7 @@ existing file, plus a row in the tables below.
 | Receipt Enhance | Client-side boundary detection, perspective crop, grayscale/contrast enhancement — wired into Scan Receipt's crop step | [receipt-enhance.md](receipt-enhance.md) |
 | Live Collaboration | Multi-device real-time sync: sessions, join/approve, claims, presence, SSE | [live-collaboration.md](live-collaboration.md) |
 | Settlement | Who-owes-who calculation and debt simplification | [settlement.md](settlement.md) |
+| Payments | Transaction logging (cash/online) against a settlement, with payee verification | [payments.md](payments.md) |
 | Currency | Per-session/per-bill currency, exchange rate fetch/cache, conversion | [currency.md](currency.md) |
 | Session Management | Creating/listing sessions, session home dashboard, people, JSON import | [session-management.md](session-management.md) |
 | Settings | Currency and auto-add-self preferences | [settings.md](settings.md) |

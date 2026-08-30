@@ -19,6 +19,7 @@ export const LivePersonSchema = z.object({
   // and architecture/live-collaboration.md's per-person UPI ID sync notes.
   upiId: z.string().default(''),
 });
+export type LivePerson = z.infer<typeof LivePersonSchema>;
 
 export const LiveAllocationSchema = z.object({
   personId: z.string(),

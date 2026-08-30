@@ -9,6 +9,9 @@ import LiveSessionPanel from '../Components/LiveSessionPanel';
 import PeopleSection from '../Components/PeopleSection';
 import SessionSettingsModal from '../Components/SessionSettingsModal';
 import ThingsToTakeCareOf from '../Components/ThingsToTakeCareOf';
+import UpiNudge from '../Components/UpiNudge';
+import PaymentsSection from '../Components/Payments/PaymentsSection';
+import { calculateSettlement, isSessionSettledByPayments } from '../lib/settlement';
 import { scanBillReceipt } from '../lib/receiptScan';
 import { resolveSelfPersonId } from '../lib/selfPerson';
 import type { Bill } from '../schemas/session.schema';
@@ -55,16 +58,19 @@ const SessionHomePage = () => {
   const autoExpandGoLive = Boolean((location.state as { goLive?: boolean } | null)?.goLive);
 
   const session = useSessionStore(useShallow((s) => (sessionId ? s.sessions.find((sess) => sess.id === sessionId) : undefined)));
-  const { addBill, deleteBill, setSessionTitle, setCurrentSession, setBillPaidBy, setSessionCurrency } = useSessionStore(
-    useShallow((s) => ({
-      addBill: s.addBill,
-      deleteBill: s.deleteBill,
-      setSessionTitle: s.setSessionTitle,
-      setCurrentSession: s.setCurrentSession,
-      setBillPaidBy: s.setBillPaidBy,
-      setSessionCurrency: s.setSessionCurrency,
-    }))
-  );
+  const { addBill, deleteBill, setSessionTitle, setCurrentSession, setBillPaidBy, setSessionCurrency, setRequirePaymentVerification, updatePerson } =
+    useSessionStore(
+      useShallow((s) => ({
+        addBill: s.addBill,
+        deleteBill: s.deleteBill,
+        setSessionTitle: s.setSessionTitle,
+        setCurrentSession: s.setCurrentSession,
+        setBillPaidBy: s.setBillPaidBy,
+        setSessionCurrency: s.setSessionCurrency,
+        setRequirePaymentVerification: s.setRequirePaymentVerification,
+        updatePerson: s.updatePerson,
+      }))
+    );
 
   const [paidByEditBillId, setPaidByEditBillId] = useState<string | null>(null);
   const [sessionSettingsOpen, setSessionSettingsOpen] = useState(false);
@@ -112,6 +118,15 @@ const SessionHomePage = () => {
     useSessionStore.getState().updateBill(sessionId, billId, { scanStatus: 'idle', scanError: null });
   };
 
+  // Whether the creator (if they've picked their own identity) is currently
+  // owed money — drives the UpiNudge below. See architecture/payments.md.
+  const { balances } = calculateSettlement(session.bills, session.people, session.currency, session.payments);
+  const creatorPerson = session.people.find((p) => p.id === session.creatorPersonId);
+  const creatorOwedMoney = (balances.find((b) => b.personId === session.creatorPersonId)?.amount ?? 0) > 0.005;
+
+  const paymentsSettled = isSessionSettledByPayments(session.bills, session.people, session.currency, session.payments);
+  const paymentsSection = <PaymentsSection session={session} />;
+
   // Removes the bill locally immediately; if the session is live, also
   // soft-deletes it server-side (deleteBill's internal push) so it
   // disappears for joiners too, but stays recoverable by the creator via
@@ -147,7 +162,17 @@ const SessionHomePage = () => {
 
       <PeopleSection session={session} />
 
+      {creatorPerson && (
+        <UpiNudge
+          owedMoney={creatorOwedMoney}
+          myPersonUpiId={creatorPerson.upiId}
+          onSave={async (upiId) => updatePerson(sessionId, creatorPerson.id, { upiId })}
+        />
+      )}
+
       <ThingsToTakeCareOf session={session} />
+
+      {paymentsSettled && paymentsSection}
 
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Bills</h2>
@@ -227,6 +252,8 @@ const SessionHomePage = () => {
         </ul>
       )}
 
+      {!paymentsSettled && paymentsSection}
+
       <div className="flex flex-wrap gap-2 mb-4">
         <Button variant="secondary" onClick={() => navigate(`/session/${sessionId}/settlement`)}>
           View Settlement
@@ -254,6 +281,7 @@ const SessionHomePage = () => {
         isOpen={sessionSettingsOpen}
         onClose={() => setSessionSettingsOpen(false)}
         onCurrencyChange={(currency) => setSessionCurrency(sessionId, currency)}
+        onRequirePaymentVerificationChange={(value) => setRequirePaymentVerification(sessionId, value)}
       />
     </div>
   );
