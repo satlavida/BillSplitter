@@ -60,6 +60,36 @@ describe('connectLiveSync', () => {
     expect(events).toEqual([{ kind: 'bill.updated', id: 'bill-1' }]);
   });
 
+  // Regression test: payment.created/payment.verified/session.updated were
+  // broadcast server-side (see architecture/payments.md) but missing from
+  // this client's subscribed-kinds allowlist, so a joiner's already-open
+  // page silently never refreshed on a payment change — caught by
+  // e2e/payments-live-collaboration.spec.ts, fixed here.
+  test('delivers payment.created, payment.verified, and session.updated events too', () => {
+    let fake!: FakeEventSource;
+    const events: { kind: string; id: string }[] = [];
+
+    connectLiveSync('ABCDE', {
+      baseUrl: 'http://localhost:8080',
+      onEvent: (e) => events.push(e),
+      onStatusChange: () => {},
+      eventSourceFactory: () => {
+        fake = new FakeEventSource();
+        return fake as unknown as EventSource;
+      },
+    });
+
+    fake.emit('payment.created', { id: 'pay-1' });
+    fake.emit('payment.verified', { id: 'pay-1' });
+    fake.emit('session.updated', { id: 'ABCDE' });
+
+    expect(events).toEqual([
+      { kind: 'payment.created', id: 'pay-1' },
+      { kind: 'payment.verified', id: 'pay-1' },
+      { kind: 'session.updated', id: 'ABCDE' },
+    ]);
+  });
+
   test('falls back to polling after repeated failures within the failure window', () => {
     let fake!: FakeEventSource;
     const statuses: string[] = [];

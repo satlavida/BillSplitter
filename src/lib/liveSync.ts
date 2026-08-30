@@ -136,7 +136,10 @@ export function connectLiveSync(sessionCode: string, options: ConnectOptions): L
       'item.updated',
       'bill.updated',
       'session.settled',
+      'session.updated',
       'activity.created',
+      'payment.created',
+      'payment.verified',
     ];
     for (const kind of kinds) {
       es.addEventListener(kind, (ev: MessageEvent) => {

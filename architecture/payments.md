@@ -170,6 +170,18 @@ stay visible to everyone as they already were.
   list of known kinds, broadcast the same way `bill.updated` etc. are. The
   verification-toggle change reuses the existing `session.updated` kind,
   same as `UpdatePerson` does for a settings-shaped change.
+- `src/lib/liveSync.ts` — the frontend `EventSource` client only calls
+  `addEventListener` for a **hardcoded allowlist** of kinds; a broadcast
+  kind missing from that list is silently never delivered to `onEvent` (no
+  error — the SSE connection stays healthy, so the polling fallback never
+  kicks in either). `payment.created`/`payment.verified` were added there
+  too, and — a **pre-existing gap** this surfaced, not something this
+  feature introduced — so was `session.updated` (already broadcast by
+  `UpdatePerson`, just never delivered client-side either). Without this,
+  an already-open joiner page would never pick up a new/verified payment,
+  or a live currency/UPI/verification-toggle change, without a manual
+  reload. Caught by `e2e/payments-live-collaboration.spec.ts`; regression
+  test in `src/lib/liveSync.test.ts`.
 - Purge (`store.PurgeStaleSessions`/`PurgeSessionByID`): no new cleanup
   code — `payments.session_id` is `ON DELETE CASCADE`, so a purge's plain
   `DELETE FROM sessions` removes payments automatically, same as
