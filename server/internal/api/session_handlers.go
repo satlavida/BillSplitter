@@ -83,7 +83,13 @@ func (a *API) CreateSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSession handles GET /api/sessions/{code} — full session state for both
-// creator and admitted joiners.
+// creator and admitted joiners. sess.Payments is filtered to what the
+// caller may see before it's serialized (see filterPaymentsForViewer) — a
+// new pattern for this codebase, since every other route here gates writes
+// rather than reads. Every other field stays exactly as GetSession has
+// always returned it, unauthenticated (this route requires no header at
+// all, same as before payments existed) — an absent/invalid identity just
+// means an empty payments list, not a rejected request.
 func (a *API) GetSession(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	sess, err := a.store.GetSession(code)
@@ -95,7 +101,50 @@ func (a *API) GetSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return
 	}
+
+	viewerPersonID, isCreator := a.resolveViewerIdentity(r, sess, code)
+	sess.Payments = filterPaymentsForViewer(sess.Payments, viewerPersonID, isCreator)
+
 	writeJSON(w, http.StatusOK, sess)
+}
+
+// resolveViewerIdentity reads whichever of X-Creator-Token or
+// (X-Joiner-Token + personId query param) the caller sent and reports who
+// they are, without failing the request if neither is present or valid —
+// GetSession itself has never required auth, so this only narrows what's
+// visible, never blocks the read. Checked in this order because a creator
+// viewing their own session never carries a personId query param.
+func (a *API) resolveViewerIdentity(r *http.Request, sess *models.Session, code string) (personID string, isCreator bool) {
+	if token := r.Header.Get("X-Creator-Token"); token != "" && token == sess.CreatorToken {
+		return "", true
+	}
+	if token := r.Header.Get("X-Joiner-Token"); token != "" {
+		if pid := r.URL.Query().Get("personId"); pid != "" {
+			if ok, err := a.store.VerifyJoinerToken(code, pid, token); err == nil && ok {
+				return pid, false
+			}
+		}
+	}
+	return "", false
+}
+
+// filterPaymentsForViewer restricts a session's payments to what the given
+// viewer may see: the creator sees everything, everyone else only sees a
+// payment they're the payer or payee of — an uninvolved third joiner never
+// sees another pair's transaction record, even though the aggregate
+// balances/transactions from GET .../settlement are visible to everyone
+// (see api.computeSettlement's doc comment on that distinction).
+func filterPaymentsForViewer(payments []models.Payment, viewerPersonID string, isCreator bool) []models.Payment {
+	if isCreator {
+		return payments
+	}
+	visible := make([]models.Payment, 0, len(payments))
+	for _, p := range payments {
+		if p.PayerID == viewerPersonID || p.PayeeID == viewerPersonID {
+			visible = append(visible, p)
+		}
+	}
+	return visible
 }
 
 type sessionsStatusRequest struct {
@@ -472,6 +521,39 @@ func (a *API) UpdateSessionCurrency(w http.ResponseWriter, r *http.Request) {
 
 	a.hub.Broadcast(code, sse.Event{Kind: "session.updated", ID: code})
 	writeJSON(w, http.StatusOK, map[string]string{"currency": req.Currency})
+}
+
+type updateRequirePaymentVerificationRequest struct {
+	RequirePaymentVerification bool `json:"requirePaymentVerification"`
+}
+
+// UpdateRequirePaymentVerification handles PATCH
+// /api/sessions/{code}/settings/require-payment-verification
+// (creator-only) — see architecture/payments.md and
+// SessionSettingsModal.tsx's "Require Payment Verification" toggle. Mirrors
+// UpdateSessionCurrency's shape.
+func (a *API) UpdateRequirePaymentVerification(w http.ResponseWriter, r *http.Request) {
+	if !a.requireCreator(w, r) {
+		return
+	}
+	code := r.PathValue("code")
+
+	var req updateRequirePaymentVerificationRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := a.store.UpdateRequirePaymentVerification(code, req.RequirePaymentVerification); errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update session")
+		return
+	}
+
+	a.hub.Broadcast(code, sse.Event{Kind: "session.updated", ID: code})
+	writeJSON(w, http.StatusOK, map[string]bool{"requirePaymentVerification": req.RequirePaymentVerification})
 }
 
 type updatePersonRequest struct {

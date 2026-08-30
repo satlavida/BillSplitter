@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	appdb "billsplitter/server/internal/db"
+	"billsplitter/server/internal/models"
 )
 
 func openSettingsTestDB(t *testing.T) *Store {
@@ -161,5 +162,45 @@ func TestPurgeStaleSessionsIndependentIdleAndSettledThresholds(t *testing.T) {
 	}
 	if !purgedSet[settledSess.ID] {
 		t.Fatalf("expected settled session %s to be purged, got %v", settledSess.ID, purged)
+	}
+}
+
+// TestPurgeStaleSessionsCascadesPayments verifies the "no new cleanup code
+// needed" claim in architecture/payments.md: a payments row has
+// session_id ... ON DELETE CASCADE (migration 0014), so purging a session
+// via PurgeStaleSessions's plain `DELETE FROM sessions` should remove its
+// payments automatically, same as bills/item_activity/joiners already do —
+// this is the verification for that claim, not a formality.
+func TestPurgeStaleSessionsCascadesPayments(t *testing.T) {
+	s := openSettingsTestDB(t)
+
+	alice := models.Person{ID: "alice", Name: "Alice"}
+	bob := models.Person{ID: "bob", Name: "Bob"}
+	sess, err := s.CreateSession("Trip", []models.Person{alice, bob}, "open_link", "free_select", "edit", nil, "USD")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if err := s.AddPayment(sess.ID, models.Payment{
+		ID: "pay1", PayerID: "bob", PayeeID: "alice", Amount: 500, Currency: "USD", Method: "cash",
+		AddedByPersonID: "bob", CreatedAt: "2026-01-01T00:00:00Z",
+	}); err != nil {
+		t.Fatalf("AddPayment: %v", err)
+	}
+
+	if _, err := s.db.Exec(`UPDATE sessions SET last_access_at = datetime('now', '-15 days') WHERE id = ?`, sess.ID); err != nil {
+		t.Fatalf("backdate session: %v", err)
+	}
+
+	if _, _, err := s.PurgeStaleSessions(14, 21); err != nil {
+		t.Fatalf("PurgeStaleSessions: %v", err)
+	}
+
+	var count int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM payments WHERE session_id = ?`, sess.ID).Scan(&count); err != nil {
+		t.Fatalf("count payments: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected payments to be cascade-deleted with the session, found %d remaining", count)
 	}
 }

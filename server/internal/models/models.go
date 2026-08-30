@@ -102,8 +102,46 @@ type Session struct {
 	IsSettled       bool           `json:"isSettled"`
 	SettledAt       *string        `json:"settledAt"`
 	CreatorToken    string         `json:"-"`
-	People          []Person       `json:"people"`
-	Bills           []Bill         `json:"bills"`
+	// RequirePaymentVerification is a creator-only toggle (Session Settings)
+	// — see internal/settlement/paymentverify.go's ComputeInitialVerified
+	// and migration 0014_payments.sql.
+	RequirePaymentVerification bool     `json:"requirePaymentVerification"`
+	People                     []Person `json:"people"`
+	Bills                      []Bill   `json:"bills"`
+	// Payments is filtered by caller identity before being serialized — see
+	// api.filterPaymentsForViewer. A joiner only ever sees payments they're
+	// the payer or payee of; the creator sees all.
+	Payments []Payment `json:"payments"`
+}
+
+// Payment is a logged payment settling part/all of what PayerID owes
+// PayeeID — see architecture/payments.md. Session-scoped, not bill-scoped:
+// settlement already aggregates across every bill, and a payment settles a
+// person-to-person balance, not one specific bill. Mirrors
+// bill.schema.ts/live.schema.ts's Payment/LivePayment on the frontend.
+type Payment struct {
+	ID        string  `json:"id"`
+	SessionID string  `json:"-"`
+	PayerID   string  `json:"payerId"`
+	PayeeID   string  `json:"payeeId"`
+	Amount    float64 `json:"amount"`
+	Currency  string  `json:"currency"`
+	// ExchangeRate/ExchangeRateDate/ExchangeRateIsOverride mirror Bill's
+	// fields of the same name — set only when Currency differs from the
+	// session's own currency.
+	ExchangeRate           *float64 `json:"exchangeRate"`
+	ExchangeRateDate       *string  `json:"exchangeRateDate"`
+	ExchangeRateIsOverride bool     `json:"exchangeRateIsOverride"`
+	Method                 string   `json:"method"` // "cash" | "online"
+	// TransactionID is set only for Method == "online".
+	TransactionID   *string `json:"transactionId"`
+	AddedByPersonID string  `json:"addedByPersonId"`
+	// Verified is computed once, at creation time (see
+	// ComputeInitialVerified), and flipped true by VerifyPayment — never
+	// recomputed afterward.
+	Verified   bool    `json:"verified"`
+	VerifiedAt *string `json:"verifiedAt"`
+	CreatedAt  string  `json:"createdAt"`
 }
 
 // SessionStatus is the lightweight per-code result of a batch status lookup

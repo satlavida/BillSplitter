@@ -45,8 +45,18 @@ type Result struct {
 // bill with no rate yet falls back to 1.0 rather than erroring (shouldn't
 // normally happen once the Bill Settings flow enforces setting a rate, but
 // this must stay defensive since settlement can't fail outright over it).
-// Invariant: sum(balances) is always 0, verified in settlement_test.go.
-func CalculateBalances(bills []models.Bill, people []models.Person, sessionCurrency string) []Balance {
+// Invariant: sum(balances) is always 0, verified in settlement_test.go. This
+// still holds with payments applied — see below.
+//
+// payments nets out logged payments after the bill-based balances are
+// summed — see architecture/payments.md. Only Verified payments count; a
+// pending payment is ignored entirely, same as an unset bill exchange rate
+// falls back to 1 rather than erroring. A payment transfers money from payer
+// to payee regardless of which specific bills created the underlying debt,
+// so it's applied as a flat balances[payer] += amount / balances[payee] -=
+// amount — equivalent to (and preserving the zero-sum invariant of) reducing
+// whatever pairwise debts SimplifyDebts would otherwise compute between them.
+func CalculateBalances(bills []models.Bill, people []models.Person, sessionCurrency string, payments []models.Payment) []Balance {
 	balances := make(map[string]float64, len(people))
 	order := make([]string, 0, len(people))
 	for _, p := range people {
@@ -81,6 +91,26 @@ func CalculateBalances(bills []models.Bill, people []models.Person, sessionCurre
 				balances[personID] -= pt.Total * effectiveRate
 			}
 		}
+	}
+
+	for _, p := range payments {
+		if !p.Verified {
+			continue
+		}
+		if _, ok := balances[p.PayerID]; !ok {
+			continue
+		}
+		if _, ok := balances[p.PayeeID]; !ok {
+			continue
+		}
+
+		rate := 1.0
+		if p.Currency != sessionCurrency && p.ExchangeRate != nil {
+			rate = *p.ExchangeRate
+		}
+		converted := p.Amount * rate
+		balances[p.PayerID] += converted
+		balances[p.PayeeID] -= converted
 	}
 
 	out := make([]Balance, 0, len(order))
@@ -146,8 +176,8 @@ func SimplifyDebts(balances []Balance) []Transaction {
 
 // CalculateSettlement combines CalculateBalances and SimplifyDebts into the
 // full server-computed settlement for a session, in sessionCurrency.
-func CalculateSettlement(bills []models.Bill, people []models.Person, sessionCurrency string) Result {
-	balances := CalculateBalances(bills, people, sessionCurrency)
+func CalculateSettlement(bills []models.Bill, people []models.Person, sessionCurrency string, payments []models.Payment) Result {
+	balances := CalculateBalances(bills, people, sessionCurrency, payments)
 	transactions := SimplifyDebts(balances)
 	return Result{Balances: balances, Transactions: transactions}
 }

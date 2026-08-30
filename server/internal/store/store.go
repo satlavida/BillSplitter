@@ -184,6 +184,128 @@ func (s *Store) SetCreatorPersonID(sessionID, personID string) error {
 	return s.touchSession(sessionID)
 }
 
+// UpdateRequirePaymentVerification sets the creator-only "Require Payment
+// Verification" toggle (see api.UpdateRequirePaymentVerification and
+// architecture/payments.md). Does not touch any already-logged payment's
+// Verified value — only affects payments added from here on.
+func (s *Store) UpdateRequirePaymentVerification(sessionID string, value bool) error {
+	res, err := s.db.Exec(`UPDATE sessions SET require_payment_verification = ? WHERE id = ?`, value, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
+// AddPayment inserts a logged payment. p.Verified is computed by the caller
+// (api.AddPayment, via settlement.ComputeInitialVerified) — the store stays
+// data-only, same as AddItem/AddBill.
+func (s *Store) AddPayment(sessionID string, p models.Payment) error {
+	var verifiedAt any
+	if p.VerifiedAt != nil {
+		verifiedAt = *p.VerifiedAt
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO payments (id, session_id, payer_id, payee_id, amount, currency, exchange_rate, exchange_rate_date, exchange_rate_is_override, method, transaction_id, added_by_person_id, verified, verified_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, sessionID, p.PayerID, p.PayeeID, p.Amount, p.Currency, p.ExchangeRate, p.ExchangeRateDate, p.ExchangeRateIsOverride, p.Method, p.TransactionID, p.AddedByPersonID, p.Verified, verifiedAt, p.CreatedAt,
+	)
+	if err != nil {
+		return err
+	}
+	return s.touchSession(sessionID)
+}
+
+// VerifyPayment marks a payment verified. Callers (api.VerifyPayment) must
+// check the caller is the payee (or the creator) before calling this — the
+// store itself doesn't re-check identity.
+func (s *Store) VerifyPayment(sessionID, paymentID string) error {
+	res, err := s.db.Exec(
+		`UPDATE payments SET verified = 1, verified_at = ? WHERE id = ? AND session_id = ?`,
+		now(), paymentID, sessionID,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return s.touchSession(sessionID)
+}
+
+// GetPayment fetches a single payment, scoped to sessionID — used by
+// api.VerifyPayment to check the caller is actually the payee before
+// verifying.
+func (s *Store) GetPayment(sessionID, paymentID string) (*models.Payment, error) {
+	p := &models.Payment{SessionID: sessionID}
+	var exchangeRate sql.NullFloat64
+	var exchangeRateDate, transactionID, verifiedAt sql.NullString
+	err := s.db.QueryRow(
+		`SELECT id, payer_id, payee_id, amount, currency, exchange_rate, exchange_rate_date, exchange_rate_is_override, method, transaction_id, added_by_person_id, verified, verified_at, created_at
+		 FROM payments WHERE id = ? AND session_id = ?`, paymentID, sessionID,
+	).Scan(&p.ID, &p.PayerID, &p.PayeeID, &p.Amount, &p.Currency, &exchangeRate, &exchangeRateDate, &p.ExchangeRateIsOverride, &p.Method, &transactionID, &p.AddedByPersonID, &p.Verified, &verifiedAt, &p.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if exchangeRate.Valid {
+		p.ExchangeRate = &exchangeRate.Float64
+	}
+	if exchangeRateDate.Valid {
+		p.ExchangeRateDate = &exchangeRateDate.String
+	}
+	if transactionID.Valid {
+		p.TransactionID = &transactionID.String
+	}
+	if verifiedAt.Valid {
+		p.VerifiedAt = &verifiedAt.String
+	}
+	return p, nil
+}
+
+// ListPayments returns every payment for a session, oldest first —
+// unfiltered by viewer identity (see api.filterPaymentsForViewer, which
+// filters GetSession's response; settlement math always uses this full list
+// regardless of who's asking).
+func (s *Store) ListPayments(sessionID string) ([]models.Payment, error) {
+	rows, err := s.db.Query(
+		`SELECT id, payer_id, payee_id, amount, currency, exchange_rate, exchange_rate_date, exchange_rate_is_override, method, transaction_id, added_by_person_id, verified, verified_at, created_at
+		 FROM payments WHERE session_id = ? ORDER BY created_at ASC`, sessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	payments := []models.Payment{}
+	for rows.Next() {
+		p := models.Payment{SessionID: sessionID}
+		var exchangeRate sql.NullFloat64
+		var exchangeRateDate, transactionID, verifiedAt sql.NullString
+		if err := rows.Scan(&p.ID, &p.PayerID, &p.PayeeID, &p.Amount, &p.Currency, &exchangeRate, &exchangeRateDate, &p.ExchangeRateIsOverride, &p.Method, &transactionID, &p.AddedByPersonID, &p.Verified, &verifiedAt, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		if exchangeRate.Valid {
+			p.ExchangeRate = &exchangeRate.Float64
+		}
+		if exchangeRateDate.Valid {
+			p.ExchangeRateDate = &exchangeRateDate.String
+		}
+		if transactionID.Valid {
+			p.TransactionID = &transactionID.String
+		}
+		if verifiedAt.Valid {
+			p.VerifiedAt = &verifiedAt.String
+		}
+		payments = append(payments, p)
+	}
+	return payments, rows.Err()
+}
+
 func (s *Store) newUniqueSessionCode() (string, error) {
 	for i := 0; i < 10; i++ {
 		code, err := randomCode(5)
@@ -213,9 +335,12 @@ func (s *Store) GetSession(code string) (*models.Session, error) {
 	sess := &models.Session{}
 	var settledAt, creatorPersonID sql.NullString
 	err := s.db.QueryRow(
-		`SELECT id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, settled_at, currency, created_at, updated_at, last_access_at
+		`SELECT id, title, creator_token, join_mode, claim_mode, permission_mode, creator_person_id, is_settled, settled_at, currency, require_payment_verification, created_at, updated_at, last_access_at
 		 FROM sessions WHERE id = ?`, code,
-	).Scan(&sess.ID, &sess.Title, &sess.CreatorToken, &sess.JoinMode, &sess.ClaimMode, &sess.PermissionMode, &creatorPersonID, &sess.IsSettled, &settledAt, &sess.Currency, &sess.CreatedAt, &sess.UpdatedAt, &sess.LastAccessAt)
+	).Scan(
+		&sess.ID, &sess.Title, &sess.CreatorToken, &sess.JoinMode, &sess.ClaimMode, &sess.PermissionMode, &creatorPersonID, &sess.IsSettled, &settledAt, &sess.Currency,
+		&sess.RequirePaymentVerification, &sess.CreatedAt, &sess.UpdatedAt, &sess.LastAccessAt,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -240,6 +365,12 @@ func (s *Store) GetSession(code string) (*models.Session, error) {
 		return nil, err
 	}
 	sess.Bills = bills
+
+	payments, err := s.ListPayments(code)
+	if err != nil {
+		return nil, err
+	}
+	sess.Payments = payments
 
 	return sess, nil
 }
