@@ -30,8 +30,18 @@ func Open(path string) (*sql.DB, error) {
 	// different items at once) block-and-retry instead of failing outright
 	// with SQLITE_BUSY; journal_mode=WAL so readers don't block writers (or
 	// the writer) — see the pool sizing note below for why that requires
-	// more than one connection to actually pay off.
-	database, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")
+	// more than one connection to actually pay off. synchronous=NORMAL is
+	// the standard WAL pairing (safe in WAL mode — the only risk is losing
+	// the most recent commit(s) on an OS crash/power loss, not corruption)
+	// and avoids an fsync on every single commit. _txlock=immediate makes
+	// every write transaction take the writer lock up front at BEGIN
+	// rather than deferring it to the first write statement, avoiding the
+	// classic SQLite-over-Go failure mode where two deferred transactions
+	// both start as readers and then collide trying to upgrade to a
+	// writer. See server/benchmark/architecture note: under 1-CPU/high
+	// write concurrency this still doesn't eliminate SQLite's inherent
+	// single-writer throughput ceiling — that's expected, not a bug.
+	database, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}

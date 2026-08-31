@@ -113,6 +113,20 @@ CPUS=0.5 MEMORY=256m ./run_all.sh
   point (concurrent readers alongside the one writer). Raised to 8 —
   `busy_timeout(5000)` already made writers block-and-retry safely, so the
   cap of 1 wasn't load-bearing for correctness.
+- **Fixed 2026-08-31 — added `synchronous=NORMAL` and `_txlock=immediate`.**
+  `journal_mode=WAL` and `busy_timeout(5000)` were already set; these two
+  pragmas were the actual gap. `synchronous=NORMAL` is the standard safe
+  pairing with WAL and skips an fsync per commit; `_txlock=immediate`
+  takes the write lock at `BEGIN` instead of the first write statement,
+  avoiding deferred-transaction upgrade collisions. Item-add
+  ~1,889→~3,394 req/s, join ~941→~1,144 req/s.
+- **Not fixed — join throughput drops as concurrency rises** (SQLite's
+  single-writer model + `CreateJoiner`'s multi-statement transaction
+  holding the lock longer than a single-statement write). ~2,058 req/s at
+  `-c 1` vs. ~619-1,144 req/s at `-c 50` — more concurrent clients make it
+  *worse*, not just plateau. Fixing this for real needs an
+  application-level single-writer queue, a real architectural change —
+  see `architecture/benchmarking.md`'s Notes for the full investigation.
 
 Add more findings here as they're confirmed — this file, not the dated
 `results/*.md` reports, is where a settled diagnosis belongs so the next

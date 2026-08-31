@@ -69,3 +69,32 @@ None.
   SQLite's own file locking + the existing `busy_timeout(5000)` pragma
   already made concurrent writers block-and-retry rather than error, so
   the single-connection cap wasn't actually required for correctness.
+- **Fixed 2026-08-31**: added `synchronous=NORMAL` (safe with WAL — the
+  SQLite-documented risk is losing the most recent commit(s) on an OS
+  crash, not corruption; avoids an fsync on every commit) and
+  `_txlock=immediate` (write transactions take the writer lock at `BEGIN`
+  instead of deferring it to the first write statement, avoiding the
+  classic Go+SQLite failure mode where two deferred transactions both
+  start as readers and collide on the upgrade). `journal_mode=WAL` and
+  `busy_timeout(5000)` were already set from day one — WAL was not the
+  gap; the gap was the pool cap above plus these two pragmas. Combined
+  effect on the full suite: item-add ~1,889→~3,394 req/s, join
+  ~941→~1,144 req/s. See `results/full_run_20260831_221408.md`.
+- **Investigated, not fixed — SQLite's single-writer model means join
+  throughput *drops* as concurrency rises, not just plateaus.** Isolated
+  test (`hey` at `-c 1` vs `-c 50` against `/join`): 1 CPU cap, ~2,058
+  req/s sequential vs. ~619-1,144 req/s at 50 concurrent — i.e. more
+  concurrent clients made total throughput *worse*, the signature of
+  goroutines thrashing on `busy_timeout` retries for the one write lock
+  rather than a hard ceiling. Confirmed it's not lock-upgrade contention
+  specifically (`_txlock=immediate` barely moved it) and is partly
+  CPU-scarcity-driven (2 CPUs recovered more of the sequential ceiling
+  than 1 did). `CreateJoiner`'s multi-statement transaction
+  (`internal/store/store.go`) holds the writer lock longer than
+  `AddItem`'s single-statement write, which is likely why join suffers
+  more. The architectural fix — an application-level single-writer queue
+  (one goroutine draining a channel of write jobs, so concurrent requests
+  wait in cheap Go channel order instead of retrying against SQLite's busy
+  handler) — is a real design change, not a one-line tweak, and wasn't
+  applied; flagging it here for a deliberate decision rather than doing it
+  unprompted.
