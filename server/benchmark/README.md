@@ -36,8 +36,20 @@ whole suite:
 ./seed.sh           # create a session/bill, write ids to .seed.env (gitignored)
 ./bench_join.sh      # run just this one benchmark -> its own results/*.md
 ./bench_add_item.sh
+./bench_realistic_item_load.sh   # SESSIONS=10 BILLS_PER_SESSION=5 ITEMS_PER_BILL=10 CONCURRENCY=50 by default
 ./teardown.sh        # stop + remove the container when done
 ```
+
+`bench_realistic_item_load.sh` is different from the other `bench_*.sh` scripts:
+it doesn't use `hey` (which only targets one URL per run). It seeds N sessions
+each with several bills, then fires item-add requests across *all* of them
+concurrently via a small curl+xargs driver — the shape that matches this app's
+actual traffic (several people editing several bills around the same time),
+as opposed to `bench_add_item.sh`'s one-bill/many-sequential-inserts shape.
+**Its `Requests/sec` number is a client-side driver ceiling (bash+curl process
+spawn cost on the host machine, measured directly against a no-op endpoint),
+not the server's real capacity** — trust its latency percentiles and error
+count instead; see the script's own report output for the full caveat.
 
 Each `bench_*.sh` is standalone: run it directly and it makes its own
 timestamped report; pass it a path (`./bench_join.sh some/report.md`) and it

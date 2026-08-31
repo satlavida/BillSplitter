@@ -28,6 +28,11 @@ None.
   (`bench_healthz.sh`, `bench_read_session.sh`, `bench_join.sh`,
   `bench_add_item.sh`); each is runnable standalone (own timestamped
   report) or via `run_all.sh` (single combined report, all endpoints).
+  `bench_realistic_item_load.sh` is different — it's not a single-endpoint
+  `hey` run but a small curl+xargs driver that seeds N sessions x M bills
+  and fires item-adds across all of them concurrently, matching this app's
+  actual traffic shape (several people editing several bills at once)
+  rather than one bill taking thousands of sequential inserts.
 - `server/benchmark/results/*.md` — committed, dated reports; each carries
   the git commit sha it was measured against.
 - `server/benchmark/README.md` — full usage, how to add a new endpoint
@@ -98,3 +103,17 @@ None.
   handler) — is a real design change, not a one-line tweak, and wasn't
   applied; flagging it here for a deliberate decision rather than doing it
   unprompted.
+- **Deprioritized the above by design, not oversight.** `join`/session
+  creation is a low-frequency action (a handful of times per session,
+  ever) — the endpoint that actually matters under concurrency is item-add
+  across many sessions/bills at once (e.g. 10 sessions x 5 bills x 10
+  items being edited around the same time). Verified that shape directly
+  with `bench_realistic_item_load.sh`: 500 item-add requests spread across
+  50 different bills in 10 different sessions, concurrency 50, **0
+  errors**, p50 2.9ms / p99 36.5ms — no sign of the join-style
+  concurrency degradation, consistent with `AddItem`'s single-statement
+  write (vs. `CreateJoiner`'s multi-statement transaction) scaling *up*
+  with concurrency in isolation too (~3,881 req/s at `-c 1` →
+  ~5,284 req/s at `-c 50` via direct `hey` test). The write-serialization
+  queue idea above stays parked unless join/create-session traffic
+  patterns actually change.
