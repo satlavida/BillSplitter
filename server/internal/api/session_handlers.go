@@ -428,7 +428,7 @@ func (a *API) requireEditPermission(w http.ResponseWriter, r *http.Request, code
 	if r.Header.Get("X-Joiner-Token") == "" {
 		return true
 	}
-	sess, err := a.store.GetSession(code)
+	gate, err := a.store.GetSessionGate(code)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return false
@@ -437,7 +437,7 @@ func (a *API) requireEditPermission(w http.ResponseWriter, r *http.Request, code
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return false
 	}
-	if sess.PermissionMode == models.PermissionModeReadOnly {
+	if gate.PermissionMode == string(models.PermissionModeReadOnly) {
 		writeError(w, http.StatusForbidden, "this session is read-only for joiners")
 		return false
 	}
@@ -451,7 +451,7 @@ func (a *API) requireEditPermission(w http.ResponseWriter, r *http.Request, code
 // session wasn't found, couldn't be loaded, or was settled; the caller
 // should return immediately in all of those cases.
 func (a *API) requireNotSettled(w http.ResponseWriter, r *http.Request, code string) bool {
-	sess, err := a.store.GetSession(code)
+	gate, err := a.store.GetSessionGate(code)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return false
@@ -460,7 +460,7 @@ func (a *API) requireNotSettled(w http.ResponseWriter, r *http.Request, code str
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return false
 	}
-	if sess.IsSettled {
+	if gate.IsSettled {
 		writeError(w, http.StatusConflict, "session has been settled")
 		return false
 	}

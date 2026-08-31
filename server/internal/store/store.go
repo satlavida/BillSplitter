@@ -331,6 +331,26 @@ func (s *Store) TouchLastAccess(sessionID string) error {
 	return err
 }
 
+// SessionGate is the minimal per-request info requireNotSettled and
+// requireEditPermission need — a narrow query so hot mutation paths
+// (AddItem et al.) don't pay for a full GetSession (all people/bills/items)
+// just to check one bool and one string.
+type SessionGate struct {
+	IsSettled      bool
+	PermissionMode string
+}
+
+func (s *Store) GetSessionGate(code string) (SessionGate, error) {
+	var gate SessionGate
+	err := s.db.QueryRow(
+		`SELECT is_settled, permission_mode FROM sessions WHERE id = ?`, code,
+	).Scan(&gate.IsSettled, &gate.PermissionMode)
+	if errors.Is(err, sql.ErrNoRows) {
+		return SessionGate{}, ErrNotFound
+	}
+	return gate, err
+}
+
 func (s *Store) GetSession(code string) (*models.Session, error) {
 	sess := &models.Session{}
 	var settledAt, creatorPersonID sql.NullString
