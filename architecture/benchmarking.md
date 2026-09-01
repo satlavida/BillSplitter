@@ -138,3 +138,13 @@ None.
   ~5,284 req/s at `-c 50` via direct `hey` test). The write-serialization
   queue idea above stays parked unless join/create-session traffic
   patterns actually change.
+- **Noted, not fixed — `PurgeStaleSessions` (`internal/store/store.go`)
+  loops over stale session IDs doing one `imagePathsForSession` query plus
+  one `DELETE` per session, instead of batching with `WHERE session_id IN
+  (...)`.** Not fixed because it's the background cleanup ticker
+  (`CLEANUP_INTERVAL_MINUTES`, default 30 min — see
+  [background-cleanup.md](background-cleanup.md)), not user-facing
+  request traffic, so today's blast radius is low. Worth batching the same
+  way as `listItemsForBills`/`listAllocationsForItems` if session volume
+  (and therefore the stale-session count per sweep) grows large enough for
+  the sweep itself to matter.
