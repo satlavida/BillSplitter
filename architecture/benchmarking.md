@@ -26,8 +26,10 @@ None.
   (writes ids/tokens to gitignored `.seed.env`).
 - `server/benchmark/scripts/bench_*.sh` — one script per endpoint
   (`bench_healthz.sh`, `bench_read_session.sh`, `bench_join.sh`,
-  `bench_add_item.sh`); each is runnable standalone (own timestamped
-  report) or via `run_all.sh` (single combined report, all endpoints).
+  `bench_add_item.sh`, `bench_claim_item.sh`); each is runnable standalone
+  (own timestamped report) or via `run_all.sh` (single combined report, all
+  endpoints). `seed.sh` also seeds a second person and an item so
+  `bench_claim_item.sh` has something to claim against.
   `bench_realistic_item_load.sh` is different — it's not a single-endpoint
   `hey` run but a small curl+xargs driver that seeds N sessions x M bills
   and fires item-adds across all of them concurrently, matching this app's
@@ -103,6 +105,25 @@ None.
   handler) — is a real design change, not a one-line tweak, and wasn't
   applied; flagging it here for a deliberate decision rather than doing it
   unprompted.
+- **Fixed 2026-09-01**: `ClaimItem`/`UnclaimItem` — the hottest live-collab
+  write, fired on every item tap — called `store.GetSession` (full
+  people/bills/items/allocations/payments hydrate) to touch one item and
+  one person. `requireCreator` (every creator-authed route), `Join`,
+  `AddPayment`, `DeleteBill`/`PermanentlyDeleteBill`, and
+  `UpdateItem`/`DeleteItem` had the same shape, just for smaller session
+  fields (`creator_token`, `join_mode`, one bool, one bill/item/person
+  name). Replaced with narrow point queries (`GetCreatorToken`,
+  `GetSessionJoinInfo`, `GetRequirePaymentVerification`, `GetBillTitle`,
+  `GetPersonName`, `GetItem`) — see `changes/20260901_performance.md` for
+  the full endpoint-by-endpoint breakdown. Also fixed the N+1 still hiding
+  inside `GetSession` itself for the callers that legitimately need it
+  (`Join`, the public session-read endpoint, `GetSettlement`):
+  `listBills`→`listItems`→`listAllocations` was 1 query per bill plus 1
+  per item, batched down to 2 queries total (`WHERE ... IN (...)`)
+  regardless of session size. Claim-item went from ~110 req/s (p99 630ms)
+  to ~2,950 req/s (p99 60ms); join from ~1,116 to ~3,937 req/s. See
+  `results/full_run_20260901_100525.md` (before) vs.
+  `results/full_run_20260901_100905.md` (after).
 - **Deprioritized the above by design, not oversight.** `join`/session
   creation is a low-frequency action (a handful of times per session,
   ever) — the endpoint that actually matters under concurrency is item-add
