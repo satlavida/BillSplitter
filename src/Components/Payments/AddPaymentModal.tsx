@@ -147,7 +147,16 @@ const AddPaymentModal = ({ isOpen, onClose, people, sessionCurrency, defaultPaye
         </div>
         {payerId && payeeId && payerId === payeeId && <p className="text-xs text-red-600 dark:text-red-400">Payer and payee must be different people.</p>}
 
-        <Input type="number" step="any" min="0" label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} containerClassName="mb-0" />
+        <Input
+          type="number"
+          step="any"
+          min="0"
+          label="Amount"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          containerClassName="mb-0"
+          error={amount && !(parsedAmount > 0) ? 'Enter a valid amount' : undefined}
+        />
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Currency</label>

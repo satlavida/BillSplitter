@@ -2,7 +2,7 @@ import { useState, useRef, memo, useCallback, useEffect, type ChangeEvent, type 
 import useBillStore, { useBillItems, getDiscountedItemPrice } from '../billStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
-import { Button, Card, Heading } from '../ui/components';
+import { Button, Card, Heading, Input } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
 import EditableTitle from './EditableTitle';
@@ -53,52 +53,39 @@ const ItemForm = memo(({ onAddItem }: ItemFormProps) => {
     <form onSubmit={handleSubmit} className="mb-6">
       <div className="grid grid-cols-12 gap-2 mb-4">
         <div className="col-span-5">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Item Name</label>
-          <input
+          <Input
             ref={nameRef}
-            type="text"
+            label="Item Name"
             value={newItem.name}
             onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
             placeholder="e.g., Pizza"
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
             required
+            containerClassName="mb-0"
           />
         </div>
 
         <div className="col-span-4">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Price</label>
-          <input
+          <Input
             type="number"
             step="0.01"
+            label="Price"
             value={newItem.price}
             onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
             placeholder="0.00"
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
             required
+            containerClassName="mb-0"
           />
         </div>
 
         <div className="col-span-3">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Qty</label>
-          <input
+          <Input
             type="number"
             min="1"
+            label="Qty"
             value={newItem.quantity}
             onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
             required
+            containerClassName="mb-0"
           />
         </div>
       </div>
@@ -202,21 +189,7 @@ const TaxInput = memo(({ taxAmount, onTaxChange }: TaxInputProps) => {
 
   return (
     <div className="mb-6">
-      <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1 transition-colors">Tax Amount</label>
-      <input
-        ref={taxRef}
-        type="number"
-        min="0"
-        step="0.01"
-        value={taxAmount}
-        onChange={onTaxChange}
-        placeholder="0.00"
-        className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-          bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-          rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-          dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-          transition-colors"
-      />
+      <Input ref={taxRef} type="number" min="0" step="0.01" label="Tax Amount" value={taxAmount} onChange={onTaxChange} placeholder="0.00" containerClassName="mb-0" />
     </div>
   );
 });

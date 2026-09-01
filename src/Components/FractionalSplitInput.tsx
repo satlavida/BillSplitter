@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button } from '../ui/components';
+import { Button, Input } from '../ui/components';
 import type { Person } from '../schemas/bill.schema';
 import type { Allocation } from '../billStore';
 
@@ -100,14 +100,16 @@ const FractionalSplitInput = ({ people, quantity, allocations, onSave, onCancel 
               >
                 −
               </button>
-              <input
+              <Input
                 type="number"
                 min="0"
                 inputMode="decimal"
                 value={value}
                 onChange={(e) => handleFractionChange(personId, e.target.value)}
                 aria-label={`${person.name}'s share`}
-                className="w-full p-2 text-center border rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white border-zinc-300 dark:border-zinc-600"
+                className="text-center"
+                containerClassName="w-full"
+                compact
               />
               <button
                 type="button"

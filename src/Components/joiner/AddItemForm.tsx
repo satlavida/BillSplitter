@@ -3,7 +3,7 @@ import { addLiveItem } from '../../lib/liveApi';
 import { generateId } from '../../lib/generateId';
 import useSettingsStore from '../../settingsStore';
 import { defaultSplitTypeForQuantity } from '../../lib/defaultSplitType';
-import { Button, Dropdown } from '../../ui/components';
+import { Button, Dropdown, Input } from '../../ui/components';
 import type { SplitType } from '../../schemas/bill.schema';
 
 interface AddItemFormProps {
@@ -86,33 +86,38 @@ const AddItemForm = ({ code, billId, joinerToken, disabled, onAdded }: AddItemFo
 
   return (
     <div className="mt-2 p-3 rounded-md bg-zinc-50 dark:bg-zinc-700/50">
-      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>}
       <div className="flex flex-col gap-2">
-        <input
-          type="text"
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Item name"
-          className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-sm"
+          className="text-sm"
+          error={error ?? undefined}
+          compact
         />
-        <div className="flex gap-2">
-          <input
+        <div className="flex gap-2 items-start">
+          <Input
             type="number"
             min="0"
             step="0.01"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="Price"
-            className="w-1/2 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-sm"
+            className="text-sm"
+            containerClassName="w-1/2"
+            error={error ?? undefined}
+            compact
           />
-          <input
+          <Input
             type="number"
             min="1"
             step="1"
             value={quantity}
             onChange={(e) => handleQuantityChange(e.target.value)}
             placeholder="Qty"
-            className="w-1/2 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white text-sm"
+            className="text-sm"
+            containerClassName="w-1/2"
+            compact
           />
         </div>
         <Dropdown

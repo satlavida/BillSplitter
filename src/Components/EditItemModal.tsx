@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
-import { Modal, Button, Dropdown } from '../ui/components';
+import { Modal, Button, Dropdown, Input } from '../ui/components';
 import type { Item } from '../schemas/bill.schema';
 
 interface EditItemFormData {
@@ -79,62 +79,43 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: EditItemModalProps) =>
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Item">
       <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label htmlFor="itemName" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Item Name
-          </label>
-          <input
-            ref={nameInputRef}
-            id="itemName"
-            name="name"
-            type="text"
-            value={formData.name}
-            onChange={handleChange}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
-            placeholder="Enter item name"
-            required
-          />
-        </div>
+        <Input
+          ref={nameInputRef}
+          id="itemName"
+          name="name"
+          label="Item Name"
+          value={formData.name}
+          onChange={handleChange}
+          placeholder="Enter item name"
+          required
+        />
 
-        <div className="mb-4">
-          <label htmlFor="itemPrice" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Price
-          </label>
-          <input
-            id="itemPrice"
-            name="price"
-            type="number"
-            step="0.01"
-            value={formData.price}
-            onChange={handleChange}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
-            placeholder="0.00"
-            required
-          />
-        </div>
+        <Input
+          id="itemPrice"
+          name="price"
+          type="number"
+          step="0.01"
+          label="Price"
+          value={formData.price}
+          onChange={handleChange}
+          placeholder="0.00"
+          required
+        />
 
         <div className="mb-4">
           <label htmlFor="itemDiscount" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             Discount
           </label>
           <div className="flex space-x-2">
-            <input
+            <Input
               id="itemDiscount"
               name="discount"
               type="number"
               step="0.01"
               value={formData.discount}
               onChange={handleChange}
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
               placeholder="0.00"
+              containerClassName="mb-0 flex-1"
             />
             <Dropdown
               name="discountType"
@@ -148,25 +129,16 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: EditItemModalProps) =>
           </div>
         </div>
 
-        <div className="mb-4">
-          <label htmlFor="itemQuantity" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Quantity
-          </label>
-          <input
-            id="itemQuantity"
-            name="quantity"
-            type="number"
-            min="1"
-            value={formData.quantity}
-            onChange={handleChange}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
-            required
-          />
-        </div>
+        <Input
+          id="itemQuantity"
+          name="quantity"
+          type="number"
+          min="1"
+          label="Quantity"
+          value={formData.quantity}
+          onChange={handleChange}
+          required
+        />
 
         <div className="flex justify-end space-x-2">
           <Button variant="secondary" onClick={onClose} type="button">

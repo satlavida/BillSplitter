@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button } from '../ui/components';
+import { Alert, Button, Input } from '../ui/components';
 
 interface UpiNudgeProps {
   // Whether this person is currently owed money in the session's settlement
@@ -41,14 +41,13 @@ const UpiNudge = ({ owedMoney, myPersonUpiId, onSave, testId = 'upi-nudge' }: Up
   return (
     <Alert type="warning" className="mb-4" data-testid={testId}>
       <p className="text-sm mb-2">You're owed money — add your UPI ID so people know where to pay you.</p>
-      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>}
-      <div className="flex gap-2">
-        <input
-          type="text"
+      <div className="flex gap-2 items-start">
+        <Input
           value={upiId}
           onChange={(e) => setUpiId(e.target.value)}
           placeholder="name@bank"
-          className="flex-1 p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+          error={error ?? undefined}
+          containerClassName="mb-0 flex-1"
         />
         <Button size="sm" onClick={() => void handleSave()} disabled={saving || !upiId.trim()}>
           {saving ? 'Saving…' : 'Save'}

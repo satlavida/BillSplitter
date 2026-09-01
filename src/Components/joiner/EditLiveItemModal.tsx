@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
-import { Modal, Button, Dropdown } from '../../ui/components';
+import { Modal, Button, Dropdown, Input } from '../../ui/components';
 import type { SplitType } from '../../schemas/bill.schema';
 import type { LiveItem } from '../../schemas/live.schema';
 
@@ -53,50 +53,36 @@ const EditLiveItemModal = ({ isOpen, onClose, item, onSave }: EditLiveItemModalP
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Item">
       <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label htmlFor="joinerItemName" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Item Name
-          </label>
-          <input
-            ref={nameInputRef}
-            id="joinerItemName"
-            type="text"
-            value={name}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
-            required
-          />
-        </div>
+        <Input
+          ref={nameInputRef}
+          id="joinerItemName"
+          label="Item Name"
+          value={name}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+          required
+        />
 
         <div className="mb-4 flex gap-2">
-          <div className="w-1/2">
-            <label htmlFor="joinerItemPrice" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Price
-            </label>
-            <input
-              id="joinerItemPrice"
-              type="number"
-              step="0.01"
-              value={price}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
-              required
-            />
-          </div>
-          <div className="w-1/2">
-            <label htmlFor="joinerItemQuantity" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Quantity
-            </label>
-            <input
-              id="joinerItemQuantity"
-              type="number"
-              min="1"
-              value={quantity}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setQuantity(e.target.value)}
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
-              required
-            />
-          </div>
+          <Input
+            id="joinerItemPrice"
+            type="number"
+            step="0.01"
+            label="Price"
+            value={price}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
+            required
+            containerClassName="mb-0 w-1/2"
+          />
+          <Input
+            id="joinerItemQuantity"
+            type="number"
+            min="1"
+            label="Quantity"
+            value={quantity}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setQuantity(e.target.value)}
+            required
+            containerClassName="mb-0 w-1/2"
+          />
         </div>
 
         <div className="mb-4">
@@ -104,13 +90,13 @@ const EditLiveItemModal = ({ isOpen, onClose, item, onSave }: EditLiveItemModalP
             Discount
           </label>
           <div className="flex gap-2">
-            <input
+            <Input
               id="joinerItemDiscount"
               type="number"
               step="0.01"
               value={discount}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setDiscount(e.target.value)}
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800 transition-colors"
+              containerClassName="mb-0 flex-1"
             />
             <Dropdown
               value={discountType}
