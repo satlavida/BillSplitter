@@ -22,6 +22,7 @@ report_header "$REPORT" "BillSplitter Server — Full Benchmark Run"
 ./bench_read_session.sh "$REPORT"
 ./bench_join.sh "$REPORT"
 ./bench_add_item.sh "$REPORT"
+./bench_claim_item.sh "$REPORT"
 ./bench_realistic_item_load.sh "$REPORT"
 
 {
