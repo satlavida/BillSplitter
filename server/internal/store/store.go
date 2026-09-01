@@ -351,6 +351,99 @@ func (s *Store) GetSessionGate(code string) (SessionGate, error) {
 	return gate, err
 }
 
+// GetCreatorToken is the narrow query requireCreator needs — it used to
+// call GetSession (full hydrate) on every creator-authenticated request
+// just to compare one string, same shape as the GetSessionGate fix.
+func (s *Store) GetCreatorToken(code string) (string, error) {
+	var token string
+	err := s.db.QueryRow(`SELECT creator_token FROM sessions WHERE id = ?`, code).Scan(&token)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return token, err
+}
+
+// SessionJoinInfo is the narrow per-request info Join needs instead of a
+// full GetSession.
+type SessionJoinInfo struct {
+	CreatorPersonID *string
+	JoinMode        models.JoinMode
+}
+
+func (s *Store) GetSessionJoinInfo(code string) (SessionJoinInfo, error) {
+	var info SessionJoinInfo
+	var creatorPersonID sql.NullString
+	err := s.db.QueryRow(
+		`SELECT creator_person_id, join_mode FROM sessions WHERE id = ?`, code,
+	).Scan(&creatorPersonID, &info.JoinMode)
+	if errors.Is(err, sql.ErrNoRows) {
+		return SessionJoinInfo{}, ErrNotFound
+	}
+	if err != nil {
+		return SessionJoinInfo{}, err
+	}
+	if creatorPersonID.Valid {
+		info.CreatorPersonID = &creatorPersonID.String
+	}
+	return info, nil
+}
+
+// GetRequirePaymentVerification is the narrow query AddPayment needs
+// instead of a full GetSession.
+func (s *Store) GetRequirePaymentVerification(code string) (bool, error) {
+	var value bool
+	err := s.db.QueryRow(`SELECT require_payment_verification FROM sessions WHERE id = ?`, code).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	return value, err
+}
+
+// GetBillTitle is the narrow query DeleteBill/PermanentlyDeleteBill need
+// instead of a full GetSession, just to attribute an activity-log entry.
+func (s *Store) GetBillTitle(billID string) (string, error) {
+	var title string
+	err := s.db.QueryRow(`SELECT title FROM bills WHERE id = ?`, billID).Scan(&title)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return title, err
+}
+
+// GetPersonName is the narrow query several handlers need instead of a
+// full GetSession, just to attribute an activity-log entry.
+func (s *Store) GetPersonName(personID string) (string, error) {
+	var name string
+	err := s.db.QueryRow(`SELECT name FROM people WHERE id = ?`, personID).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return name, err
+}
+
+// GetItem is the narrow query UpdateItem/DeleteItem/ClaimItem/UnclaimItem
+// need instead of a full GetSession — the old row (for an activity-log
+// diff) or the current allocations (for the fraction-split claim cap and
+// the claim/unclaim delta), not the entire session's bills/items.
+func (s *Store) GetItem(itemID string) (*models.Item, error) {
+	var it models.Item
+	err := s.db.QueryRow(
+		`SELECT id, bill_id, name, price, quantity, discount, discount_type, split_type FROM items WHERE id = ?`, itemID,
+	).Scan(&it.ID, &it.BillID, &it.Name, &it.Price, &it.Quantity, &it.Discount, &it.DiscountType, &it.SplitType)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	allocations, err := s.listAllocations(itemID)
+	if err != nil {
+		return nil, err
+	}
+	it.ConsumedBy = allocations
+	return &it, nil
+}
+
 func (s *Store) GetSession(code string) (*models.Session, error) {
 	sess := &models.Session{}
 	var settledAt, creatorPersonID sql.NullString
@@ -527,10 +620,14 @@ func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 		return nil, err
 	}
 
+	itemsByBill, err := s.listItemsForBills(ids)
+	if err != nil {
+		return nil, err
+	}
 	for i := range bills {
-		items, err := s.listItems(bills[i].ID)
-		if err != nil {
-			return nil, err
+		items := itemsByBill[bills[i].ID]
+		if items == nil {
+			items = []models.Item{}
 		}
 		bills[i].Items = items
 	}
@@ -538,37 +635,97 @@ func (s *Store) listBills(sessionID string) ([]models.Bill, error) {
 	return bills, nil
 }
 
-func (s *Store) listItems(billID string) ([]models.Item, error) {
+// listItemsForBills batch-loads every item (and, in turn, every
+// allocation) for a set of bills in 2 queries total via WHERE ... IN (...)
+// (both on the existing idx_items_bill/idx_allocations_item indexes)
+// instead of the old 1-query-per-bill + 1-query-per-item fan-out — a
+// session with 5 bills x 10 items used to cost 1+5+50 queries just to
+// resolve items+allocations; this costs 2 regardless of session size.
+func (s *Store) listItemsForBills(billIDs []string) (map[string][]models.Item, error) {
+	byBill := make(map[string][]models.Item, len(billIDs))
+	if len(billIDs) == 0 {
+		return byBill, nil
+	}
+
+	placeholders := make([]string, len(billIDs))
+	args := make([]any, len(billIDs))
+	for i, id := range billIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
 	rows, err := s.db.Query(
-		`SELECT id, name, price, quantity, discount, discount_type, split_type FROM items WHERE bill_id = ?`, billID,
+		`SELECT id, bill_id, name, price, quantity, discount, discount_type, split_type
+		 FROM items WHERE bill_id IN (`+strings.Join(placeholders, ",")+`)`,
+		args...,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	items := []models.Item{}
+	var items []models.Item
+	var itemIDs []string
 	for rows.Next() {
 		var it models.Item
-		if err := rows.Scan(&it.ID, &it.Name, &it.Price, &it.Quantity, &it.Discount, &it.DiscountType, &it.SplitType); err != nil {
+		if err := rows.Scan(&it.ID, &it.BillID, &it.Name, &it.Price, &it.Quantity, &it.Discount, &it.DiscountType, &it.SplitType); err != nil {
 			return nil, err
 		}
-		it.BillID = billID
+		it.ConsumedBy = []models.Allocation{}
 		items = append(items, it)
+		itemIDs = append(itemIDs, it.ID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
+	allocsByItem, err := s.listAllocationsForItems(itemIDs)
+	if err != nil {
+		return nil, err
+	}
 	for i := range items {
-		allocations, err := s.listAllocations(items[i].ID)
-		if err != nil {
-			return nil, err
+		if allocs := allocsByItem[items[i].ID]; allocs != nil {
+			items[i].ConsumedBy = allocs
 		}
-		items[i].ConsumedBy = allocations
+		byBill[items[i].BillID] = append(byBill[items[i].BillID], items[i])
 	}
 
-	return items, nil
+	return byBill, nil
+}
+
+// listAllocationsForItems batch-loads every allocation for a set of items
+// in 1 query, the fan-out counterpart to listAllocations for a single item.
+func (s *Store) listAllocationsForItems(itemIDs []string) (map[string][]models.Allocation, error) {
+	byItem := make(map[string][]models.Allocation, len(itemIDs))
+	if len(itemIDs) == 0 {
+		return byItem, nil
+	}
+
+	placeholders := make([]string, len(itemIDs))
+	args := make([]any, len(itemIDs))
+	for i, id := range itemIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	rows, err := s.db.Query(
+		`SELECT item_id, person_id, value FROM item_allocations WHERE item_id IN (`+strings.Join(placeholders, ",")+`)`,
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var itemID string
+		var a models.Allocation
+		if err := rows.Scan(&itemID, &a.PersonID, &a.Value); err != nil {
+			return nil, err
+		}
+		byItem[itemID] = append(byItem[itemID], a)
+	}
+	return byItem, rows.Err()
 }
 
 func (s *Store) listAllocations(itemID string) ([]models.Allocation, error) {
