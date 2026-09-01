@@ -211,25 +211,25 @@ const SessionHomePage = () => {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         setPaidByEditBillId(bill.id);
                       }}
-                      className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
                     >
                       Paid by {session.people.find((p) => p.id === bill.paidByPersonId)?.name || '—'}
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={(e) => handleDeleteBill(e, bill.id, bill.title)}
                       aria-label={`Delete ${bill.title}`}
                       title="Delete bill"
-                      className="text-xs text-zinc-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 transition-colors"
                     >
                       Delete
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </Card>

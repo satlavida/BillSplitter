@@ -1,4 +1,4 @@
-import { Modal } from '../../ui/components';
+import { Modal, Button } from '../../ui/components';
 
 interface ClaimQuantityModalProps {
   isOpen: boolean;
@@ -49,14 +49,9 @@ const ClaimQuantityModal = ({ isOpen, onClose, itemName, quantity, max, selected
         ))}
       </div>
       {selected > 0 && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onUnclaim}
-          className="mt-4 text-sm text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-        >
+        <Button variant="danger" size="sm" disabled={busy} onClick={onUnclaim} className="mt-4">
           Remove my claim
-        </button>
+        </Button>
       )}
     </Modal>
   );

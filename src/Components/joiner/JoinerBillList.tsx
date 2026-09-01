@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Card } from '../../ui/components';
+import { Card, Button } from '../../ui/components';
 import ImageLightbox from '../ImageLightbox';
 import { LIVE_SERVER_URL, deleteLiveBill, LiveApiError } from '../../lib/liveApi';
 import { hasBillBeenVisited } from '../../lib/joinerVisitTracking';
@@ -80,15 +80,15 @@ const JoinerBillList = ({ code, bills, myPersonId, joinerToken, disabled, onChan
                         {bill.items.length} item{bill.items.length !== 1 ? 's' : ''}
                       </span>
                       {!disabled && (
-                        <button
-                          type="button"
+                        <Button
+                          variant="danger"
+                          size="sm"
                           onClick={(e) => handleDelete(e, bill)}
                           aria-label={`Delete ${bill.title}`}
                           title="Delete bill"
-                          className="text-xs text-zinc-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 transition-colors"
                         >
                           Delete
-                        </button>
+                        </Button>
                       )}
                     </span>
                   </div>

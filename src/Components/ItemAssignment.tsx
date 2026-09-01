@@ -130,14 +130,16 @@ const ItemCard = memo(({ item, people, onTogglePerson, onSetPersonQuantity, useD
             {hasDiscount && <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-400 transition-colors">({discountText})</span>}
           </p>
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => onOpenSplitDrawer(item)}
-          className="shrink-0 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+          className="shrink-0"
           title="Change how this item is split"
           aria-label="Split Type"
         >
           Split Type
-        </button>
+        </Button>
       </div>
 
       <div className="flex justify-between items-center mb-3">
