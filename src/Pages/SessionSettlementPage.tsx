@@ -6,7 +6,7 @@ import { calculateSettlement, calculateBillBalances, getEffectiveRate } from '..
 import { getDiscountedItemPrice } from '../lib/personTotals';
 import { getImageBlob } from '../lib/imageStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
-import { Card, Button, Modal, PrintWrapper, BackLink, Heading } from '../ui/components';
+import { Card, Button, ButtonGroup, Modal, PrintWrapper, BackLink, Heading } from '../ui/components';
 import type { Bill } from '../schemas/session.schema';
 import type { Person, Payment } from '../schemas/bill.schema';
 
@@ -101,9 +101,9 @@ const SessionSettlementPage = () => {
       <div className="mb-4 no-print">
         <BackLink to={`/session/${sessionId}`} className="text-sm">← Back to Session</BackLink>
       </div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4">
         <Heading margin="none">Settlement</Heading>
-        <div className="flex gap-1 no-print">
+        <ButtonGroup className="no-print">
           <Button size="sm" variant={viewMode === 'basic' ? 'primary' : 'secondary'} onClick={() => setViewMode('basic')}>
             Basic
           </Button>
@@ -124,7 +124,7 @@ const SessionSettlementPage = () => {
           >
             Print Summary PDF
           </Button>
-        </div>
+        </ButtonGroup>
       </div>
 
       <PrintWrapper>

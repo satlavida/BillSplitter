@@ -4,6 +4,7 @@
 // `import { X } from '../ui/components'` call sites across the app don't
 // need to change. Add new components to their own file + a line here.
 export * from './Button';
+export * from './ButtonGroup';
 export * from './Input';
 export * from './Card';
 export * from './Disclosure';
