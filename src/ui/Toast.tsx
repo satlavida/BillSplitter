@@ -18,7 +18,7 @@ const ToastItem = ({ toast }: { toast: Toast }) => {
   }, [toast.id, dismissToast]);
 
   return (
-    <div className={`flex items-center gap-3 rounded-md shadow-lg px-4 py-3 text-sm transition-colors ${KIND_STYLES[toast.kind]}`} role="status">
+    <div className={`flex items-center gap-4 rounded-md shadow-lg px-5 py-4 text-base transition-colors ${KIND_STYLES[toast.kind]}`} role="status">
       <span className="flex-1">{toast.message}</span>
       <button
         type="button"
@@ -26,7 +26,7 @@ const ToastItem = ({ toast }: { toast: Toast }) => {
         className="opacity-80 hover:opacity-100 focus:outline-none"
         aria-label="Dismiss notification"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
@@ -42,7 +42,7 @@ export const ToastContainer = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 max-w-sm no-print">
+    <div className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 max-w-md no-print">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} />
       ))}
