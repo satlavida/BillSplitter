@@ -2,7 +2,7 @@ import { useState } from 'react';
 import useSessionStore from '../sessionStore';
 import useSettingsStore from '../settingsStore';
 import { createLiveSession, deleteLiveSession, LiveApiError, LIVE_SERVER_URL } from '../lib/liveApi';
-import { Button, Card, Alert, Dropdown } from '../ui/components';
+import { Button, Card, Alert, Dropdown, Input } from '../ui/components';
 import type { Session } from '../schemas/session.schema';
 
 interface GoLiveSectionProps {
@@ -218,19 +218,17 @@ const GoLiveSection = ({ session, autoExpand }: GoLiveSectionProps) => {
         />
         {creatorPersonId === NEW_PERSON && (
           <>
-            <input
-              type="text"
+            <Input
               value={newPersonName}
               onChange={(e) => setNewPersonName(e.target.value)}
               placeholder="Your name"
-              className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+              containerClassName="mt-2 mb-0"
             />
-            <input
-              type="text"
+            <Input
               value={newPersonUpiId}
               onChange={(e) => setNewPersonUpiId(e.target.value)}
               placeholder="Your UPI ID (optional)"
-              className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white"
+              containerClassName="mt-2 mb-0"
             />
           </>
         )}

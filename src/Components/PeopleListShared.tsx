@@ -1,5 +1,5 @@
 import { useCallback, useRef, memo, type FormEvent } from 'react';
-import { Button } from '../ui/components';
+import { Button, Input } from '../ui/components';
 import type { Person } from '../schemas/bill.schema';
 
 // Presentational people-list pieces used by the session-level PeopleSection,
@@ -25,20 +25,9 @@ export const PersonInputForm = memo(({ onAddPerson }: PersonInputFormProps) => {
 
   return (
     <form onSubmit={handleSubmit} className="mb-4">
-      <div className="flex items-center">
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Enter name"
-          className="flex-grow p-2 border border-zinc-300 dark:border-zinc-600
-            bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-            rounded-l focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-            dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-            transition-colors"
-        />
-        <Button type="submit" className="rounded-l-none">
-          Add
-        </Button>
+      <div className="flex items-center gap-2">
+        <Input ref={inputRef} placeholder="Enter name" containerClassName="mb-0 flex-grow" />
+        <Button type="submit">Add</Button>
       </div>
     </form>
   );

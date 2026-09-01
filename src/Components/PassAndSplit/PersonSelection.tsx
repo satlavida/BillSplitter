@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import usePassAndSplitStore from 'components/PassAndSplit/stores/passAndSplitStore';
 import useBillStore from '../../billStore';
+import { Input, Button } from '../../ui/components';
 
 const PersonSelection = () => {
   const [newPersonName, setNewPersonName] = useState('');
@@ -88,31 +89,16 @@ const PersonSelection = () => {
 
       {/* Add new person form */}
       <div className={`p-4 border-t dark:border-gray-700 border-gray-200`}>
-        <form onSubmit={handleAddPerson} className="flex">
-          <input
-            type="text"
+        <form onSubmit={handleAddPerson} className="flex gap-2">
+          <Input
             value={newPersonName}
             onChange={(e) => setNewPersonName(e.target.value)}
             placeholder="Add a new person..."
-            className={`
-              flex-grow p-2 rounded-l-md border
-              dark:bg-gray-700 dark:border-gray-600 dark:text-white bg-white border-gray-300 text-gray-800
-            `}
+            containerClassName="mb-0 flex-grow"
           />
-          <button
-            type="submit"
-            disabled={!newPersonName.trim()}
-            className={`
-              px-4 py-2 rounded-r-md
-              ${
-                newPersonName.trim()
-                  ? `dark:bg-blue-600 dark:hover:bg-blue-700 bg-blue-500 hover:bg-blue-600 text-white`
-                  : `dark:bg-gray-700 dark:text-gray-500 bg-gray-200 text-gray-400`
-              }
-            `}
-          >
+          <Button type="submit" disabled={!newPersonName.trim()}>
             Add
-          </button>
+          </Button>
         </form>
       </div>
     </div>

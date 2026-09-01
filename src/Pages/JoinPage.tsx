@@ -6,7 +6,7 @@ import { recordJoinedSession } from '../lib/joinedSessionsStorage';
 import useSettingsStore from '../settingsStore';
 import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
-import { Button, Card, Alert, SearchSelect, BackLink, Heading } from '../ui/components';
+import { Button, Card, Alert, SearchSelect, BackLink, Heading, Input } from '../ui/components';
 
 // Captures a joiner's secret token into storage the moment it's observed —
 // the server only ever includes it once (see live.schema.ts's LiveJoiner
@@ -256,16 +256,7 @@ const JoinPage = () => {
         )}
 
         {!selectedPersonId && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Your name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white"
-            />
-          </div>
+          <Input label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name" />
         )}
 
         <Button onClick={handleSubmit} disabled={submitting}>

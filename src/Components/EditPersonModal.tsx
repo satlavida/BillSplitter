@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import { Modal, Button } from '../ui/components';
+import { Modal, Button, Input } from '../ui/components';
 import type { Person } from '../schemas/bill.schema';
 
 interface EditPersonModalProps {
@@ -37,39 +37,23 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }: EditPersonModalPro
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Person">
       <form onSubmit={handleSubmit}>
+        <Input
+          ref={inputRef}
+          id="personName"
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Enter name"
+          error={!name.trim() ? 'Name is required' : undefined}
+        />
         <div className="mb-4">
-          <label htmlFor="personName" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Name
-          </label>
-          <input
-            ref={inputRef}
-            id="personName"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
-            placeholder="Enter name"
-          />
-        </div>
-        <div className="mb-4">
-          <label htmlFor="personUpiId" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            UPI ID (optional)
-          </label>
-          <input
+          <Input
             id="personUpiId"
-            type="text"
+            label="UPI ID (optional)"
             value={upiId}
             onChange={(e) => setUpiId(e.target.value)}
-            className="w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
             placeholder="name@bank"
+            containerClassName="mb-0"
           />
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Lets others know where to pay this person back.</p>
         </div>

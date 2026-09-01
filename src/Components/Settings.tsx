@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import useCurrencyStore from '../currencyStore';
 import useSettingsStore from '../settingsStore';
 import { useShallow } from 'zustand/shallow';
-import { Checkbox, SearchSelect } from '../ui/components';
+import { Checkbox, SearchSelect, Input } from '../ui/components';
 import { getCurrencyOptions } from '../lib/currencyDisplay';
 
 const Settings = () => {
@@ -54,16 +54,11 @@ const Settings = () => {
           label="Add yourself to bill automatically"
         />
         {autoAddSelf && (
-          <input
-            type="text"
+          <Input
             value={selfName}
             onChange={(e) => setSelfName(e.target.value)}
             placeholder="Your name"
-            className="mt-2 w-full p-2 border border-zinc-300 dark:border-zinc-600
-              bg-white dark:bg-zinc-700 text-zinc-800 dark:text-white
-              rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1
-              dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-zinc-800
-              transition-colors"
+            containerClassName="mt-2 mb-0"
           />
         )}
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">This name will be added automatically to any new session you create.</p>
