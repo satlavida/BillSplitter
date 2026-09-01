@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { getLiveSession, joinLiveSession, getJoiner, LiveApiError } from '../lib/liveApi';
 import { getStoredJoinerId, setStoredJoinerId, clearStoredJoinerId, getStoredJoinerToken, setStoredJoinerToken } from '../lib/joinerStorage';
 import { recordJoinedSession } from '../lib/joinedSessionsStorage';
 import useSettingsStore from '../settingsStore';
 import JoinerSessionView from '../Components/joiner/JoinerSessionView';
 import type { LiveSession, LiveJoiner } from '../schemas/live.schema';
-import { Button, Card, Alert, SearchSelect } from '../ui/components';
+import { Button, Card, Alert, SearchSelect, BackLink, Heading } from '../ui/components';
 
 // Captures a joiner's secret token into storage the moment it's observed —
 // the server only ever includes it once (see live.schema.ts's LiveJoiner
@@ -140,11 +140,9 @@ const JoinPage = () => {
   if (loadState === 'not-found') {
     return (
       <div className="text-center py-8">
-        <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">Session not found</h2>
+        <Heading margin="sm">Session not found</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">The code "{code}" doesn't match a live session.</p>
-        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-          Go home
-        </Link>
+        <BackLink to="/">Go home</BackLink>
       </div>
     );
   }
@@ -152,11 +150,9 @@ const JoinPage = () => {
   if (loadState === 'error' || !session) {
     return (
       <div className="text-center py-8">
-        <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">Couldn't reach the live server</h2>
+        <Heading margin="sm">Couldn't reach the live server</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">Check your connection and try again.</p>
-        <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-          Go home
-        </Link>
+        <BackLink to="/">Go home</BackLink>
       </div>
     );
   }
@@ -164,7 +160,7 @@ const JoinPage = () => {
   if (joiner && joiner.status === 'pending') {
     return (
       <div className="text-center py-8">
-        <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
+        <Heading margin="sm">{session.title}</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-2 transition-colors">Waiting for the host to approve you.</p>
         <p className="text-zinc-800 dark:text-white transition-colors">
           Tell the host your code: <span className="font-mono font-semibold text-lg">{joiner.approvalCode}</span>
@@ -176,7 +172,7 @@ const JoinPage = () => {
   if (joiner && joiner.status === 'disapproved') {
     return (
       <div className="text-center py-8">
-        <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
+        <Heading margin="sm">{session.title}</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">The host didn't approve your request to join.</p>
         <Button onClick={() => setJoiner(null)}>Try again</Button>
       </div>
@@ -193,7 +189,7 @@ const JoinPage = () => {
       // no way to authenticate their claims, so ask them to rejoin.
       return (
         <div className="text-center py-8">
-          <h2 className="text-xl font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
+          <Heading margin="sm">{session.title}</Heading>
           <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">Your session needs a fresh join to continue.</p>
           <Button
             onClick={() => {
@@ -231,7 +227,7 @@ const JoinPage = () => {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Join {session.title}</h2>
+      <Heading>Join {session.title}</Heading>
 
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
 

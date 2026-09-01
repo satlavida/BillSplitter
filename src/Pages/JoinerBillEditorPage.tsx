@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getJoiner, getLiveSession, LIVE_SERVER_URL } from '../lib/liveApi';
 import { getStoredJoinerId, getStoredJoinerToken } from '../lib/joinerStorage';
 import { markBillVisited } from '../lib/joinerVisitTracking';
@@ -9,7 +9,7 @@ import JoinerItemRow from '../Components/joiner/JoinerItemRow';
 import JoinerItemListRow from '../Components/joiner/JoinerItemListRow';
 import AddItemForm from '../Components/joiner/AddItemForm';
 import JoinerScanReceiptButton from '../Components/joiner/JoinerScanReceiptButton';
-import { Alert, Card, ProgressBar, Checkbox, Button } from '../ui/components';
+import { Alert, Card, ProgressBar, Checkbox, BackLink, StepBar, Heading } from '../ui/components';
 import BillTotalsSummary from '../Components/BillTotalsSummary';
 import { toSessionCurrency } from '../lib/currencyConvert';
 import type { LiveSession } from '../schemas/live.schema';
@@ -108,9 +108,7 @@ const JoinerBillEditorPage = () => {
     return (
       <div>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4">You need to join this session first.</p>
-        <Link to={`/join/${code}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-          Go to join page
-        </Link>
+        <BackLink to={`/join/${code}`}>Go to join page</BackLink>
       </div>
     );
   }
@@ -124,9 +122,7 @@ const JoinerBillEditorPage = () => {
     return (
       <div>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4">Bill not found.</p>
-        <Link to={`/join/${code}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back
-        </Link>
+        <BackLink to={`/join/${code}`}>← Back</BackLink>
       </div>
     );
   }
@@ -162,7 +158,7 @@ const JoinerBillEditorPage = () => {
       case 1:
         return (
           <Card>
-            <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
+            <Heading>What items are you splitting?</Heading>
             {bill.items.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">No items yet.</p>
             ) : (
@@ -195,7 +191,7 @@ const JoinerBillEditorPage = () => {
       case 2:
         return (
           <Card>
-            <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Claim what's yours</h2>
+            <Heading>Claim what's yours</Heading>
             {bill.items.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">No items to claim yet.</p>
             ) : (
@@ -223,7 +219,7 @@ const JoinerBillEditorPage = () => {
         const totalItems = bill.items.length;
         return (
           <Card>
-            <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
+            <Heading>Bill Summary</Heading>
             {totalItems > 0 && (
               <div className="mb-3">
                 <ProgressBar value={(claimedCount / totalItems) * 100} label={`${claimedCount}/${totalItems} claimed`} />
@@ -276,9 +272,7 @@ const JoinerBillEditorPage = () => {
   return (
     <div>
       <div className="mb-4 no-print">
-        <Button variant="primary" size="sm" onClick={() => navigate(`/join/${code}`)}>
-          ← Back to Session
-        </Button>
+        <BackLink to={`/join/${code}`}>← Back to Session</BackLink>
       </div>
 
       <h1 className="text-lg font-semibold mb-2 text-zinc-800 dark:text-white transition-colors">{bill.title}</h1>
@@ -307,27 +301,7 @@ const JoinerBillEditorPage = () => {
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
 
       <div className="mb-8 no-print">
-        <div className="flex items-center justify-between">
-          {STEPS.map((s) => (
-            <div
-              key={s.number}
-              className="flex flex-col items-center cursor-pointer transition-opacity hover:opacity-80"
-              onClick={() => goToStep(s.number)}
-              role="button"
-              aria-label={`Go to step ${s.number}: ${s.title}`}
-              tabIndex={0}
-            >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                  step >= s.number ? 'bg-blue-600 text-white dark:bg-blue-500' : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
-                }`}
-              >
-                {s.number}
-              </div>
-              <span className="text-xs mt-1 dark:text-zinc-300">{s.title}</span>
-            </div>
-          ))}
-        </div>
+        <StepBar step={step} steps={STEPS} onStepClick={goToStep} />
       </div>
 
       {renderStep()}

@@ -4,7 +4,7 @@ import useBillStore, { useBillPersonTotals, useBillPersons, useBillItems, type P
 import useSessionStore from '../sessionStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
-import { Button, Card, PrintButton, PrintWrapper, Dropdown, Disclosure, ProgressBar } from '../ui/components';
+import { Button, Card, PrintButton, PrintWrapper, Dropdown, Disclosure, ProgressBar, Heading } from '../ui/components';
 import BillTotalsSummary from './BillTotalsSummary';
 import ImageLightbox from './ImageLightbox';
 import ItemSplitCard from './ItemSplitCard';
@@ -290,7 +290,7 @@ const BillSummary = () => {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Bill Summary</h2>
+      <Heading>Bill Summary</Heading>
 
       {sessionId && billId && (
         <div className="mb-4">

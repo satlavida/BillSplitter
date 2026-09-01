@@ -4,7 +4,7 @@ import useSessionStore from '../sessionStore';
 import useSettingsStore from '../settingsStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
-import { Card, Button, ToggleButton, SelectAllButton } from '../ui/components';
+import { Card, Button, ToggleButton, SelectAllButton, Heading } from '../ui/components';
 import SplitTypeDrawer from './SplitTypeDrawer';
 import PassAndSplitButton from './PassAndSplit/PassAndSplitButton';
 import type { Item, Person } from '../schemas/bill.schema';
@@ -489,7 +489,7 @@ const ItemAssignment = () => {
           <PassAndSplitButton />
         </div>
       </div>
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Who consumed what?</h2>
+      <Heading>Who consumed what?</Heading>
 
       {items.map((item) => (
         <ItemCard

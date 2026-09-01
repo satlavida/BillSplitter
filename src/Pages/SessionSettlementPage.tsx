@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
 import { calculateSettlement, calculateBillBalances, getEffectiveRate } from '../lib/settlement';
 import { getDiscountedItemPrice } from '../lib/personTotals';
 import { getImageBlob } from '../lib/imageStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
-import { Card, Button, Modal, PrintWrapper } from '../ui/components';
+import { Card, Button, Modal, PrintWrapper, BackLink, Heading } from '../ui/components';
 import type { Bill } from '../schemas/session.schema';
 import type { Person, Payment } from '../schemas/bill.schema';
 
@@ -84,9 +84,7 @@ const SessionSettlementPage = () => {
     return (
       <div>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4">Session not found.</p>
-        <Link to="/sessions" className="text-blue-600 dark:text-blue-400 hover:underline">
-          Back to sessions
-        </Link>
+        <BackLink to="/sessions">Back to sessions</BackLink>
       </div>
     );
   }
@@ -101,12 +99,10 @@ const SessionSettlementPage = () => {
   return (
     <div>
       <div className="mb-4 no-print">
-        <Link to={`/session/${sessionId}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back to Session
-        </Link>
+        <BackLink to={`/session/${sessionId}`} className="text-sm">← Back to Session</BackLink>
       </div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Settlement</h2>
+        <Heading margin="none">Settlement</Heading>
         <div className="flex gap-1 no-print">
           <Button size="sm" variant={viewMode === 'basic' ? 'primary' : 'secondary'} onClick={() => setViewMode('basic')}>
             Basic

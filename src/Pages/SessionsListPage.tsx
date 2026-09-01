@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
-import { Button, Card, Alert } from '../ui/components';
+import { Button, Card, Alert, Heading } from '../ui/components';
 import FileImport from '../Components/BillHistory/FileImport';
 import { listJoinedSessions, removeJoinedSession, type JoinedSession } from '../lib/joinedSessionsStorage';
 import { getSessionsStatus } from '../lib/liveApi';
@@ -162,7 +162,7 @@ const SessionsListPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-zinc-800 dark:text-white transition-colors">Sessions</h2>
+        <Heading margin="none">Sessions</Heading>
         <Button onClick={handleCreate}>New Session</Button>
       </div>
 

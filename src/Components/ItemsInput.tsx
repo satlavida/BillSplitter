@@ -2,7 +2,7 @@ import { useState, useRef, memo, useCallback, useEffect, type ChangeEvent, type 
 import useBillStore, { useBillItems, getDiscountedItemPrice } from '../billStore';
 import { formatAmountInCurrency } from '../lib/currencyDisplay';
 import { useShallow } from 'zustand/shallow';
-import { Button, Card } from '../ui/components';
+import { Button, Card, Heading } from '../ui/components';
 import ScanReceiptButton from './ScanReceiptButton';
 import EditItemModal from './EditItemModal';
 import EditableTitle from './EditableTitle';
@@ -314,7 +314,7 @@ const ItemsInput = () => {
     <div>
       <ScanReceiptButton />
       <EditableTitle title={title} onSave={handleTitleSave} />
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">What items are you splitting?</h2>
+      <Heading>What items are you splitting?</Heading>
 
       <Card>
         <ItemForm onAddItem={handleAddItem} />

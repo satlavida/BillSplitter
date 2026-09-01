@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
 import { getLiveSession, listJoiners, approveJoiner, disapproveJoiner, settleLiveSession, getLiveSettlement, getActivityLog, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync, createStaleResponseGuard, type LiveSyncStatus } from '../lib/liveSync';
 import { formatActivityLine } from '../lib/activityLine';
 import useToastStore from '../toastStore';
-import { Button, Card } from '../ui/components';
+import { Button, Card, BackLink } from '../ui/components';
 import type { Session } from '../schemas/session.schema';
 import type { LiveJoiner, LiveSettlement } from '../schemas/live.schema';
 
@@ -262,9 +261,9 @@ const LiveSessionPanel = ({ session }: LiveSessionPanelProps) => {
           <h3 className="font-medium text-zinc-800 dark:text-white transition-colors">Joiners</h3>
           <div className="flex items-center gap-3">
             {creatorToken && (
-              <Link to={`/session/${sessionId}/activity`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+              <BackLink to={`/session/${sessionId}/activity`} className="text-xs">
                 Activity log
-              </Link>
+              </BackLink>
             )}
             <span className="text-xs text-zinc-500 dark:text-zinc-400">{statusLabel[syncStatus]}</span>
           </div>

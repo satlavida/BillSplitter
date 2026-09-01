@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import useSessionStore from '../sessionStore';
 import { getPresence, listJoiners } from '../lib/liveApi';
 import { isNameEditLocked } from '../lib/presenceRules';
-import { Card } from '../ui/components';
+import { Card, Heading } from '../ui/components';
 import EditPersonModal from './EditPersonModal';
 import { PersonInputForm, PeopleList, type PresenceStatus } from './PeopleListShared';
 import type { Person } from '../schemas/bill.schema';
@@ -142,7 +142,7 @@ const PeopleSection = ({ session }: PeopleSectionProps) => {
 
   return (
     <Card className="mb-4">
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">People</h2>
+      <Heading>People</Heading>
 
       <PersonInputForm onAddPerson={handleAddPerson} />
 

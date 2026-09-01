@@ -4,7 +4,7 @@ import { getLiveSession, getLiveSettlement, addLiveBill, LIVE_SERVER_URL } from 
 import { connectLiveSync } from '../../lib/liveSync';
 import { usePresenceHeartbeat } from '../../hooks/usePresenceHeartbeat';
 import { generateId } from '../../lib/generateId';
-import { Alert, Button } from '../../ui/components';
+import { Alert, Button, Heading } from '../../ui/components';
 import JoinerBillList from './JoinerBillList';
 import JoinerSettlementSummary from './JoinerSettlementSummary';
 import JoinerUpiNudge from './JoinerUpiNudge';
@@ -89,7 +89,7 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-1 text-zinc-800 dark:text-white transition-colors">{session.title}</h2>
+      <Heading margin="sm">{session.title}</Heading>
       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
         {session.permissionMode === 'read_only' ? "You're in! You can view the host's changes here." : "You're in! Add items or claim what's yours."}
       </p>

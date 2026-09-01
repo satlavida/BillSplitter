@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useShallow } from 'zustand/shallow';
 import useSessionStore from '../sessionStore';
 import { getActivityLog, restoreLiveBill, permanentlyDeleteLiveBill, LIVE_SERVER_URL } from '../lib/liveApi';
 import { connectLiveSync } from '../lib/liveSync';
 import { formatRelativeTime } from '../lib/formatRelativeTime';
 import { formatActivityLine } from '../lib/activityLine';
-import { Card, Alert, Dropdown, Button } from '../ui/components';
+import { Card, Alert, Dropdown, Button, BackLink, Heading } from '../ui/components';
 import type { LiveActivityEntry } from '../schemas/live.schema';
 
 const ALL_PEOPLE = '__all__';
@@ -61,9 +61,7 @@ const ActivityLogPage = () => {
     return (
       <div>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4">Session not found.</p>
-        <Link to="/sessions" className="text-blue-600 dark:text-blue-400 hover:underline">
-          Back to sessions
-        </Link>
+        <BackLink to="/sessions">Back to sessions</BackLink>
       </div>
     );
   }
@@ -72,9 +70,7 @@ const ActivityLogPage = () => {
     return (
       <div>
         <div className="mb-4">
-          <Link to={`/session/${sessionId}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-            ← Back to Session
-          </Link>
+          <BackLink to={`/session/${sessionId}`} className="text-sm">← Back to Session</BackLink>
         </div>
         <p className="text-zinc-600 dark:text-zinc-400">Only the creator of a live session can view its activity log.</p>
       </div>
@@ -109,11 +105,9 @@ const ActivityLogPage = () => {
   return (
     <div>
       <div className="mb-4">
-        <Link to={`/session/${sessionId}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back to Session
-        </Link>
+        <BackLink to={`/session/${sessionId}`} className="text-sm">← Back to Session</BackLink>
       </div>
-      <h2 className="text-xl font-semibold mb-4 text-zinc-800 dark:text-white transition-colors">Activity Log</h2>
+      <Heading>Activity Log</Heading>
 
       {error && <Alert type="error" className="mb-4">{error}</Alert>}
 
