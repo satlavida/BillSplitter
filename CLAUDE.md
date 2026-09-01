@@ -164,9 +164,15 @@ scan).
   `jest.config.js` + `babel.config.js`. Tests live next to the source
   (`*.test.ts`).
 - **Playwright** (`e2e/`): `npm run e2e`. `playwright.config.ts`'s
-  `webServer` array boots both the Vite dev server (5173) and the real Go
-  backend (`go run ./cmd/server`, 8080, scratch gitignored DB/image dir) so
-  e2e specs exercise the real server, not mocks.
+  `webServer` array (shared with the screenshot config via
+  `playwright.webserver.ts`) boots both the Vite dev server (5173) and the
+  real Go backend (`go run ./cmd/server`, 8080, scratch gitignored DB/image
+  dir) so e2e specs exercise the real server, not mocks.
+- **Screenshots** (`screenshots/`): `npm run screenshots`. Not an
+  assertion suite — walks every client-facing route with a seeded session
+  and screenshots each one at desktop/tablet/phone sizes, for visual
+  review (see `screenshots/README.md`). Dated output under
+  `screenshots/output/`, gitignored.
 - **Go** (`server/`): `cd server && go test ./...`. Package-local
   `*_test.go` files; `internal/api/integration_test.go` spins up a real
   `httptest` server against a temp SQLite DB.

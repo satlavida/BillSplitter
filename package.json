@@ -20,6 +20,8 @@
     "test:coverage": "jest --coverage",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
+    "screenshots": "playwright test --config=playwright.screenshots.config.ts",
+    "screenshots:ui": "playwright test --config=playwright.screenshots.config.ts --ui",
     "deploy:beta": "vite build --mode beta && npx wrangler pages deploy docs --project-name=billsplitter-beta --branch=beta",
     "deploy:server": "./scripts/deploy-server.sh"
   },

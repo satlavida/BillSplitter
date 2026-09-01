@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { webServer } from './playwright.webserver';
 
 export default defineConfig({
   testDir: './e2e',
@@ -22,28 +23,5 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: [
-    {
-      command: 'npm run dev -- --port 5173 --strictPort',
-      url: 'http://localhost:5173',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30000,
-    },
-    {
-      // Go live-collaboration backend (server/). liveApi.ts's default
-      // VITE_LIVE_SERVER_URL fallback ('http://localhost:8080') already
-      // matches this port, so no Vite env override is needed for the
-      // frontend to find it.
-      command: 'go run ./cmd/server',
-      cwd: './server',
-      url: 'http://localhost:8080/healthz',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30000,
-      env: {
-        PORT: '8080',
-        DB_PATH: './data/e2e.db',
-        IMAGE_DIR: './data/e2e-images',
-      },
-    },
-  ],
+  webServer,
 });

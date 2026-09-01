@@ -36,6 +36,9 @@ src/version.ts
 /blob-report
 /playwright/.cache
 
+# Screenshot captures (npm run screenshots) — generated, dated per run
+/screenshots/output
+
 # Go server
 /server/data
 /server/cmd/server/data
