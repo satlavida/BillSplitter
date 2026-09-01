@@ -14,7 +14,8 @@ and the frontend's shared UI kit.
   operable by default, no extra open/close state).
   **Check here before adding a new one-off styled element** — there is no
   toast/notification system; errors are surfaced via local `useState` +
-  `Alert`.
+  `Alert`. See [ui-design-system.md](ui-design-system.md) for page-
+  composition conventions and a Creator-vs-Joiner UI-consistency audit.
 - `src/Components/ErrorBoundary.tsx` — class-component error boundary
   (React error boundaries can't be hooks). Mounted twice: `main.tsx` around
   the whole `<App>` (last-resort, unrecoverable short of reload), and

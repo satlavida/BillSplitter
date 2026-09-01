@@ -30,6 +30,7 @@ existing file, plus a row in the tables below.
 | Admin Panel | Server-rendered internal admin UI (backend-only) | [admin-panel.md](admin-panel.md) |
 | Background Cleanup | Stale-session purge and presence sweeping | [background-cleanup.md](background-cleanup.md) |
 | Infrastructure | Server entrypoint, config, middleware, deployment, shared UI kit | [infrastructure.md](infrastructure.md) |
+| UI Design System | Shared UI kit conventions, page-composition guidance, Creator vs. Joiner UI-consistency audit | [ui-design-system.md](ui-design-system.md) |
 | Server Benchmarking | Resource-capped Docker load testing of the Go server, dated markdown reports | [benchmarking.md](benchmarking.md) |
 
 ## Routes → feature doc
