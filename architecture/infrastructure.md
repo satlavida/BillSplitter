@@ -63,3 +63,29 @@ Every backend feature doc depends on this one for bootstrapping/config/middlewar
   constructs a new object/array. Grep the codebase for
   `useShallow((state) => ({` before adding a new multi-field selector to
   see the existing pattern.
+- **Go store: don't reach for `store.GetSession` in a new handler just to
+  read one field.** `GetSession` recursively hydrates the entire session
+  graph (`listPeople` + `listBills` + batched item/allocation queries) —
+  it's for callers that genuinely need the whole tree (`GetSettlement`, the
+  public session-read route, `Join`'s response body). A handler that only
+  needs a bool/string/single row (`is_settled`, `permission_mode`,
+  `creator_token`, `join_mode`, one bill/item/person) should call or add a
+  narrow point-lookup instead: `GetSessionGate`, `GetCreatorToken`,
+  `GetSessionJoinInfo`, `GetRequirePaymentVerification`, `GetBillTitle`,
+  `GetPersonName`, `GetItem` (all in `internal/store/store.go`). If none of
+  these fit, add a new narrow method rather than pulling the full graph and
+  walking it in memory — the in-memory-helper pattern (`findBillTitle`,
+  `findItemName`, `findItem`, `findPersonName`, `currentAllocationValue`)
+  was removed in `aa82dd4` precisely because it hid a full-session fetch
+  behind what looked like a cheap lookup. Real incident: `ClaimItem`/
+  `UnclaimItem` (fires on every item tap in live collaboration) were doing
+  this and topped out at ~110 req/s before the fix, ~2,950 req/s after —
+  see `changes/20260901_performance.md` and this file's "Fixed 2026-09-01"
+  entry in `architecture/benchmarking.md`.
+- **When hydrating a list of parents' children (bills→items,
+  items→allocations, or any future one-to-many), batch with `WHERE
+  parent_id IN (...)` and group in memory, not a per-parent query in a
+  loop.** See `listItemsForBills`/`listAllocationsForItems` in
+  `internal/store/store.go` for the pattern — this replaced an N+1 (1 query
+  per bill, then 1 per item) that made `GetSession` cost `1 + N + M` round
+  trips instead of 2, regardless of session size.
