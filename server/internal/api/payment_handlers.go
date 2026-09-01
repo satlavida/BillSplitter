@@ -42,7 +42,7 @@ func (a *API) AddPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, err := a.store.GetSession(code)
+	requirePaymentVerification, err := a.store.GetRequirePaymentVerification(code)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
@@ -83,7 +83,7 @@ func (a *API) AddPayment(w http.ResponseWriter, r *http.Request) {
 		id = generated
 	}
 
-	verified := settlement.ComputeInitialVerified(true, sess.RequirePaymentVerification, req.AddedByPersonID, req.PayeeID)
+	verified := settlement.ComputeInitialVerified(true, requirePaymentVerification, req.AddedByPersonID, req.PayeeID)
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 	payment := models.Payment{
 		ID:                     id,

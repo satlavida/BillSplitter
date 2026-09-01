@@ -195,7 +195,7 @@ type joinRequest struct {
 // auto-approves. Both are SSE-pushed to the creator.
 func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
-	sess, err := a.store.GetSession(code)
+	joinInfo, err := a.store.GetSessionJoinInfo(code)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
@@ -219,7 +219,7 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.ExistingPersonID != nil {
-		if sess.CreatorPersonID != nil && *req.ExistingPersonID == *sess.CreatorPersonID {
+		if joinInfo.CreatorPersonID != nil && *req.ExistingPersonID == *joinInfo.CreatorPersonID {
 			writeError(w, http.StatusForbidden, "cannot join as the session creator's own identity")
 			return
 		}
@@ -231,11 +231,8 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 
 	name := req.Name
 	if name == "" && req.ExistingPersonID != nil {
-		for _, p := range sess.People {
-			if p.ID == *req.ExistingPersonID {
-				name = p.Name
-				break
-			}
+		if personName, err := a.store.GetPersonName(*req.ExistingPersonID); err == nil {
+			name = personName
 		}
 	}
 
@@ -258,7 +255,7 @@ func (a *API) Join(w http.ResponseWriter, r *http.Request) {
 		newPersonID = &id
 	}
 
-	joiner, err := a.store.CreateJoiner(code, joinerID, name, req.ExistingPersonID, newPersonID, sess.JoinMode)
+	joiner, err := a.store.CreateJoiner(code, joinerID, name, req.ExistingPersonID, newPersonID, joinInfo.JoinMode)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create joiner")
 		return
@@ -376,7 +373,7 @@ func (a *API) requireCreator(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 
-	sess, err := a.store.GetSession(code)
+	creatorToken, err := a.store.GetCreatorToken(code)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return false
@@ -386,7 +383,7 @@ func (a *API) requireCreator(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 
-	if token != sess.CreatorToken {
+	if token != creatorToken {
 		writeError(w, http.StatusForbidden, "invalid creator token")
 		return false
 	}

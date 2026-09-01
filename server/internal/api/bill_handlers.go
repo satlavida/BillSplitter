@@ -125,19 +125,6 @@ func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
-// findBillTitle looks up a bill's title among sess.Bills (already loaded,
-// excludes soft-deleted bills — see listBills), for the activity-log
-// snapshot on a fresh delete. Returns "" if not found (e.g. the bill was
-// already soft-deleted by someone else in the meantime).
-func findBillTitle(sess *models.Session, billID string) string {
-	for _, b := range sess.Bills {
-		if b.ID == billID {
-			return b.Title
-		}
-	}
-	return ""
-}
-
 // DeleteBill handles DELETE /api/sessions/{code}/bills/{billId} — soft
 // deletes: the bill drops out of GetSession (so joiners/the creator's own
 // bill list stop seeing it) but stays recoverable. Dual-mode auth like
@@ -162,12 +149,7 @@ func (a *API) DeleteBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, err := a.store.GetSession(code)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load session")
-		return
-	}
-	billTitle := findBillTitle(sess, billID)
+	billTitle, _ := a.store.GetBillTitle(billID)
 
 	if err := a.store.SoftDeleteBill(code, billID); errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "bill not found")
@@ -178,7 +160,7 @@ func (a *API) DeleteBill(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if personID != "" {
-		personName := findPersonName(sess, personID)
+		personName, _ := a.store.GetPersonName(personID)
 		a.recordItemActivity(code, billID, billTitle, personID, personName, "delete_bill", 0, 0, fmt.Sprintf("deleted bill %q", billTitle))
 	}
 
@@ -231,10 +213,7 @@ func (a *API) PermanentlyDeleteBill(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	billID := r.PathValue("billId")
 
-	billTitle := ""
-	if sess, err := a.store.GetSession(code); err == nil {
-		billTitle = findBillTitle(sess, billID)
-	}
+	billTitle, _ := a.store.GetBillTitle(billID)
 	if billTitle == "" {
 		if deleted, err := a.store.ListDeletedBills(code); err == nil {
 			for _, b := range deleted {
@@ -440,14 +419,9 @@ func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	// Loaded before the write (when we'll need it for the activity log) so
 	// the "old" side of the diff reflects the item's state right before
 	// this edit, not after.
-	var sess *models.Session
+	var old *models.Item
 	if req.PersonID != "" {
-		var err error
-		sess, err = a.store.GetSession(code)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to load session")
-			return
-		}
+		old, _ = a.store.GetItem(itemID)
 	}
 
 	if err := a.store.UpdateItem(code, itemID, req.Name, req.Price, quantity, req.Discount, discountType, splitType); errors.Is(err, store.ErrNotFound) {
@@ -458,12 +432,10 @@ func (a *API) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sess != nil {
-		if old := findItem(sess, itemID); old != nil {
-			personName := findPersonName(sess, req.PersonID)
-			details := describeItemEdit(*old, req.Name, req.Price, quantity, req.Discount, discountType, splitType)
-			a.recordItemActivity(code, itemID, old.Name, req.PersonID, personName, "edit_item", 0, 0, details)
-		}
+	if old != nil {
+		personName, _ := a.store.GetPersonName(req.PersonID)
+		details := describeItemEdit(*old, req.Name, req.Price, quantity, req.Discount, discountType, splitType)
+		a.recordItemActivity(code, itemID, old.Name, req.PersonID, personName, "edit_item", 0, 0, details)
 	}
 
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
@@ -490,18 +462,11 @@ func (a *API) DeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sess *models.Session
-	if personID != "" {
-		var err error
-		sess, err = a.store.GetSession(code)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to load session")
-			return
-		}
-	}
 	itemName := ""
-	if sess != nil {
-		itemName = findItemName(sess, itemID)
+	if personID != "" {
+		if item, err := a.store.GetItem(itemID); err == nil {
+			itemName = item.Name
+		}
 	}
 
 	if err := a.store.DeleteItem(code, itemID); errors.Is(err, store.ErrNotFound) {
@@ -512,8 +477,8 @@ func (a *API) DeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sess != nil {
-		personName := findPersonName(sess, personID)
+	if personID != "" {
+		personName, _ := a.store.GetPersonName(personID)
 		a.recordItemActivity(code, itemID, itemName, personID, personName, "delete_item", 0, 0, fmt.Sprintf("removed %q", itemName))
 	}
 
@@ -524,62 +489,6 @@ func (a *API) DeleteItem(w http.ResponseWriter, r *http.Request) {
 type claimItemRequest struct {
 	PersonID string  `json:"personId"`
 	Value    float64 `json:"value"`
-}
-
-// findItemName looks up an item's name across every bill in sess — sess is
-// already fully loaded (bills+items) by the caller, so this avoids a
-// separate query just for the activity-log snapshot.
-func findItemName(sess *models.Session, itemID string) string {
-	for _, b := range sess.Bills {
-		for _, it := range b.Items {
-			if it.ID == itemID {
-				return it.Name
-			}
-		}
-	}
-	return ""
-}
-
-// findItem looks up an item's full row (needed for its Quantity/SplitType/
-// ConsumedBy, not just its name) across every bill in sess.
-func findItem(sess *models.Session, itemID string) *models.Item {
-	for bi := range sess.Bills {
-		for ii := range sess.Bills[bi].Items {
-			if sess.Bills[bi].Items[ii].ID == itemID {
-				return &sess.Bills[bi].Items[ii]
-			}
-		}
-	}
-	return nil
-}
-
-func findPersonName(sess *models.Session, personID string) string {
-	for _, p := range sess.People {
-		if p.ID == personID {
-			return p.Name
-		}
-	}
-	return ""
-}
-
-// currentAllocationValue returns a person's existing approved allocation
-// value for an item (0 if none), used to compute delta_value for the
-// activity log — ClaimItemFreeSelect/ApproveClaim upsert an absolute value,
-// not an additive one, so the caller must diff against the prior value.
-func currentAllocationValue(sess *models.Session, itemID, personID string) float64 {
-	for _, b := range sess.Bills {
-		for _, it := range b.Items {
-			if it.ID != itemID {
-				continue
-			}
-			for _, c := range it.ConsumedBy {
-				if c.PersonID == personID {
-					return c.Value
-				}
-			}
-		}
-	}
-	return 0
 }
 
 // ClaimItem handles POST /api/sessions/{code}/bills/{billId}/items/{itemId}/claims
@@ -599,7 +508,7 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	itemID := r.PathValue("itemId")
 
-	sess, err := a.store.GetSession(code)
+	gate, err := a.store.GetSessionGate(code)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
@@ -608,7 +517,7 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load session")
 		return
 	}
-	if sess.IsSettled {
+	if gate.IsSettled {
 		writeError(w, http.StatusConflict, "session has been settled")
 		return
 	}
@@ -633,17 +542,30 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 		value = 1
 	}
 
+	item, err := a.store.GetItem(itemID)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "item not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load item")
+		return
+	}
+
 	// Quantity Split items have a hard pool to share: a claim can't push the
 	// total claimed past the item's own quantity. Equal-split items have no
 	// such cap — their claim value is always exactly 1 (presence-only), not
 	// quantity-bound. This mirrors JoinerItemRow.tsx's frontend cap, which
 	// only bounds what's *shown*; the real enforcement has to live here,
 	// since a joiner could otherwise post directly past the UI's cap.
-	if item := findItem(sess, itemID); item != nil && item.SplitType == "fraction" {
+	var currentValue float64
+	if item.SplitType == "fraction" {
 		var othersTotal float64
 		for _, c := range item.ConsumedBy {
 			if c.PersonID != req.PersonID {
 				othersTotal += c.Value
+			} else {
+				currentValue = c.Value
 			}
 		}
 		const epsilon = 1e-6
@@ -655,17 +577,23 @@ func (a *API) ClaimItem(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, fmt.Sprintf("Only %g left to claim on this item", remaining))
 			return
 		}
+	} else {
+		for _, c := range item.ConsumedBy {
+			if c.PersonID == req.PersonID {
+				currentValue = c.Value
+				break
+			}
+		}
 	}
 
-	itemName := findItemName(sess, itemID)
-	personName := findPersonName(sess, req.PersonID)
-	delta := value - currentAllocationValue(sess, itemID, req.PersonID)
+	personName, _ := a.store.GetPersonName(req.PersonID)
+	delta := value - currentValue
 
 	if err := a.store.ClaimItemFreeSelect(code, itemID, req.PersonID, value); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to claim item")
 		return
 	}
-	a.recordItemActivity(code, itemID, itemName, req.PersonID, personName, "claim", delta, value, "")
+	a.recordItemActivity(code, itemID, item.Name, req.PersonID, personName, "claim", delta, value, "")
 	a.hub.Broadcast(code, sse.Event{Kind: "item.updated", ID: itemID})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
@@ -706,14 +634,23 @@ func (a *API) UnclaimItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, err := a.store.GetSession(code)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load session")
+	item, err := a.store.GetItem(itemID)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusInternalServerError, "failed to load item")
 		return
 	}
-	itemName := findItemName(sess, itemID)
-	personName := findPersonName(sess, personID)
-	oldValue := currentAllocationValue(sess, itemID, personID)
+	itemName := ""
+	var oldValue float64
+	if item != nil {
+		itemName = item.Name
+		for _, c := range item.ConsumedBy {
+			if c.PersonID == personID {
+				oldValue = c.Value
+				break
+			}
+		}
+	}
+	personName, _ := a.store.GetPersonName(personID)
 
 	if err := a.store.UnclaimItem(code, itemID, personID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to unclaim item")
