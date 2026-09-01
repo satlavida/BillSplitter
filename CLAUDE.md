@@ -124,6 +124,25 @@ Structure: `server/cmd/server/main.go` (entrypoint) →
 - **Deployment**: `server/DEPLOYMENT.md` — systemd unit, Docker, nginx/TLS
   reverse-proxy notes (SSE needs `proxy_buffering off`), full env var
   reference.
+- **Avoid full-session over-fetch and N+1 hydration in `internal/store`.**
+  `store.GetSession` recursively hydrates the whole session graph
+  (people/bills/items/allocations/payments) — reserve it for handlers that
+  genuinely need the full tree (`GetSettlement`, the public session-read
+  route, `Join`'s response body). A handler that only needs one field
+  (`is_settled`, `permission_mode`, `creator_token`, one bill/item/person)
+  should use or add a narrow point-lookup (`GetSessionGate`,
+  `GetCreatorToken`, `GetSessionJoinInfo`, `GetRequirePaymentVerification`,
+  `GetBillTitle`, `GetPersonName`, `GetItem`) instead of fetching the whole
+  graph and walking it in memory. When hydrating one-to-many relations
+  (bills→items, items→allocations), batch with `WHERE parent_id IN (...)`
+  (see `listItemsForBills`/`listAllocationsForItems`) rather than a
+  per-parent query in a loop. This class of bug previously dropped
+  claim-item throughput to ~110 req/s under load (fixed in `aa82dd4`/
+  `46158ca`, see `architecture/infrastructure.md`'s Notes and
+  `changes/20260901_performance.md` for the full writeup) — when adding a
+  new handler or store method, check whether it needs the full session or
+  just a field, and check `server/benchmark/` before assuming a query
+  shape is fine at scale.
 
 ### Receipt scanning specifics
 
