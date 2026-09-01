@@ -85,28 +85,24 @@ const EditLiveItemModal = ({ isOpen, onClose, item, onSave }: EditLiveItemModalP
           />
         </div>
 
-        <div className="mb-4">
-          <label htmlFor="joinerItemDiscount" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Discount
-          </label>
-          <div className="flex gap-2">
-            <Input
-              id="joinerItemDiscount"
-              type="number"
-              step="0.01"
-              value={discount}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setDiscount(e.target.value)}
-              containerClassName="mb-0 flex-1"
-            />
-            <Dropdown
-              value={discountType}
-              onChange={(e) => setDiscountType(e.target.value as 'flat' | 'percentage')}
-              options={[
-                { value: 'flat', label: 'Flat' },
-                { value: 'percentage', label: '%' },
-              ]}
-            />
-          </div>
+        <div className="mb-4 flex gap-2 items-end">
+          <Input
+            id="joinerItemDiscount"
+            type="number"
+            step="0.01"
+            label="Discount"
+            value={discount}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setDiscount(e.target.value)}
+            containerClassName="mb-0 flex-1"
+          />
+          <Dropdown
+            value={discountType}
+            onChange={(e) => setDiscountType(e.target.value as 'flat' | 'percentage')}
+            options={[
+              { value: 'flat', label: 'Flat' },
+              { value: 'percentage', label: '%' },
+            ]}
+          />
         </div>
 
         <div className="mb-4">

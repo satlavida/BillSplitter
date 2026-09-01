@@ -13,12 +13,21 @@ const EditPersonModal = ({ isOpen, onClose, person, onSave }: EditPersonModalPro
   const [name, setName] = useState('');
   const [upiId, setUpiId] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
 
-  // Initialize name when modal opens
+  // Reset the form fields synchronously during render on the
+  // closed->open transition, rather than in a useEffect — an effect runs
+  // after the first paint, so `name` would still be its stale/empty value
+  // (from before `person` populated it) for one frame, which was enough
+  // to flash a false "Name is required" error on every open.
+  if (isOpen && !wasOpenRef.current && person) {
+    setName(person.name);
+    setUpiId(person.upiId);
+  }
+  wasOpenRef.current = isOpen;
+
   useEffect(() => {
     if (isOpen && person) {
-      setName(person.name);
-      setUpiId(person.upiId);
       // Focus the input when the modal opens
       setTimeout(() => {
         inputRef.current?.focus();

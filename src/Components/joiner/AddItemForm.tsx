@@ -105,7 +105,6 @@ const AddItemForm = ({ code, billId, joinerToken, disabled, onAdded }: AddItemFo
             placeholder="Price"
             className="text-sm"
             containerClassName="w-1/2"
-            error={error ?? undefined}
             compact
           />
           <Input

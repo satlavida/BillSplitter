@@ -89,7 +89,7 @@ const JoinerSessionView = ({ code, myPersonId, joinerToken }: JoinerSessionViewP
 
   return (
     <div>
-      <Heading margin="sm">{session.title}</Heading>
+      <Heading margin="mb-1">{session.title}</Heading>
       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
         {session.permissionMode === 'read_only' ? "You're in! You can view the host's changes here." : "You're in! Add items or claim what's yours."}
       </p>

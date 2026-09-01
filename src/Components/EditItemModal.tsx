@@ -102,31 +102,27 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: EditItemModalProps) =>
           required
         />
 
-        <div className="mb-4">
-          <label htmlFor="itemDiscount" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Discount
-          </label>
-          <div className="flex space-x-2">
-            <Input
-              id="itemDiscount"
-              name="discount"
-              type="number"
-              step="0.01"
-              value={formData.discount}
-              onChange={handleChange}
-              placeholder="0.00"
-              containerClassName="mb-0 flex-1"
-            />
-            <Dropdown
-              name="discountType"
-              value={formData.discountType}
-              onChange={handleChange}
-              options={[
-                { value: 'flat', label: 'Flat' },
-                { value: 'percentage', label: '%' },
-              ]}
-            />
-          </div>
+        <div className="mb-4 flex space-x-2 items-end">
+          <Input
+            id="itemDiscount"
+            name="discount"
+            type="number"
+            step="0.01"
+            label="Discount"
+            value={formData.discount}
+            onChange={handleChange}
+            placeholder="0.00"
+            containerClassName="mb-0 flex-1"
+          />
+          <Dropdown
+            name="discountType"
+            value={formData.discountType}
+            onChange={handleChange}
+            options={[
+              { value: 'flat', label: 'Flat' },
+              { value: 'percentage', label: '%' },
+            ]}
+          />
         </div>
 
         <Input

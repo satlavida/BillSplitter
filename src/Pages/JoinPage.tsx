@@ -140,7 +140,7 @@ const JoinPage = () => {
   if (loadState === 'not-found') {
     return (
       <div className="text-center py-8">
-        <Heading margin="sm">Session not found</Heading>
+        <Heading margin="mb-2">Session not found</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">The code "{code}" doesn't match a live session.</p>
         <BackLink to="/">Go home</BackLink>
       </div>
@@ -150,7 +150,7 @@ const JoinPage = () => {
   if (loadState === 'error' || !session) {
     return (
       <div className="text-center py-8">
-        <Heading margin="sm">Couldn't reach the live server</Heading>
+        <Heading margin="mb-2">Couldn't reach the live server</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">Check your connection and try again.</p>
         <BackLink to="/">Go home</BackLink>
       </div>
@@ -160,7 +160,7 @@ const JoinPage = () => {
   if (joiner && joiner.status === 'pending') {
     return (
       <div className="text-center py-8">
-        <Heading margin="sm">{session.title}</Heading>
+        <Heading margin="mb-2">{session.title}</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-2 transition-colors">Waiting for the host to approve you.</p>
         <p className="text-zinc-800 dark:text-white transition-colors">
           Tell the host your code: <span className="font-mono font-semibold text-lg">{joiner.approvalCode}</span>
@@ -172,7 +172,7 @@ const JoinPage = () => {
   if (joiner && joiner.status === 'disapproved') {
     return (
       <div className="text-center py-8">
-        <Heading margin="sm">{session.title}</Heading>
+        <Heading margin="mb-2">{session.title}</Heading>
         <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">The host didn't approve your request to join.</p>
         <Button onClick={() => setJoiner(null)}>Try again</Button>
       </div>
@@ -189,7 +189,7 @@ const JoinPage = () => {
       // no way to authenticate their claims, so ask them to rejoin.
       return (
         <div className="text-center py-8">
-          <Heading margin="sm">{session.title}</Heading>
+          <Heading margin="mb-2">{session.title}</Heading>
           <p className="text-zinc-600 dark:text-zinc-400 mb-4 transition-colors">Your session needs a fresh join to continue.</p>
           <Button
             onClick={() => {

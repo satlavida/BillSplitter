@@ -24,8 +24,12 @@ export const Input = memo(
     ref,
     ...props
   }: InputProps) => {
+    // useId() is always unique per mounted instance, so it's a safe
+    // fallback on its own — falling back through `name` first (a tempting
+    // shortcut, since it reads better in devtools) risks two Inputs that
+    // both omit `id` but share a `name` colliding on the same DOM id.
     const generatedId = useId();
-    const inputId = id || props.name || generatedId;
+    const inputId = id || generatedId;
     const errorId = `${inputId}-error`;
 
     return (
