@@ -2,7 +2,6 @@ import { useCallback, useState, type ChangeEvent } from 'react';
 import { Card, FileUpload, Spinner, Alert, Button } from '../ui/components';
 import ReceiptBoundaryEditor, { computeStartingQuad, FALLBACK_INSET_RATIO } from '../Components/ReceiptBoundaryEditor';
 import {
-  detectReceiptBoundary,
   enhanceReceiptFromImageAndQuad,
   binarizeReceiptFromImageAndQuad,
   loadImageFile,
@@ -14,19 +13,18 @@ import {
 
 /**
  * Dev-only page for visually validating the client-side receipt
- * boundary-detection/crop/enhance pipeline (src/lib/receiptEnhance.ts)
- * before it's wired into the real ScanReceiptButton flow. Entirely local:
- * no network calls, no sessionStore/billStore/imageStore writes. Reached
- * by navigating directly to the hash route (not linked from the sidebar).
+ * crop/enhance pipeline (src/lib/receiptEnhance.ts) before it's wired into
+ * the real ScanReceiptButton flow. Entirely local: no network calls, no
+ * sessionStore/billStore/imageStore writes. Reached by navigating directly
+ * to the hash route (not linked from the sidebar).
  *
- * Shows whatever boundary was auto-detected (or, if none was found, the
- * full image's corners) as draggable handles on a canvas overlay, so a
- * missed/imperfect detection can be corrected by hand before re-running
- * the crop + enhancement.
+ * Auto-detection is disabled (see detectReceiptBoundary's skeleton
+ * comment), so this always starts from the full image's corners as
+ * draggable handles on a canvas overlay, adjusted by hand before
+ * re-running the crop + enhancement.
  */
 const DevReceiptScanTestPage = () => {
   const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
-  const [detectedBoundary, setDetectedBoundary] = useState<Quad | null | undefined>(undefined);
   const [editableQuad, setEditableQuad] = useState<Quad | null>(null);
   const [enhanced, setEnhanced] = useState<EnhancedReceiptImage | null>(null);
   const [binarized, setBinarized] = useState<EnhancedReceiptImage | null>(null);
@@ -57,7 +55,6 @@ const DevReceiptScanTestPage = () => {
     setError(null);
     setEnhanced(null);
     setBinarized(null);
-    setDetectedBoundary(undefined);
     setEditableQuad(null);
     setImgEl(null);
     setIsProcessing(true);
@@ -66,10 +63,9 @@ const DevReceiptScanTestPage = () => {
       const img = await loadImageFile(file);
       setImgEl(img);
 
-      const detected = await detectReceiptBoundary(img);
-      setDetectedBoundary(detected);
-
-      const startingQuad = computeStartingQuad(detected, img);
+      // No auto-detection (see receiptEnhance.ts's detectReceiptBoundary) —
+      // always start from the full image.
+      const startingQuad = computeStartingQuad(null, img);
       setEditableQuad(startingQuad);
       await runOutputs(img, startingQuad);
     } catch (err) {
@@ -86,13 +82,6 @@ const DevReceiptScanTestPage = () => {
     void runOutputs(imgEl, quad);
   };
 
-  const resetToDetected = () => {
-    if (!imgEl) return;
-    const quad = computeStartingQuad(detectedBoundary ?? null, imgEl);
-    setEditableQuad(quad);
-    void runOutputs(imgEl, quad);
-  };
-
   const useFullImage = () => {
     if (!imgEl) return;
     const quad = insetQuad(fullImageQuad(imgEl), FALLBACK_INSET_RATIO);
@@ -104,8 +93,8 @@ const DevReceiptScanTestPage = () => {
     <div>
       <h2 className="text-lg font-semibold mb-2 dark:text-white">Receipt Scan Pipeline (Dev Test)</h2>
       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-        Local-only tool for validating boundary detection, perspective crop, and grayscale/contrast enhancement. Nothing here is
-        sent to the server.
+        Local-only tool for validating manual perspective crop and grayscale/contrast enhancement (no auto-detection). Nothing
+        here is sent to the server.
       </p>
 
       <Card>
@@ -129,19 +118,12 @@ const DevReceiptScanTestPage = () => {
             className="max-w-full border border-zinc-200 dark:border-zinc-700 rounded"
           />
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-            {detectedBoundary === undefined
-              ? 'Detecting...'
-              : detectedBoundary
-                ? 'Boundary auto-detected (green). Drag a corner to fine-tune it.'
-                : 'No confident boundary found — starting from the full image edges. Drag the corners in to select the receipt.'}
+            No auto-detection — starting from the full image edges. Drag the corners in to select the receipt.
             {isApplying && ' Re-applying crop...'}
           </p>
           <div className="flex gap-2 mt-2">
-            <Button variant="secondary" size="sm" onClick={resetToDetected}>
-              Reset to detected
-            </Button>
             <Button variant="secondary" size="sm" onClick={useFullImage}>
-              Use full image
+              Reset to full image
             </Button>
           </div>
         </Card>

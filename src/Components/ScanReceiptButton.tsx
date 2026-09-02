@@ -4,7 +4,7 @@ import useSessionStore from '../sessionStore';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import ReceiptBoundaryEditor, { computeStartingQuad } from './ReceiptBoundaryEditor';
-import { detectReceiptBoundary, enhanceReceiptFromImageAndQuad, loadImageFile, type Quad } from '../lib/receiptEnhance';
+import { enhanceReceiptFromImageAndQuad, loadImageFile, type Quad } from '../lib/receiptEnhance';
 import { saveImageBlob, dataUrlToBlob } from '../lib/imageStore';
 import { generateId } from '../lib/generateId';
 import { scanBillReceipt } from '../lib/receiptScan';
@@ -69,7 +69,7 @@ interface ReceiptFilePickerProps {
   onFileInputClick: () => void;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   useCameraCapture: boolean | undefined;
-  isDetecting: boolean;
+  isLoadingImage: boolean;
 }
 
 // Step 1: pick/capture a receipt photo. Selecting a file immediately hands
@@ -82,7 +82,7 @@ const ReceiptFilePicker = ({
   onFileInputClick,
   onFileChange,
   useCameraCapture,
-  isDetecting,
+  isLoadingImage,
 }: ReceiptFilePickerProps) => {
   // Only intercept the click if useCameraCapture is undefined
   const handleFileInputClick = (e: MouseEvent<HTMLInputElement>) => {
@@ -102,12 +102,12 @@ const ReceiptFilePicker = ({
         error={error}
         onClick={handleFileInputClick}
         onChange={onFileChange}
-        disabled={isDetecting}
+        disabled={isLoadingImage}
       />
 
-      {isDetecting && (
+      {isLoadingImage && (
         <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-          <Spinner size="sm" /> Analyzing photo...
+          <Spinner size="sm" /> Loading photo...
         </div>
       )}
 
@@ -134,9 +134,8 @@ const ScanReceiptButton = () => {
 
   // Crop step state: set once a file has been picked and loaded.
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
-  const [detectedBoundary, setDetectedBoundary] = useState<Quad | null | undefined>(undefined);
   const [editableQuad, setEditableQuad] = useState<Quad | null>(null);
-  const [isDetecting, setIsDetecting] = useState(false);
+  const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isOnline = useOnlineStatus();
@@ -151,9 +150,8 @@ const ScanReceiptButton = () => {
 
   const resetCropState = () => {
     setSelectedImg(null);
-    setDetectedBoundary(undefined);
     setEditableQuad(null);
-    setIsDetecting(false);
+    setIsLoadingImage(false);
     setIsProcessing(false);
   };
 
@@ -250,50 +248,26 @@ const ScanReceiptButton = () => {
     }
 
     setError(null);
-    setIsDetecting(true);
+    setIsLoadingImage(true);
 
     try {
       const img = await loadImageFile(file as File);
       setSelectedImg(img);
-
-      // A failure here shouldn't block scanning entirely — fall back to
-      // letting the user draw the boundary manually over the full image.
-      let detected: Quad | null = null;
-      try {
-        detected = await detectReceiptBoundary(img);
-      } catch (detectErr) {
-        console.error('Boundary detection failed, falling back to full image:', detectErr);
-      }
-
-      setDetectedBoundary(detected);
-      setEditableQuad(computeStartingQuad(detected, img));
+      // No auto-detection (see receiptEnhance.ts's detectReceiptBoundary) —
+      // always start from the full image and let the user drag the
+      // boundary in by hand.
+      setEditableQuad(computeStartingQuad(null, img));
     } catch (err) {
       console.error('Failed to load selected image:', err);
       setError('Failed to load the selected image. Please try a different photo.');
     } finally {
-      setIsDetecting(false);
-    }
-  };
-
-  const handleRedetectEdges = async () => {
-    if (!selectedImg) return;
-    setIsDetecting(true);
-    setError(null);
-    try {
-      const detected = await detectReceiptBoundary(selectedImg);
-      setDetectedBoundary(detected);
-      setEditableQuad(computeStartingQuad(detected, selectedImg));
-    } catch (err) {
-      console.error('Redetecting edges failed:', err);
-      setError('Could not redetect edges. You can still adjust the boundary manually.');
-    } finally {
-      setIsDetecting(false);
+      setIsLoadingImage(false);
     }
   };
 
   const handleResetBoundary = () => {
     if (!selectedImg) return;
-    setEditableQuad(computeStartingQuad(detectedBoundary ?? null, selectedImg));
+    setEditableQuad(computeStartingQuad(null, selectedImg));
   };
 
   const handleConfirmCrop = async () => {
@@ -362,16 +336,11 @@ const ScanReceiptButton = () => {
             onFileInputClick={openModeSelection}
             onFileChange={handleFileChange}
             useCameraCapture={useCameraCapture}
-            isDetecting={isDetecting}
+            isLoadingImage={isLoadingImage}
           />
         ) : (
           <div>
             <h3 className="font-medium mb-2 dark:text-white">Select receipt area</h3>
-            {isDetecting && !editableQuad && (
-              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-                <Spinner size="sm" /> Detecting receipt edges...
-              </div>
-            )}
             {editableQuad && (
               <>
                 <ReceiptBoundaryEditor
@@ -384,10 +353,7 @@ const ScanReceiptButton = () => {
                   Drag the corners so they line up with the receipt's edges.
                 </p>
                 <div className="flex gap-2 mt-2">
-                  <Button variant="secondary" size="sm" onClick={handleRedetectEdges} disabled={isDetecting}>
-                    {isDetecting ? <Spinner size="sm" /> : 'Redetect edges'}
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={handleResetBoundary} disabled={isDetecting}>
+                  <Button variant="secondary" size="sm" onClick={handleResetBoundary}>
                     Reset boundary
                   </Button>
                 </div>
@@ -400,7 +366,7 @@ const ScanReceiptButton = () => {
               <Button variant="secondary" onClick={closeModal} type="button">
                 Cancel
               </Button>
-              <Button onClick={handleConfirmCrop} disabled={isProcessing || isDetecting || !editableQuad}>
+              <Button onClick={handleConfirmCrop} disabled={isProcessing || !editableQuad}>
                 {isProcessing ? (
                   <div className="flex items-center">
                     <Spinner className="mr-2" />

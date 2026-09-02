@@ -9,13 +9,14 @@ with Pillow so the exercised scenario is obvious from the filename and
 reproducible without needing a real photo.
 
 - `angled-receipt.jpg` — a light rectangle with horizontal ruled lines,
-  rotated ~8° on a noisy dark background. Exercises the boundary-detection
-  + perspective-crop path (`detectReceiptBoundary` should find a
-  4-point quad here, `cropToQuad` should deskew it).
+  rotated ~8° on a noisy dark background. Auto-detection is currently
+  disabled (see `architecture/receipt-enhance.md`'s Notes), so this now
+  exercises the manual perspective-crop path: drag the corner handles to
+  the rectangle's true edges and confirm `cropToQuad`'s homography warp
+  deskews it cleanly.
 - `no-boundary.jpg` — uniform noisy gray, no distinct rectangle. Exercises
-  the no-confident-boundary fallback path (`detectReceiptBoundary` should
-  return `null`; the dev page should fall back to the full image's
-  corners, inset via `insetQuad` for easier dragging).
+  the always-full-image starting quad (inset via `insetQuad` for easier
+  dragging) now that there's no detector to fall back from.
 
 Regenerate/extend with a script like:
 

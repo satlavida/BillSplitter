@@ -1,4 +1,3 @@
-import { loadOpenCv } from './opencvLoader';
 import { computeResizedDimensions } from './imageResize';
 
 export interface Point {
@@ -17,8 +16,10 @@ export interface Quad {
 }
 
 /**
- * Sorts 4 unordered points (as returned by opencv's approxPolyDP, in
- * arbitrary winding order) into the TL/TR/BR/BL convention used by Quad.
+ * Sorts 4 unordered points (arbitrary winding order — e.g. from a contour
+ * detector) into the TL/TR/BR/BL convention used by Quad. Currently unused
+ * by detectReceiptBoundary (see its skeleton comment) but kept for that
+ * future detector to call.
  *
  * Standard technique: top-left has the smallest x+y sum, bottom-right the
  * largest; top-right has the smallest y-x difference, bottom-left the
@@ -41,65 +42,17 @@ export const orderQuadPoints = (points: Point[]): Quad => {
 };
 
 /**
- * Runs the receipt boundary through opencv's standard document-scanner
- * pipeline: grayscale -> blur -> Canny edges -> contours -> largest
- * 4-point contour. Returns null (not a thrown error) when no confident
- * quadrilateral is found, since "couldn't find a boundary" is an expected
- * outcome on busy backgrounds/poor lighting, not exceptional.
+ * Auto-detection is disabled: it used to run opencv.js's (wasm, ~5MB)
+ * document-scanner pipeline client-side, but that pipeline rarely found a
+ * confident boundary in practice and wasn't worth the bundle weight. This
+ * stub is a deliberate skeleton — same signature/call sites as before — so
+ * a future (likely server-side) detector can be dropped back in without
+ * touching callers. Until then this always returns null and callers fall
+ * back to letting the user draw the boundary manually
+ * (see computeStartingQuad/fullImageQuad).
  */
-export const detectReceiptBoundary = async (source: HTMLImageElement | HTMLCanvasElement): Promise<Quad | null> => {
-  const cv = await loadOpenCv();
-
-  const src = cv.imread(source);
-  const gray = new cv.Mat();
-  const blurred = new cv.Mat();
-  const edges = new cv.Mat();
-  const contours = new cv.MatVector();
-  const hierarchy = new cv.Mat();
-
-  try {
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-    cv.Canny(blurred, edges, 75, 200);
-    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
-    const imageArea = src.rows * src.cols;
-    let bestQuad: Point[] | null = null;
-    let bestArea = 0;
-
-    for (let i = 0; i < contours.size(); i++) {
-      const contour = contours.get(i);
-      const area = cv.contourArea(contour);
-
-      // Ignore slivers/noise contours; a plausible receipt boundary should
-      // cover a meaningful fraction of the photo.
-      if (area > bestArea && area > imageArea * 0.1) {
-        const perimeter = cv.arcLength(contour, true);
-        const approx = new cv.Mat();
-        cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
-
-        if (approx.rows === 4) {
-          const points: Point[] = [];
-          for (let p = 0; p < 4; p++) {
-            points.push({ x: approx.data32S[p * 2], y: approx.data32S[p * 2 + 1] });
-          }
-          bestQuad = points;
-          bestArea = area;
-        }
-        approx.delete();
-      }
-      contour.delete();
-    }
-
-    return bestQuad ? orderQuadPoints(bestQuad) : null;
-  } finally {
-    src.delete();
-    gray.delete();
-    blurred.delete();
-    edges.delete();
-    contours.delete();
-    hierarchy.delete();
-  }
+export const detectReceiptBoundary = async (_source: HTMLImageElement | HTMLCanvasElement): Promise<Quad | null> => {
+  return null;
 };
 
 const distance = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
@@ -116,44 +69,150 @@ export const computeWarpedDimensions = (quad: Quad): { width: number; height: nu
   return { width, height };
 };
 
+// A 3x3 homography as a flat row-major 9-element array.
+type Homography = number[];
+
+/**
+ * Solves for the 3x3 homography mapping each of 4 destination points to
+ * its corresponding source point (i.e. dst->src, which is what warping
+ * actually needs: for each output pixel, where in the source does it come
+ * from). Standard direct linear transform for a 4-point correspondence,
+ * solved as an 8x8 linear system via Gaussian elimination with partial
+ * pivoting (h33 fixed to 1, homogeneous scale is free).
+ */
+const solveHomography = (from: Point[], to: Point[]): Homography => {
+  // Each point pair contributes 2 rows to A·h = b, where h is the 8
+  // unknown entries of the homography (h33 = 1 fixed).
+  const A: number[][] = [];
+  const b: number[] = [];
+
+  for (let i = 0; i < 4; i++) {
+    const { x: sx, y: sy } = from[i];
+    const { x: dx, y: dy } = to[i];
+    A.push([sx, sy, 1, 0, 0, 0, -sx * dx, -sy * dx]);
+    b.push(dx);
+    A.push([0, 0, 0, sx, sy, 1, -sx * dy, -sy * dy]);
+    b.push(dy);
+  }
+
+  // Gaussian elimination with partial pivoting on the augmented [A|b].
+  const n = 8;
+  const M = A.map((row, i) => [...row, b[i]]);
+
+  for (let col = 0; col < n; col++) {
+    let pivotRow = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs(M[row][col]) > Math.abs(M[pivotRow][col])) pivotRow = row;
+    }
+    [M[col], M[pivotRow]] = [M[pivotRow], M[col]];
+
+    const pivot = M[col][col];
+    for (let row = 0; row < n; row++) {
+      if (row === col) continue;
+      const factor = M[row][col] / pivot;
+      for (let k = col; k <= n; k++) {
+        M[row][k] -= factor * M[col][k];
+      }
+    }
+  }
+
+  const h = M.map((row, i) => row[n] / row[i]);
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+};
+
+const applyHomography = (h: Homography, x: number, y: number): Point => {
+  const w = h[6] * x + h[7] * y + h[8];
+  return {
+    x: (h[0] * x + h[1] * y + h[2]) / w,
+    y: (h[3] * x + h[4] * y + h[5]) / w,
+  };
+};
+
+/**
+ * Bilinear-samples source at fractional (x, y); returns transparent black
+ * for coordinates outside the source bounds.
+ */
+const sampleBilinear = (data: Uint8ClampedArray, width: number, height: number, x: number, y: number, out: [number, number, number, number]) => {
+  if (x < 0 || y < 0 || x > width - 1 || y > height - 1) {
+    out[0] = out[1] = out[2] = out[3] = 0;
+    return;
+  }
+
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const x1 = Math.min(x0 + 1, width - 1);
+  const y1 = Math.min(y0 + 1, height - 1);
+  const fx = x - x0;
+  const fy = y - y0;
+
+  for (let c = 0; c < 4; c++) {
+    const p00 = data[(y0 * width + x0) * 4 + c];
+    const p10 = data[(y0 * width + x1) * 4 + c];
+    const p01 = data[(y1 * width + x0) * 4 + c];
+    const p11 = data[(y1 * width + x1) * 4 + c];
+    const top = p00 + (p10 - p00) * fx;
+    const bottom = p01 + (p11 - p01) * fx;
+    out[c] = top + (bottom - top) * fy;
+  }
+};
+
 /**
  * Perspective-corrects and crops the source image down to just the
- * detected quad, mapped onto an axis-aligned output rectangle (deskewing a
- * receipt photographed at an angle).
+ * given quad, mapped onto an axis-aligned output rectangle (deskewing a
+ * receipt photographed at an angle). Pure canvas/JS: computes the
+ * quad->rectangle homography, then for each output pixel walks the
+ * inverse mapping back into the source and bilinear-samples it — the
+ * standard way to do an arbitrary (non-affine) warp without a native
+ * canvas primitive for it.
  */
 export const cropToQuad = async (source: HTMLImageElement | HTMLCanvasElement, quad: Quad): Promise<HTMLCanvasElement> => {
-  const cv = await loadOpenCv();
   const { width, height } = computeWarpedDimensions(quad);
 
-  const src = cv.imread(source);
-  const dst = new cv.Mat();
-  const srcPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    quad.topLeft.x,
-    quad.topLeft.y,
-    quad.topRight.x,
-    quad.topRight.y,
-    quad.bottomRight.x,
-    quad.bottomRight.y,
-    quad.bottomLeft.x,
-    quad.bottomLeft.y,
-  ]);
-  const dstPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, width, 0, width, height, 0, height]);
-  const transform = cv.getPerspectiveTransform(srcPoints, dstPoints);
-
-  try {
-    cv.warpPerspective(src, dst, transform, new cv.Size(width, height));
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    cv.imshow(canvas, dst);
-    return canvas;
-  } finally {
-    src.delete();
-    dst.delete();
-    srcPoints.delete();
-    dstPoints.delete();
-    transform.delete();
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = 'naturalWidth' in source ? source.naturalWidth : source.width;
+  srcCanvas.height = 'naturalHeight' in source ? source.naturalHeight : source.height;
+  const srcCtx = srcCanvas.getContext('2d');
+  if (!srcCtx) {
+    throw new Error('Could not get canvas 2d context');
   }
+  srcCtx.drawImage(source, 0, 0);
+  const srcImageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+
+  const dstRect = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ];
+  const srcPoints = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
+  // dst->src homography, so each output pixel maps directly to a source
+  // sample coordinate (avoids inverting the matrix separately).
+  const homography = solveHomography(dstRect, srcPoints);
+
+  const outputData = new Uint8ClampedArray(width * height * 4);
+  const sample: [number, number, number, number] = [0, 0, 0, 0];
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const { x: sx, y: sy } = applyHomography(homography, x, y);
+      sampleBilinear(srcImageData.data, srcCanvas.width, srcCanvas.height, sx, sy, sample);
+      const i = (y * width + x) * 4;
+      outputData[i] = sample[0];
+      outputData[i + 1] = sample[1];
+      outputData[i + 2] = sample[2];
+      outputData[i + 3] = sample[3];
+    }
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get canvas 2d context');
+  }
+  ctx.putImageData(createImageData(outputData, width, height), 0, 0);
+  return canvas;
 };
 
 // jsdom (used by the Jest unit tests) doesn't implement the ImageData

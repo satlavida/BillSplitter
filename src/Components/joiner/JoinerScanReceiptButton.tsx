@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Modal, FileUpload, Spinner, Alert } from '../../ui/components';
 import useOnlineStatus from '../../hooks/useOnlineStatus';
 import ReceiptBoundaryEditor, { computeStartingQuad } from '../ReceiptBoundaryEditor';
-import { detectReceiptBoundary, enhanceReceiptFromImageAndQuad, loadImageFile, type Quad } from '../../lib/receiptEnhance';
+import { enhanceReceiptFromImageAndQuad, loadImageFile, type Quad } from '../../lib/receiptEnhance';
 import { dataUrlToBlob } from '../../lib/imageStore';
 import { uploadLiveImage } from '../../lib/liveApi';
 import { scanLiveBillReceipt } from '../../lib/joinerReceiptScan';
@@ -40,9 +40,8 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
   const [error, setError] = useState<string | null>(null);
 
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
-  const [detectedBoundary, setDetectedBoundary] = useState<Quad | null | undefined>(undefined);
   const [editableQuad, setEditableQuad] = useState<Quad | null>(null);
-  const [isDetecting, setIsDetecting] = useState(false);
+  const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isOnline = useOnlineStatus();
@@ -50,9 +49,8 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
 
   const resetCropState = () => {
     setSelectedImg(null);
-    setDetectedBoundary(undefined);
     setEditableQuad(null);
-    setIsDetecting(false);
+    setIsLoadingImage(false);
     setIsProcessing(false);
   };
 
@@ -104,24 +102,19 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
     }
 
     setError(null);
-    setIsDetecting(true);
+    setIsLoadingImage(true);
     try {
       const img = await loadImageFile(file);
       setSelectedImg(img);
-
-      let detected: Quad | null = null;
-      try {
-        detected = await detectReceiptBoundary(img);
-      } catch (detectErr) {
-        console.error('Boundary detection failed, falling back to full image:', detectErr);
-      }
-      setDetectedBoundary(detected);
-      setEditableQuad(computeStartingQuad(detected, img));
+      // No auto-detection (see receiptEnhance.ts's detectReceiptBoundary) —
+      // always start from the full image and let the user drag the
+      // boundary in by hand.
+      setEditableQuad(computeStartingQuad(null, img));
     } catch (err) {
       console.error('Failed to load selected image:', err);
       setError('Failed to load the selected image. Please try a different photo.');
     } finally {
-      setIsDetecting(false);
+      setIsLoadingImage(false);
     }
   };
 
@@ -166,10 +159,10 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
       >
         {!selectedImg ? (
           <div>
-            <FileUpload ref={fileInputRef} label="Select receipt image" accept="image/*" error={error} onChange={handleFileChange} disabled={isDetecting} />
-            {isDetecting && (
+            <FileUpload ref={fileInputRef} label="Select receipt image" accept="image/*" error={error} onChange={handleFileChange} disabled={isLoadingImage} />
+            {isLoadingImage && (
               <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-                <Spinner size="sm" /> Analyzing photo...
+                <Spinner size="sm" /> Loading photo...
               </div>
             )}
             <div className="flex justify-end mt-4">
@@ -181,11 +174,6 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
         ) : (
           <div>
             <h3 className="font-medium mb-2 dark:text-white">Select receipt area</h3>
-            {isDetecting && !editableQuad && (
-              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-                <Spinner size="sm" /> Detecting receipt edges...
-              </div>
-            )}
             {editableQuad && (
               <>
                 <ReceiptBoundaryEditor
@@ -196,12 +184,7 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
                 />
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">Drag the corners so they line up with the receipt's edges.</p>
                 <div className="flex gap-2 mt-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setEditableQuad(computeStartingQuad(detectedBoundary ?? null, selectedImg))}
-                    disabled={isDetecting}
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => setEditableQuad(computeStartingQuad(null, selectedImg))}>
                     Reset boundary
                   </Button>
                 </div>
@@ -214,7 +197,7 @@ const JoinerScanReceiptButton = ({ code, bill, myPersonId, joinerToken, disabled
               <Button variant="secondary" onClick={closeModal} type="button">
                 Cancel
               </Button>
-              <Button onClick={handleConfirmCrop} disabled={isProcessing || isDetecting || !editableQuad}>
+              <Button onClick={handleConfirmCrop} disabled={isProcessing || !editableQuad}>
                 {isProcessing ? (
                   <div className="flex items-center">
                     <Spinner className="mr-2" />
