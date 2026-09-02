@@ -121,6 +121,19 @@ interface BillStoreActions {
 
 type BillStore = BillStoreState & BillStoreActions;
 
+// Clamps discount to >= 0 and quantity to >= 1 on a bill's raw,
+// not-yet-validated items — used only as a repair step when
+// hydrateFromSession's first parse fails. price is deliberately left
+// untouched: negative prices are valid (discount/refund lines), so an
+// out-of-range price is a genuine ItemSchema mismatch this can't repair,
+// not something to silently coerce.
+const sanitizeRawItemsForHydration = (items: Bill['items']): Bill['items'] =>
+  items.map((item) => ({
+    ...item,
+    discount: typeof item.discount === 'number' && item.discount < 0 ? 0 : item.discount,
+    quantity: typeof item.quantity === 'number' && item.quantity <= 0 ? 1 : item.quantity,
+  }));
+
 // Initial state with enhanced structure
 const initialState: BillStoreState = {
   version: BILL_STORE_VERSION,
@@ -183,16 +196,20 @@ const useBillStore = create<BillStore>()((set, get) => ({
       // Item management with enhanced consumedBy structure
       addItem: (item) =>
         set((state) => {
-          const quantity = parseInt(String(item.quantity), 10) || 1;
+          const quantity = Math.max(1, parseInt(String(item.quantity), 10) || 1);
           return {
             items: [
               ...state.items,
               {
                 id: Date.now().toString() + Math.random().toString(36),
                 name: item.name,
-                price: parseFloat(String(item.price)),
+                // price is intentionally not clamped — negative-price items
+                // are used for discount/refund/rebate lines (see
+                // bill.schema.ts's ItemSchema). quantity/discount are
+                // clamped since those genuinely have no valid negative case.
+                price: parseFloat(String(item.price)) || 0,
                 quantity,
-                discount: parseFloat(String(item.discount)) || 0,
+                discount: Math.max(0, parseFloat(String(item.discount)) || 0),
                 discountType: item.discountType || 'flat',
                 consumedBy: [],
                 splitType: defaultSplitTypeForQuantity(quantity, useSettingsStore.getState().autoQuantitySplit),
@@ -208,7 +225,16 @@ const useBillStore = create<BillStore>()((set, get) => ({
 
       updateItem: (id, data) =>
         set((state) => ({
-          items: state.items.map((item) => (item.id === id ? { ...item, ...data } : item)),
+          items: state.items.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  ...data,
+                  ...(data.discount !== undefined ? { discount: Math.max(0, data.discount) } : {}),
+                  ...(data.quantity !== undefined ? { quantity: Math.max(1, data.quantity) } : {}),
+                }
+              : item
+          ),
         })),
 
       // Tax management
@@ -427,12 +453,12 @@ const useBillStore = create<BillStore>()((set, get) => ({
       // Hydrate this scratch editor from a session's shared people pool and
       // a specific bill's fields. Called by BillEditorPage on route entry.
       hydrateFromSession: (people, bill) => {
-        const result = BillStateSchema.safeParse({
+        const buildState = (items: Bill['items']) => ({
           version: BILL_STORE_VERSION,
           billId: bill.id,
           step: 1,
           people,
-          items: bill.items,
+          items,
           taxAmount: bill.taxAmount,
           currency: bill.currency,
           exchangeRate: bill.exchangeRate,
@@ -440,6 +466,20 @@ const useBillStore = create<BillStore>()((set, get) => ({
           exchangeRateIsOverride: bill.exchangeRateIsOverride,
           title: bill.title,
         });
+
+        let result = BillStateSchema.safeParse(buildState(bill.items));
+        if (!result.success) {
+          // A bill saved with an out-of-range discount/quantity (negative
+          // discount, zero/negative quantity — price is exempt, see
+          // sanitizeRawItemsForHydration) can still be sitting in
+          // sessionStore. Re-parsing once with those fields repaired
+          // recovers the bill instead of falling all the way through to the
+          // empty-defaults branch below — which the subscription in
+          // BillEditorPage would then commit straight back to sessionStore,
+          // permanently wiping the bill's items on every load.
+          const repairedItems = sanitizeRawItemsForHydration(bill.items);
+          result = BillStateSchema.safeParse(buildState(repairedItems));
+        }
         if (!result.success) {
           console.error('Failed to hydrate billStore from session bill, falling back to defaults:', result.error);
           set({ ...initialState, billId: bill.id });

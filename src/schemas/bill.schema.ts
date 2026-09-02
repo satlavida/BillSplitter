@@ -74,7 +74,11 @@ export type ConsumedByEntry = z.output<typeof ConsumedByEntrySchema>;
 export const ItemSchema = z.object({
   id: z.string(),
   name: z.string(),
-  price: z.number().nonnegative(),
+  // Intentionally not .nonnegative() — negative-price items are used for
+  // discount/refund/rebate lines (see receiptScan.schema.ts's price
+  // transform and billStore.ts's addItem/updateItem, which no longer clamp
+  // this field for the same reason).
+  price: z.number(),
   quantity: z.number().positive().default(1),
   discount: z.number().nonnegative().default(0),
   discountType: DiscountTypeSchema.default('flat'),

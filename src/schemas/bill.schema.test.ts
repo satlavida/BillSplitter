@@ -40,10 +40,10 @@ describe('ItemSchema', () => {
     expect(item.splitType).toBe('equal');
   });
 
-  test('rejects a negative price', () => {
+  test('accepts a negative price (discount/refund line items)', () => {
     expect(
       ItemSchema.safeParse({ id: 'i1', name: 'Pizza', price: -5 }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

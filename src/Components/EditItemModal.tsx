@@ -108,6 +108,7 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: EditItemModalProps) =>
             name="discount"
             type="number"
             step="0.01"
+            min="0"
             label="Discount"
             value={formData.discount}
             onChange={handleChange}

@@ -77,6 +77,19 @@ routes documented in [live-collaboration.md](live-collaboration.md).
   (plain text, not an icon) — the repo has no icon library, so this and
   the separate `BillSettingsModal`/`SessionSettingsModal` gear icons are
   all hand-written inline `<svg>`s where a gear is actually used.
+- `Item.price` is intentionally unvalidated for sign — negative-price items
+  are used for discount/refund/rebate lines, so `ItemSchema` (`bill.schema.ts`)
+  does not call `.nonnegative()` on it, unlike `discount`/`quantity`, which do
+  have a real floor and stay clamped in `billStore.ts`'s `addItem`/`updateItem`
+  and `receiptScan.schema.ts`'s `ScannedItemSchema`. This used to be a data-
+  loss bug: `hydrateFromSession` fell back to *empty* state on any
+  `BillStateSchema` validation failure (e.g. a scanned item with a negative
+  price tripping a since-removed `.nonnegative()` on `price`), and
+  `BillEditorPage`'s commit-back subscription then persisted that empty
+  state straight into `sessionStore`, permanently wiping the bill's items.
+  `hydrateFromSession` now retries once with `discount`/`quantity` (not
+  `price`) repaired before giving up, so a bill saved with one of those
+  out-of-range fields recovers instead of losing all its items.
 - `FractionalSplitInput.tsx` ("Quantity Split") uses a `-`/value/`+`/`0`
   stepper per person (whole-unit steps by default, though the numeric
   field stays directly editable for a non-integer weight in the offline

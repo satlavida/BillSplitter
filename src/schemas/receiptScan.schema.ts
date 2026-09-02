@@ -19,20 +19,23 @@ const ScannedDiscountSchema = z
   .transform((discount) => {
     if (typeof discount === 'object') {
       return {
-        value: Number(discount.value) || 0,
+        value: Math.max(0, Number(discount.value) || 0),
         discountType: discount.discountType || 'flat',
       };
     }
-    return { value: Number(discount) || 0, discountType: 'flat' as const };
+    return { value: Math.max(0, Number(discount) || 0), discountType: 'flat' as const };
   });
 
 export const ScannedItemSchema = z.object({
   name: z.string(),
+  // price is intentionally not clamped — negative-price items are used for
+  // discount/refund lines (see bill.schema.ts's ItemSchema). quantity has no
+  // valid non-positive case, so that stays clamped.
   price: z.union([z.number(), z.string()]).transform((v) => Number(v) || 0),
   quantity: z
     .union([z.number(), z.string()])
     .optional()
-    .transform((v) => (v === undefined ? 1 : parseInt(String(v), 10) || 1)),
+    .transform((v) => (v === undefined ? 1 : Math.max(1, parseInt(String(v), 10) || 1))),
   discount: ScannedDiscountSchema.optional(),
 });
 export type ScannedItem = z.infer<typeof ScannedItemSchema>;
