@@ -40,6 +40,11 @@ for the full feature list and a route → doc index.
   no-ORM, no-premature-abstraction style already used in this repo.
 - **Check `src/ui/components.tsx` for an existing generic component before
   building a new one-off** (see UI kit note under Stack below).
+- **Whenever a change adds/removes/renames a route, changes a page's
+  seed-data requirements, or otherwise affects what `npm run screenshots`
+  walks**, update `screenshots/capture.spec.ts` (and the seeded session in
+  its setup, if that changed) in the same piece of work — see
+  `screenshots/README.md`'s "Adding a new page" section.
 
 ## Stack
 

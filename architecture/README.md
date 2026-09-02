@@ -49,3 +49,8 @@ existing file, plus a row in the tables below.
 | `/dev/receipt-scan-test` (dev-only, `import.meta.env.DEV`) | `Pages/DevReceiptScanTestPage.tsx` | [receipt-enhance.md](receipt-enhance.md) |
 
 Backend routes are listed per-feature in each doc's Backend section.
+
+Changing this table (adding/removing/renaming a client-facing route or a
+page's seed-data needs) also means updating `screenshots/capture.spec.ts` —
+see `screenshots/README.md`'s "Adding a new page" section and the root
+`CLAUDE.md` workflow rule.

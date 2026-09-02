@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, type ChangeEvent, type MouseEvent, type RefObject } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import useSessionStore from '../sessionStore';
-import { Button, Modal, FileUpload, Spinner, Alert } from '../ui/components';
+import { Button, Modal, Spinner, Alert } from '../ui/components';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import ReceiptBoundaryEditor, { computeStartingQuad } from './ReceiptBoundaryEditor';
 import { enhanceReceiptFromImageAndQuad, loadImageFile, type Quad } from '../lib/receiptEnhance';
@@ -62,64 +62,6 @@ const ModeSelectionModal = ({ isOpen, onClose, onSelectUpload, onSelectCapture }
   );
 };
 
-interface ReceiptFilePickerProps {
-  onCancel: () => void;
-  error: string | null;
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  onFileInputClick: () => void;
-  onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  useCameraCapture: boolean | undefined;
-  isLoadingImage: boolean;
-}
-
-// Step 1: pick/capture a receipt photo. Selecting a file immediately hands
-// off to the crop step below (loads the image + runs boundary detection)
-// rather than requiring a separate "submit" click.
-const ReceiptFilePicker = ({
-  onCancel,
-  error,
-  fileInputRef,
-  onFileInputClick,
-  onFileChange,
-  useCameraCapture,
-  isLoadingImage,
-}: ReceiptFilePickerProps) => {
-  // Only intercept the click if useCameraCapture is undefined
-  const handleFileInputClick = (e: MouseEvent<HTMLInputElement>) => {
-    if (useCameraCapture === undefined && onFileInputClick) {
-      e.preventDefault();
-      onFileInputClick();
-    }
-  };
-
-  return (
-    <div>
-      <FileUpload
-        ref={fileInputRef}
-        label={useCameraCapture ? 'Take photo of receipt' : 'Select receipt image'}
-        accept="image/*"
-        capture={useCameraCapture ? 'environment' : undefined}
-        error={error}
-        onClick={handleFileInputClick}
-        onChange={onFileChange}
-        disabled={isLoadingImage}
-      />
-
-      {isLoadingImage && (
-        <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-          <Spinner size="sm" /> Loading photo...
-        </div>
-      )}
-
-      <div className="flex justify-end mt-4">
-        <Button variant="secondary" onClick={onCancel} type="button">
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 // Main ScanReceiptButton Component
 const ScanReceiptButton = () => {
   const { sessionId, billId } = useParams<{ sessionId: string; billId: string }>();
@@ -155,15 +97,17 @@ const ScanReceiptButton = () => {
     setIsProcessing(false);
   };
 
+  // Jumps straight to the "gallery or camera" choice — no separate
+  // "Upload Receipt" landing step in between.
   const openModal = () => {
     if (!isOnline) {
       setIsOfflineModalOpen(true);
       return;
     }
-    setIsModalOpen(true);
     setError(null);
     setUseCameraCapture(undefined);
     resetCropState();
+    setIsModeSelectionOpen(true);
   };
 
   const closeModal = () => {
@@ -178,10 +122,6 @@ const ScanReceiptButton = () => {
 
   const closeOfflineModal = () => {
     setIsOfflineModalOpen(false);
-  };
-
-  const openModeSelection = () => {
-    setIsModeSelectionOpen(true);
   };
 
   // Session-page "Scan New Bill" (SessionHomePage.tsx's handleScanNewBill)
@@ -240,6 +180,10 @@ const ScanReceiptButton = () => {
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+
+    // Show the modal now — it renders the loading/error/crop step below,
+    // in place of the old separate "Upload Receipt" landing step.
+    setIsModalOpen(true);
 
     const validationError = validateImageFile(file);
     if (validationError) {
@@ -322,6 +266,18 @@ const ScanReceiptButton = () => {
         </div>
       )}
 
+      {/* Hidden always-mounted input so the mode-selection modal's choice
+          can trigger a click on it directly — no intermediate "Upload
+          Receipt" step shown first. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        {...(useCameraCapture ? { capture: 'environment' as const } : {})}
+        onChange={handleFileChange}
+      />
+
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
@@ -329,15 +285,34 @@ const ScanReceiptButton = () => {
         className={selectedImg ? 'max-w-2xl max-h-[85vh] overflow-y-auto' : undefined}
       >
         {!selectedImg ? (
-          <ReceiptFilePicker
-            onCancel={closeModal}
-            error={error}
-            fileInputRef={fileInputRef}
-            onFileInputClick={openModeSelection}
-            onFileChange={handleFileChange}
-            useCameraCapture={useCameraCapture}
-            isLoadingImage={isLoadingImage}
-          />
+          <div>
+            {isLoadingImage && (
+              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+                <Spinner size="sm" /> Loading photo...
+              </div>
+            )}
+
+            {error && <Alert type="error">{error}</Alert>}
+
+            <div className="flex justify-end mt-4 gap-2">
+              {error && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setError(null);
+                    setIsModeSelectionOpen(true);
+                  }}
+                  type="button"
+                >
+                  Try Again
+                </Button>
+              )}
+              <Button variant="secondary" onClick={closeModal} type="button">
+                Cancel
+              </Button>
+            </div>
+          </div>
         ) : (
           <div>
             <h3 className="font-medium mb-2 dark:text-white">Select receipt area</h3>
