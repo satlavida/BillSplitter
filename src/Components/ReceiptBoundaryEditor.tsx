@@ -18,7 +18,7 @@ export const computeStartingQuad = (detected: Quad | null, img: HTMLImageElement
 // Shared between drawing and hit-testing so the visible "catch" ring
 // always matches the actual draggable area.
 const getHandleRadii = (refWidth: number) => ({
-  dot: Math.max(9, refWidth / 100),
+  dot: Math.max(13, refWidth / 70),
   catchRing: Math.max(26, refWidth / 30),
 });
 
@@ -26,7 +26,7 @@ const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: nu
   const points = CORNER_KEYS.map((key) => quad[key]);
   const { dot, catchRing } = getHandleRadii(refWidth);
 
-  ctx.strokeStyle = '#22c55e';
+  ctx.strokeStyle = '#2563eb';
   ctx.lineWidth = Math.max(2, refWidth / 300);
   ctx.beginPath();
   points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
@@ -36,16 +36,16 @@ const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: nu
   ctx.font = `${Math.max(16, refWidth / 40)}px sans-serif`;
   points.forEach((p, i) => {
     const isActive = i === draggingIndex;
-    const color = isActive ? '#f97316' : '#22c55e';
+    const color = isActive ? '#f97316' : '#2563eb';
 
     // Larger translucent ring showing the actual grabbable area — this is
     // the part that matters for touch, since a fingertip is much wider
     // than the thin boundary line/solid dot alone.
     ctx.beginPath();
     ctx.arc(p.x, p.y, isActive ? catchRing * 1.15 : catchRing, 0, 2 * Math.PI);
-    ctx.fillStyle = isActive ? 'rgba(249, 115, 22, 0.18)' : 'rgba(34, 197, 94, 0.15)';
+    ctx.fillStyle = isActive ? 'rgba(249, 115, 22, 0.18)' : 'rgba(37, 99, 235, 0.15)';
     ctx.fill();
-    ctx.strokeStyle = isActive ? 'rgba(249, 115, 22, 0.6)' : 'rgba(34, 197, 94, 0.5)';
+    ctx.strokeStyle = isActive ? 'rgba(249, 115, 22, 0.6)' : 'rgba(37, 99, 235, 0.5)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -58,7 +58,7 @@ const drawQuadOverlay = (ctx: CanvasRenderingContext2D, quad: Quad, refWidth: nu
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = '#166534';
+    ctx.fillStyle = '#1e3a8a';
     ctx.fillText(CORNER_LABELS[i], p.x + catchRing + 4, p.y - catchRing - 4);
   });
 };
