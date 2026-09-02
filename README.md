@@ -11,7 +11,7 @@ and, optionally, lets everyone join the same bill live from their own phone.
 ## Features
 
 - **Sessions & Bills**: Organize multiple bills (e.g. per trip or event) into sessions, each with its own people; a dashboard shows all bills, who's paid, and scan status
-- **4-Step Bill Wizard**: People → Items → Assign → Summary, with quick "paid by" and item edits along the way
+- **3-Step Bill Wizard**: Items → Assign → Summary (people are managed on the session home page), with quick "paid by" and item edits along the way
 - **Pass and Split**: Full-screen "pass the phone around the table" mode — each person swipes through items to claim what they had, instead of one person assigning everything
 - **Receipt Scanning**: Upload/capture a receipt photo to auto-extract items, prices, and tax via a vision LLM (Google Gemini), including item-level discounts; scanning runs in the background so you're never blocked
 - **Go Live (Multi-Device Collaboration)**: Turn any session into a shareable link/code — others join from their own device, claim items in real time (SSE-powered), and see a shared settlement; includes join approval, presence, and a per-session activity log
@@ -26,22 +26,22 @@ and, optionally, lets everyone join the same bill live from their own phone.
 
 ## Screenshots
 
-### Step 1: Add People
+### Session Home: People & Bills
 
-![Step 1: Add People](https://github.com/user-attachments/assets/dbfe1432-03c0-45af-985f-dad2f67df837)
-
-
-### Step 2: Enter Items
-
-![Step 2: Enter Items](https://github.com/user-attachments/assets/f95c1713-7b37-407f-b5d9-3859b9eddf87)
+![Session Home: People & Bills](readme-assets/session-home.png)
 
 
-### Step 3: Assign Items
+### Step 1: Enter Items
 
-![Step 3: Assign Items](https://github.com/user-attachments/assets/556ca8aa-90f1-4c9b-8e3f-c4232c2a6408)
+![Step 1: Enter Items](readme-assets/bill-editor-items.png)
 
-### Step 4: Bill Summary
-![Step 4: Bill Summary](https://github.com/user-attachments/assets/4a391f63-17ee-4091-b5e4-1ad182415243)
+
+### Step 2: Assign Items
+
+![Step 2: Assign Items](readme-assets/bill-editor-assign.png)
+
+### Step 3: Bill Summary
+![Step 3: Bill Summary](readme-assets/bill-editor-summary.png)
 
 
 ## Technology Stack
