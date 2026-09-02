@@ -39,6 +39,20 @@ async function disableServiceWorker(page: Page) {
   });
 }
 
+// Toggle-style controls (e.g. ItemAssignment.tsx's person pills) use Tailwind's
+// `transition-colors`, so a pill clicked immediately before a screenshot can
+// still be mid-fade when the shot is taken — the last-toggled pill in a quick
+// click loop (see the Alice/Bob toggle loops below) ends up looking washed
+// out relative to ones toggled earlier. Rather than padding every click site
+// with timeouts, kill all CSS transitions/animations for the page up front —
+// call once per page/context right after its first goto (a HashRouter SPA
+// navigation doesn't reload the document, so this survives subsequent
+// `page.goto('/#/...')` calls within the same page; a fresh page/context,
+// like the joiner's, needs its own call).
+async function disableAnimations(page: Page) {
+  await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
+}
+
 test('capture all client pages', async ({ page, browser }, testInfo) => {
   test.slow();
   const shoot = createShooter(testInfo.project.name);
@@ -46,6 +60,7 @@ test('capture all client pages', async ({ page, browser }, testInfo) => {
   // --- Creator: new session, people, a fully-split bill ---
   await disableServiceWorker(page);
   await page.goto('/');
+  await disableAnimations(page);
   await page.waitForURL(/#\/session\/[^/]+$/);
   const sessionId = page.url().match(/#\/session\/([^/]+)/)![1];
 
@@ -108,6 +123,7 @@ test('capture all client pages', async ({ page, browser }, testInfo) => {
   // index.html at an empty hash and RootRedirect silently sends us to a
   // brand-new session instead of the join flow.
   await joinerPage.goto(`/#/join/${code}`);
+  await disableAnimations(joinerPage);
   await expect(joinerPage.getByPlaceholder('Enter your name')).toBeVisible();
   await shoot(joinerPage, 'join-form');
 

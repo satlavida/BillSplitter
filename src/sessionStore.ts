@@ -627,7 +627,14 @@ const useSessionStore = create<SessionStore>()(
       },
 
       addBill: (sessionId, billData) => {
-        const newBill = newBillDefaults(billData);
+        // Default a new bill to the session's own currency, not the
+        // hardcoded newBillDefaults fallback — otherwise a session whose
+        // currency isn't INR gets bills silently created in the wrong
+        // currency with no exchange rate set, which then get mislabeled on
+        // the Settlement page (getEffectiveRate falls back to 1:1 when a
+        // mismatched-currency bill has no rate yet — see settlement.ts).
+        const session = get().sessions.find((s) => s.id === sessionId);
+        const newBill = newBillDefaults({ currency: session?.currency, ...billData });
         let created = false;
         let liveCode: string | null = null;
 
